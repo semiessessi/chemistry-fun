@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { ALL_ORBITALS, ORBITAL_MAP, ORBITAL_TREE } from './orbitals.js';
-import { sampleGridAsync, cancelCompute } from './worker-pool.js';
+import { sampleGridAsync, renderLayersAsync, cancelCompute } from './worker-pool.js';
 import { computeMultiThresholds, computeThreshold } from './grid.js';
 import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
 import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
@@ -521,7 +521,7 @@ async function loadElectrostaticPotentialAsync(orbital) {
 
 let chargeCache = null; // { posData, negData, halfExtent, gridSize }
 
-function renderChargeVisualisation() {
+async function renderChargeVisualisation() {
   if (!chargeCache) return;
   const { posData, negData, halfExtent, gridSize } = chargeCache;
 
@@ -530,40 +530,49 @@ function renderChargeVisualisation() {
     m.geometry.dispose();
   }
 
-  const meshes = [];
   const layers = currentLayers;
   const mats = getLayerMaterials(layers, 'charge');
+  const step = (2 * halfExtent) / (gridSize - 1);
+  const meshes = [];
 
-  const renderSide = (data, matArr) => {
-    if (layers === 1) {
-      const threshold = computeThreshold(data, currentProbability, halfExtent, gridSize);
-      const geo = buildGeometry(data, halfExtent, threshold, gridSize);
-      if (geo) {
-        const mesh = new THREE.Mesh(geo, matArr[0]);
-        scene.add(mesh);
-        meshes.push(mesh);
+  // Dispatch both sides to workers in parallel
+  const [posResult, negResult] = await Promise.all([
+    renderLayersAsync(posData, halfExtent, gridSize, currentProbability, layers, true,
+      (f) => showProgress('Rendering...', f * 0.5)),
+    renderLayersAsync(negData, halfExtent, gridSize, currentProbability, layers, true,
+      (f) => showProgress('Rendering...', 0.5 + f * 0.5)),
+  ]);
+
+  const addMeshes = (result, matArr) => {
+    if (!result) return;
+    for (const r of result.results) {
+      if (r.indices.length === 0 || r.side !== 'pos') continue;
+      const verts = r.vertices;
+      for (let i = 0; i < verts.length; i += 3) {
+        verts[i] = verts[i] * step - halfExtent;
+        verts[i + 1] = verts[i + 1] * step - halfExtent;
+        verts[i + 2] = verts[i + 2] * step - halfExtent;
       }
-    } else {
-      const thresholds = computeMultiThresholds(data, currentProbability, layers, halfExtent, gridSize);
-      for (let i = 0; i < layers; i++) {
-        const geo = buildGeometry(data, halfExtent, thresholds[i], gridSize);
-        if (geo) {
-          const mesh = new THREE.Mesh(geo, matArr[layers - 1 - i]);
-          mesh.renderOrder = i;
-          scene.add(mesh);
-          meshes.push(mesh);
-        }
-      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+      geo.setIndex(new THREE.BufferAttribute(r.indices, 1));
+      geo.computeVertexNormals();
+      const matIdx = layers === 1 ? 0 : layers - 1 - r.layer;
+      const mesh = new THREE.Mesh(geo, matArr[matIdx]);
+      if (layers > 1) mesh.renderOrder = r.layer;
+      scene.add(mesh);
+      meshes.push(mesh);
     }
   };
 
-  renderSide(posData, mats.pos); // nuclear (red)
-  renderSide(negData, mats.neg); // electronic (blue)
+  addMeshes(posResult, mats.pos); // nuclear (red)
+  addMeshes(negResult, mats.neg); // electronic (blue)
 
   currentMeshes = meshes;
   updateLegend(layers, currentProbability, 'charge');
   updateOrbitalOpacity();
   if (!showDensityField) applyDensityFieldVisibility();
+  hideProgress();
 }
 
 async function loadChargeDensityAsync(orbital) {
@@ -594,8 +603,7 @@ async function loadChargeDensityAsync(orbital) {
 
   showProgress('Rendering...', 0.7);
   clearMeshes();
-  renderChargeVisualisation();
-  hideProgress();
+  await renderChargeVisualisation();
 
   if (!isDragging && !isDynamics) {
     const dist = halfExtent * 1.8;
@@ -637,7 +645,7 @@ function triggerProbRebuild() {
     if (currentCaches.length > 0) {
       cancelCompute();
       if (isChargeDensityMode() && chargeCache) {
-        renderChargeVisualisation();
+        await renderChargeVisualisation();
       } else {
         const target = isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined;
         await renderFromCachesAsync(currentProbability, undefined, target);
@@ -654,7 +662,7 @@ layerSelect.addEventListener('change', async () => {
   if (currentCaches.length > 0) {
     cancelCompute();
     if (isChargeDensityMode() && chargeCache) {
-      renderChargeVisualisation();
+      await renderChargeVisualisation();
     } else {
       const target = isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined;
       await renderFromCachesAsync(currentProbability, undefined, target);
