@@ -941,26 +941,29 @@ export function showTriatomicContext(positions, bondPairs) {
   if (!contextGroup.parent) scene.add(contextGroup);
 }
 
-function bondOpacity(R) {
-  if (R > 8) return 0;
-  if (R > 5) return 1 - (R - 5) / 3;
-  return 1;
+function bondOpacity(R, rEq) {
+  const solidAt = rEq * 1.5;
+  const fadeEnd = rEq * 4;
+  if (R > fadeEnd) return 0;
+  if (R <= solidAt) return 1;
+  return 1 - (R - solidAt) / (fadeEnd - solidAt);
 }
 
 export function setBondCylinderOpacity(R) {
   ensureContextGroup();
-  const opacity = bondOpacity(R);
+  const opacity = bondOpacity(R, BOND_FORMING_CONFIG.R_EQ);
   bondMaterial.opacity = opacity;
   for (const cyl of bondGroups[0]) {
     cyl.visible = opacity > 0.01;
   }
 }
 
-export function setTriatomicBondOpacity(bondDistances) {
+export function setTriatomicBondOpacity(bondDistances, morseConfigs) {
   ensureContextGroup();
   bondMaterial.opacity = 0;
   for (let b = 0; b < bondDistances.length && b < 2; b++) {
-    const opacity = bondOpacity(bondDistances[b]);
+    const rEq = morseConfigs ? morseConfigs[b].R_EQ : 2.5;
+    const opacity = bondOpacity(bondDistances[b], rEq);
     bondMaterial.opacity = Math.max(bondMaterial.opacity, opacity);
     const visible = opacity > 0.01;
     for (const cyl of bondGroups[b]) cyl.visible = visible;

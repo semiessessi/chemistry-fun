@@ -28,7 +28,7 @@ const ELEMENTS = {
 
 const sphereGeo = new THREE.SphereGeometry(1, 16, 12);
 const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
-const torusGeo = new THREE.TorusGeometry(1, 0.04, 8, 48);
+const torusGeo = new THREE.TorusGeometry(1, 0.02, 8, 48);
 
 // ---- Cached materials per element ----
 
@@ -277,7 +277,7 @@ export function showMoleculeContext(orbitalName) {
     torus.position.copy(center);
     // TorusGeometry default: ring in XY plane, normal along Z
     torus.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
-    torus.scale.setScalar(ringR * 0.8);
+    torus.scale.setScalar(ringR * 0.9);
     scene.add(torus);
     contextMeshes.push(torus);
   }

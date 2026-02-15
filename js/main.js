@@ -190,9 +190,17 @@ const layerSelect = document.getElementById('layer-select');
 const ballStickToggle = document.getElementById('ball-stick-toggle');
 let showBallAndStick = ballStickToggle.checked;
 
+const densityFieldToggle = document.getElementById('density-field-toggle');
+let showDensityField = densityFieldToggle.checked;
+
 function applyBallStickVisibility() {
   setMoleculeContextVisible(showBallAndStick);
   setBondFormingContextVisible(showBallAndStick);
+}
+
+function applyDensityFieldVisibility() {
+  for (const m of currentMeshes) m.visible = showDensityField;
+  if (dynOrbitalGroup) dynOrbitalGroup.visible = showDensityField;
 }
 
 function isDensityMode() {
@@ -319,6 +327,7 @@ function renderFromCaches(probability, gridSize, targetParent, numLayers) {
 
   updateLegend(layers, probability, density);
   updateOrbitalOpacity();
+  if (!showDensityField) applyDensityFieldVisibility();
 }
 
 function loadOrbital(orbital, gridSize, targetParent) {
@@ -400,6 +409,7 @@ async function renderFromCachesAsync(probability, gridSize, targetParent, numLay
 
   updateLegend(layers, probability, density);
   updateOrbitalOpacity();
+  if (!showDensityField) applyDensityFieldVisibility();
 }
 
 async function loadOrbitalAsync(orbital, gridSize, targetParent) {
@@ -504,6 +514,7 @@ function renderBondAtR(R, lowRes) {
   const he = getHalfExtent(generated);
   loadOrbital(generated, adaptiveGrid(he, lowRes));
   showBondFormingContext(R);
+  setBondCylinderOpacity(R);
 }
 
 async function renderBondAtRAsync(R) {
@@ -512,6 +523,7 @@ async function renderBondAtRAsync(R) {
   const he = getHalfExtent(generated);
   await loadOrbitalAsync(generated, adaptiveGrid(he, false));
   showBondFormingContext(R);
+  setBondCylinderOpacity(R);
 }
 
 // ---- Dynamics orbital group management ----
@@ -813,7 +825,7 @@ dynResetBtn.addEventListener('click', () => {
       await loadOrbitalAsync(generated);
       showTriatomicContext(eqPos, triConfig.bonds);
       const eqDists = triConfig.bonds.map(([bi, bj]) => dist3(eqPos[bi], eqPos[bj]));
-      setTriatomicBondOpacity(eqDists);
+      setTriatomicBondOpacity(eqDists, triConfig.morse);
     })();
   } else {
     clearTrails(scene);
@@ -871,7 +883,7 @@ function loadSelectedOrbital() {
         await loadOrbitalAsync(generated);
         showTriatomicContext(eqPos, triConfig.bonds);
         const eqDists = triConfig.bonds.map(([bi, bj]) => dist3(eqPos[bi], eqPos[bj]));
-        setTriatomicBondOpacity(eqDists);
+        setTriatomicBondOpacity(eqDists, triConfig.morse);
         applyBallStickVisibility();
       })();
     } else {
@@ -988,6 +1000,12 @@ ballStickToggle.addEventListener('change', () => {
   applyBallStickVisibility();
 });
 
+// ---- Density Field toggle ----
+densityFieldToggle.addEventListener('change', () => {
+  showDensityField = densityFieldToggle.checked;
+  applyDensityFieldVisibility();
+});
+
 // ---- Opacity slider ----
 const opacitySlider = document.getElementById('opacity-slider');
 const opacityDisplay = document.getElementById('opacity-display');
@@ -1028,7 +1046,7 @@ function animate() {
 
     orientTriatomicDynGroup(positions, triConfig);
     showTriatomicContext(positions, triConfig.bonds);
-    setTriatomicBondOpacity(bondDists);
+    setTriatomicBondOpacity(bondDists, triConfig.morse);
     updateDyn3Info();
 
     if (SIM3_STATE.settled && !dynFinalRendered) {
