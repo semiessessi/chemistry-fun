@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electron Orbital Viewer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="top-bar">
+<div id="controls">
+  <h2>Orbital Viewer</h2>
+  <label for="d1-select">Type</label>
+  <select id="d1-select"></select>
+  <label id="d2-label" for="d2-select">Shell</label>
+  <select id="d2-select"></select>
+  <label id="d3-label" for="d3-select">Subshell</label>
+  <select id="d3-select"></select>
+  <div id="d4-wrapper">
+    <label id="d4-label" for="d4-select">Orbital</label>
+    <select id="d4-select"></select>
+  </div>
+  <label for="prob-slider">Probability Cutoff</label>
+  <input type="range" id="prob-slider" min="1" max="99" value="80">
+  <div id="prob-display">80%</div>
+  <label class="checkbox-row">
+    <input type="checkbox" id="ball-stick-toggle" checked>
+    Ball &amp; Stick Model
+  </label>
+  <label for="layer-select">Layers</label>
+  <select id="layer-select">
+    <option value="1">1</option>
+    <option value="2">2</option>
+    <option value="3">3</option>
+    <option value="5" selected>5</option>
+    <option value="8">8</option>
+    <option value="12">12</option>
+  </select>
+  <label for="opacity-slider">Opacity</label>
+  <input type="range" id="opacity-slider" min="5" max="70" value="35">
+  <div id="opacity-display">35%</div>
+  <div id="separation-wrapper" class="dropdown-hidden">
+    <label for="sep-slider">Separation</label>
+    <input type="range" id="sep-slider" min="0" max="100" value="100" step="1">
+    <div id="sep-display">R = 1.401 a₀ (0.741 Å) · E = −4.747 eV</div>
+  </div>
+  <div id="dynamics-wrapper" class="dropdown-hidden">
+    <label>Impact Parameter</label>
+    <input type="range" id="dyn-impact" min="0" max="50" value="10">
+    <div id="dyn-impact-display">b = 1.0 a&#x2080;</div>
+    <label>Approach Speed</label>
+    <input type="range" id="dyn-speed" min="1" max="30" value="10">
+    <div id="dyn-speed-display">v&#x2080; = 1.0</div>
+    <div id="dyn-buttons">
+      <button id="dyn-play">&#x25B6; Play</button>
+      <button id="dyn-reset">&#x21BA; Reset</button>
+    </div>
+    <div id="dyn-info"></div>
+  </div>
+  <div id="computing">
+    <div id="progress-label">Computing...</div>
+    <div id="progress-track"><div id="progress-fill"></div></div>
+  </div>
+</div>
+<div id="layer-key"></div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
