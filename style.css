@@ -263,13 +263,6 @@ details.section[open] > summary { margin-bottom: 6px; }
   appearance: none;
 }
 #custom-layers-input:focus { border-color: #6af; }
-/* Color curve slider */
-#color-curve-display {
-  font-size: 13px;
-  color: #6af;
-  margin-top: -10px;
-  margin-bottom: 10px;
-}
 /* Orbital Mixer */
 #mixer-wrapper select { margin-bottom: 10px; }
 .mixer-slider-row {

@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ALL_ORBITALS, ORBITAL_MAP, ORBITAL_TREE } from './orbitals.js';
 import { sampleGridAsync, renderLayersAsync, cancelCompute } from './worker-pool.js';
 import { computeMultiThresholds, computeThreshold } from './grid.js';
-import { getLayerMaterials, updateLegend, applyOpacityScale, setChargeCurve } from './layer-materials.js';
+import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
 import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
 import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
          updateMoleculeContextPositions, resetMoleculeContextPositions,
@@ -461,7 +461,6 @@ function onD3Change() {
     d4Wrapper.classList.remove('dropdown-hidden');
     populateSelect(d4Select, orbitals.map(o => o.d4 || o.name));
   }
-  updateColorCurveVisibility();
   loadSelectedOrbital();
   updateShareLink();
 }
@@ -900,24 +899,6 @@ if (opacitySlider) {
     updateShareLink();
   });
 }
-
-// ---- Color curve slider (charge visualisation) ----
-const colorCurveWrapper = document.getElementById('color-curve-wrapper');
-const colorCurveSlider = document.getElementById('color-curve-slider');
-const colorCurveDisplay = document.getElementById('color-curve-display');
-
-function updateColorCurveVisibility() {
-  const show = isChargeDensityMode();
-  colorCurveWrapper.classList.toggle('dropdown-hidden', !show);
-}
-
-colorCurveSlider.addEventListener('input', () => {
-  const power = parseInt(colorCurveSlider.value) / 10;
-  colorCurveDisplay.textContent = power === 1 ? '1.0 (linear)' : power.toFixed(1);
-  setChargeCurve(power);
-  updateLegend(currentLayers, currentProbability, 'charge');
-  updateShareLink();
-});
 
 // ---- Vibration ----
 
@@ -1445,7 +1426,6 @@ function updateShareLink() {
     p.set('vstyle', fieldStyleSelect.value);
   }
   if (!ballStickToggle.checked) p.set('atoms', '0');
-  if (parseInt(colorCurveSlider.value) !== 10) p.set('curve', colorCurveSlider.value);
   const url = window.location.origin + window.location.pathname + '?' + p.toString();
   shareLinkDiv.innerHTML = `<a href="${url}">Shareable link</a>`;
 }
@@ -1568,16 +1548,6 @@ function applyUrlParams() {
     showBallAndStick = false;
   }
 
-  // Color curve
-  if (p.has('curve')) {
-    const cv = parseInt(p.get('curve'));
-    if (cv >= 1 && cv <= 40) {
-      colorCurveSlider.value = cv;
-      const power = cv / 10;
-      colorCurveDisplay.textContent = power === 1 ? '1.0 (linear)' : power.toFixed(1);
-      setChargeCurve(power);
-    }
-  }
 
   // Update variant + pubchem link
   updateVariantDropdown(d2);

@@ -11,15 +11,24 @@ function hslToHex(h, s, l) {
   return c;
 }
 
+// t^32 via repeated squaring (5 multiplies)
+function pow32(t) {
+  const t2 = t * t;
+  const t4 = t2 * t2;
+  const t8 = t4 * t4;
+  const t16 = t8 * t8;
+  return t16 * t16;
+}
+
 // Orbital wavefunction ramps (t: 0=inner, 1=outer)
 function redRamp(t) {
-  // deep red (inner) → pale pink (outer)
-  return hslToHex(0, 80 - 30 * t, 40 + 40 * t);
+  const c = pow32(t);
+  return hslToHex(0, 80 - 30 * c, 40 + 40 * c);
 }
 
 function blueRamp(t) {
-  // deep blue (inner) → pale blue (outer)
-  return hslToHex(225, 75 - 30 * t, 40 + 40 * t);
+  const c = pow32(t);
+  return hslToHex(225, 75 - 30 * c, 40 + 40 * c);
 }
 
 function orbitalOpacity(t) {
@@ -47,16 +56,13 @@ function elevationOpacity(t) {
 }
 
 // Charge density ramps (t: 0=inner, 1=outer)
-// Power curve applied to t: p=1 linear, p>1 colors stay vivid longer, p<1 fade faster
-let chargeCurvePower = 1.0;
-
 function chargeRedRamp(t) {
-  const c = Math.pow(t, chargeCurvePower);
+  const c = pow32(t);
   return hslToHex(0, 80 * (1 - c), 40 + 60 * c);
 }
 
 function chargeBlueRamp(t) {
-  const c = Math.pow(t, chargeCurvePower);
+  const c = pow32(t);
   return hslToHex(225, 75 * (1 - c), 40 + 60 * c);
 }
 
@@ -96,23 +102,6 @@ export function getLayerMaterials(numLayers, colorMode) {
   }
   cache[key] = mats;
   return mats;
-}
-
-// ---- Charge curve update (live, no rebuild) ----
-
-export function setChargeCurve(power) {
-  chargeCurvePower = power;
-  // Update colors on all cached charge materials in-place
-  for (const key of Object.keys(cache)) {
-    if (!key.endsWith('-charge')) continue;
-    const mats = cache[key];
-    const numLayers = mats.pos.length;
-    for (let i = 0; i < numLayers; i++) {
-      const t = numLayers === 1 ? 0 : i / (numLayers - 1);
-      mats.pos[i].color.copy(chargeRedRamp(t));
-      mats.neg[i].color.copy(chargeBlueRamp(t));
-    }
-  }
 }
 
 // ---- Opacity scaling ----
