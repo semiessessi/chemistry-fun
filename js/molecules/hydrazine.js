@@ -1,31 +1,25 @@
 import { addMol } from './core.js';
 
-{
-  const NN = 1.37;
-  const NH = 1.91;
-  const ang = (112 * Math.PI) / 180;
-  const hR = NH * Math.sin(ang / 2);
-  const hZ = NH * Math.cos(ang / 2);
-  addMol({
-    name: 'N\u2082H\u2084',
-    label: 'N\u2082H\u2084 (Hydrazine)',
-    category: 'Small Organic',
+addMol({
+  name: 'N₂H₄',
+  label: 'N₂H₄ (Hydrazine)',
+  category: 'Small Organic',
   pubchemCid: 9321,
-    atoms: [
-      ['N', 0, 0, -NN],
-      ['N', 0, 0, NN],
-      ['H', hR, 0, -NN - hZ],
-      ['H', 0, hR, -NN - hZ],
-      ['H', -hR, 0, NN + hZ],
-      ['H', 0, -hR, NN + hZ],
-    ],
-    bonds: [[0, 1], [0, 2], [0, 3], [1, 4], [1, 5]],
-    he: 14,
-    mos: [
-      ['\u03C3(N-N)', [[0, 2, 1, 0, 'real', 0.7], [1, 2, 1, 0, 'real', -0.7]]],
-      ['\u03C3(N-H) sym', [[0, 2, 0, 0, 'real', 0.5], [1, 2, 0, 0, 'real', 0.5], [2, 1, 0, 0, 'real', 0.3], [3, 1, 0, 0, 'real', 0.3], [4, 1, 0, 0, 'real', 0.3], [5, 1, 0, 0, 'real', 0.3]]],
-      ['lone pair (N1)', [[0, 2, 1, 1, 'sin', 1.0]]],
-      ['lone pair (N2)', [[1, 2, 1, 1, 'cos', 1.0]]],
-    ]
-  });
-}
+  atoms: [
+    ['N', 0, 0, 1.34],
+    ['N', 0, 0, -1.34],
+    ['H', -1.02, 1.51, 1.97],
+    ['H', -0.92, -1.57, 1.98],
+    ['H', -1.81, -0.15, -1.98],
+    ['H', 0.92, -1.57, -1.97],
+  ],
+  bonds: [
+    [0, 1], [0, 2], [0, 3], [1, 4],
+    [1, 5],
+  ],
+  he: 12,
+  mos: [
+    ['N lone pair', [[0, 2, 1, 1, 'sin', 0.7], [1, 2, 1, 1, 'sin', 0.7]]],
+    ['σ frame', [[0, 2, 0, 0, 'real', 0.35], [1, 2, 0, 0, 'real', 0.35]]],
+  ]
+});

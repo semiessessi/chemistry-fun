@@ -1,88 +1,67 @@
-import { addMol, chairHexPos } from './core.js';
+import { addMol } from './core.js';
 
-{
-  const R = 2.88;
-  const dz = 0.47;
-  const atoms = [];
-  const bonds = [];
-  // Ring: C1(0) C2(1) C3(2) C4(3) C5(4) O(5) in chair
-  for (let i = 0; i < 5; i++) {
-    const [x, y, z] = chairHexPos(R, i, dz);
-    atoms.push(['C', x, y, z]);
-  }
-  {
-    const [x, y, z] = chairHexPos(R, 5, dz);
-    atoms.push(['O', x, y, z]); // 5: ring O
-  }
-  // OH groups on C1-C4 (equatorial)
-  for (let i = 0; i < 4; i++) {
-    const angle = (i * Math.PI) / 3;
-    const cx = atoms[i][1], cy = atoms[i][2], cz = atoms[i][3];
-    const ox = cx + Math.cos(angle) * 2.70;
-    const oz = cz + Math.sin(angle) * 2.70;
-    atoms.push(['O', ox, cy, oz]); // 6,8,10,12
-    atoms.push(['H', ox + Math.cos(angle) * 1.83, cy, oz + Math.sin(angle) * 1.83]); // 7,9,11,13
-  }
-  // CH₂OH on C5
-  {
-    const cx = atoms[4][1], cy = atoms[4][2], cz = atoms[4][3];
-    const angle = (4 * Math.PI) / 3;
-    atoms.push(['C', cx + Math.cos(angle) * 2.88, cy, cz + Math.sin(angle) * 2.88]); // 14: CH₂OH carbon
-    const c2x = atoms[14][1], c2z = atoms[14][3];
-    atoms.push(['O', c2x + 2.70, cy, c2z]); // 15: OH oxygen
-    atoms.push(['H', c2x + 2.70 + 1.83, cy, c2z]); // 16: OH hydrogen
-    atoms.push(['H', c2x, cy + 1.80, c2z - 1.20]); // 17: CH₂ H
-    atoms.push(['H', c2x, cy - 1.80, c2z - 1.20]); // 18: CH₂ H
-  }
-  // H on ring carbons (axial)
-  for (let i = 0; i < 5; i++) {
-    const cx = atoms[i][1], cy = atoms[i][2];
-    const axY = (i % 2 === 0) ? dz + 1.80 : -dz - 1.80;
-    atoms.push(['H', cx, axY, atoms[i][3]]); // 19-23
-  }
-  // Ring bonds
-  for (let i = 0; i < 5; i++) bonds.push([i, i + 1]);
-  bonds.push([5, 0]); // close ring O-C1
-  // C-OH bonds
-  for (let i = 0; i < 4; i++) {
-    bonds.push([i, 6 + i * 2]);       // C-O
-    bonds.push([6 + i * 2, 7 + i * 2]); // O-H
-  }
-  // C5-CH₂OH
-  bonds.push([4, 14]); bonds.push([14, 15]); bonds.push([15, 16]);
-  bonds.push([14, 17]); bonds.push([14, 18]);
-  // Ring C-H
-  for (let i = 0; i < 5; i++) bonds.push([i, 19 + i]);
-  addMol({
-    name: 'Glucose',
-    category: 'Sugar',
+addMol({
+  name: 'Glucose',
+  label: 'C₆H₁₂O₆ (Glucose)',
+  category: 'Sugar',
   pubchemCid: 5793,
-    atoms,
-    bonds,
-    he: 28,
-    mos: [
-      ['\u03C3(C-O) sym', [
-        [0, 2, 0, 0, 'real', 0.30], [1, 2, 0, 0, 'real', 0.30],
-        [2, 2, 0, 0, 'real', 0.30], [3, 2, 0, 0, 'real', 0.30],
-        [4, 2, 0, 0, 'real', 0.30], [5, 2, 0, 0, 'real', 0.35],
-        [6, 2, 0, 0, 'real', 0.22], [8, 2, 0, 0, 'real', 0.22],
-        [10, 2, 0, 0, 'real', 0.22], [12, 2, 0, 0, 'real', 0.22],
-      ]],
-      ['O lone pairs', [
-        [5, 2, 1, 1, 'sin', 0.45], [6, 2, 1, 1, 'sin', 0.35],
-        [8, 2, 1, 1, 'sin', 0.35], [10, 2, 1, 1, 'sin', 0.35],
-        [12, 2, 1, 1, 'sin', 0.35], [15, 2, 1, 1, 'sin', 0.30],
-      ]],
-      ['ring \u03C3 frame', [
-        [0, 2, 0, 0, 'real', 0.38], [1, 2, 0, 0, 'real', 0.38],
-        [2, 2, 0, 0, 'real', 0.38], [3, 2, 0, 0, 'real', 0.38],
-        [4, 2, 0, 0, 'real', 0.38],
-      ]],
-      ['\u03C3(O-H)', [
-        [7, 1, 0, 0, 'real', 0.35], [9, 1, 0, 0, 'real', 0.35],
-        [11, 1, 0, 0, 'real', 0.35], [13, 1, 0, 0, 'real', 0.35],
-        [16, 1, 0, 0, 'real', 0.35],
-      ]],
-    ]
-  });
-}
+  atoms: [
+    ['O', 2.19, 0.49, -1.26],
+    ['O', -4.63, -0.64, -1.68],
+    ['O', -3.91, 0.89, 3.52],
+    ['O', 1.02, -0.87, 5.41],
+    ['O', 5.02, 0.49, 2.12],
+    ['O', 1.84, -0.35, -6.38],
+    ['C', -2.36, 0.43, -0.7],
+    ['C', -2.02, -0.37, 2.05],
+    ['C', -0.12, -0.45, -2.31],
+    ['C', 0.6, 0.35, 3.04],
+    ['C', 2.67, -0.48, 1.21],
+    ['C', -0.3, 0.52, -5.02],
+    ['H', -2.56, 2.5, -0.8],
+    ['H', -2.36, -2.4, 2.28],
+    ['H', -0.02, -2.52, -2.37],
+    ['H', 0.68, 2.39, 3.39],
+    ['H', 2.86, -2.54, 1.13],
+    ['H', -0.29, 2.59, -5.09],
+    ['H', -2, -0.17, -5.96],
+    ['H', -4.46, -2.47, -1.61],
+    ['H', -5.55, 0.42, 2.83],
+    ['H', 0.94, -2.69, 5.13],
+    ['H', 4.73, 2.16, 2.81],
+    ['H', 3.34, 0.27, -5.52],
+  ],
+  bonds: [
+    [0, 8], [0, 10], [1, 6], [1, 19],
+    [2, 7], [2, 20], [3, 9], [3, 21],
+    [4, 10], [4, 22], [5, 11], [5, 23],
+    [6, 7], [6, 8], [6, 12], [7, 9],
+    [7, 13], [8, 11], [8, 14], [9, 10],
+    [9, 15], [10, 16], [11, 17], [11, 18],
+  ],
+  he: 13,
+  mos: [
+    ['O lone pair', [
+      [0, 2, 1, 1, 'sin', 0.5],
+      [1, 2, 1, 1, 'sin', 0.5],
+      [2, 2, 1, 1, 'sin', 0.5],
+      [3, 2, 1, 1, 'sin', 0.5],
+      [4, 2, 1, 1, 'sin', 0.5],
+      [5, 2, 1, 1, 'sin', 0.5],
+    ]],
+    ['σ frame', [
+      [0, 2, 0, 0, 'real', 0.35],
+      [1, 2, 0, 0, 'real', 0.35],
+      [2, 2, 0, 0, 'real', 0.35],
+      [3, 2, 0, 0, 'real', 0.35],
+      [4, 2, 0, 0, 'real', 0.35],
+      [5, 2, 0, 0, 'real', 0.35],
+      [6, 2, 0, 0, 'real', 0.35],
+      [7, 2, 0, 0, 'real', 0.35],
+      [8, 2, 0, 0, 'real', 0.35],
+      [9, 2, 0, 0, 'real', 0.35],
+      [10, 2, 0, 0, 'real', 0.35],
+      [11, 2, 0, 0, 'real', 0.35],
+    ]],
+  ]
+});

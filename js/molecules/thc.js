@@ -1,167 +1,117 @@
-import { addMol, hexPos } from './core.js';
+import { addMol } from './core.js';
 
-// ============================================================
-// THC (Δ⁹-Tetrahydrocannabinol) — C₂₁H₃₀O₂ — simplified
-// ============================================================
-{
-  // 3 fused 6-rings (A aromatic, B cyclohexene, C pyran) + pentyl + methyls
-  const a = 2.64, s30 = a*0.5, c30 = a*Math.sqrt(3)/2;
-  // Ring A aromatic: 0-5 (center at origin)
-  // Ring B fused at 4-5 edge of A (right side)
-  // Ring C pyran fused at 0-5 edge of A (left side)
-  // Shared atoms: A shares edge 4-5 with B, and 0-5 with C
-  // For 3-ring linear fusion like anthracene:
-  //   Left ring A: center at (-2*c30, 0)
-  //   Middle ring shares atoms, center at origin
-  //   Right ring B: center at (2*c30, 0)
-  // But THC has rings A,B,C sharing atom 5 (index 5 at bottom of A)
-  // Simpler: build all atoms explicitly
-  // Ring A (aromatic) uses corrected naphthalene layout: shared edge = a, not 2a
-  // Ring B (cyclohexene) fuses at C5-C1 edge of ring A
-  // Ring C (pyran) fuses at C4-C5 edge of ring A
-  const atoms = [
-    // Ring A (aromatic): planar in xz
-    ['C', 0, 0, s30],          // 0: top
-    ['C', 0, 0, -s30],         // 1: bottom
-    ['C', -c30, 0, a],         // 2
-    ['C', -c30, 0, -a],        // 3
-    ['C', -2*c30, 0, s30],     // 4: shared with C
-    ['C', -2*c30, 0, -s30],    // 5: shared with B and C
-    // Ring B fused at 5-1 edge: 4 new atoms (6-9), extends to +x from 5 and 1
-    ['C', -c30, 0, -a-a],      // 6
-    ['C', 0, 0, -a-s30],       // 7
-    ['C', c30, 0, -a],         // 8
-    ['C', c30, 0, -s30-a+a],   // 9: = (c30, 0, s30) but that overlaps C0...
-    // Actually, ring B fuses at edge C1-C5 which is at x=0,z=-s30 to x=-2c30,z=-s30
-    // The C1-C5 edge direction is (-2c30, 0, 0). Ring B extends in -z from this edge.
-    // Ring B atoms (extending below):
-    //   6: (-c30, 0, -a)  -- but this is where C3 is! Conflict.
-    // Actually in real THC, ring B shares edge C4a-C8a with ring A.
-    // Let me use a proper 3-ring linear fusion along x:
-    // Ring A centered at origin, ring B centered at (-2*c30, 0), ring C centered at (+2*c30, 0)
-    // Ring A: 0-5, Ring B shares 4,5 with A, Ring C shares 0,1 with A (or vice versa)
-  ];
-  // Restart with cleaner geometry: 3 fused rings along x-axis
-  atoms.length = 0;
-  // Ring A (aromatic, center): atoms 0-5
-  for (let i = 0; i < 6; i++) atoms.push(['C', ...hexPos(a, i)]); // 0-5
-  // Ring B (cyclohexene) fused at C3-C4 edge (left side), extends left
-  // Shared atoms: C3 and C4. New atoms: 6,7,8,9
-  const c3 = hexPos(a, 3), c4 = hexPos(a, 4);
-  const bm = [(c3[0]+c4[0])/2, 0, (c3[2]+c4[2])/2]; // midpoint
-  const bl = Math.sqrt(bm[0]*bm[0]+bm[2]*bm[2])||1;
-  const bn = [bm[0]/bl, 0, bm[2]/bl]; // outward direction
-  const bed = [c4[0]-c3[0], 0, c4[2]-c3[2]]; // edge direction
-  const bel = Math.sqrt(bed[0]*bed[0]+bed[2]*bed[2])||1;
-  const bep = [bed[0]/bel, 0, bed[2]/bel]; // edge unit
-  // Place 4 new ring B atoms extending outward from C3-C4
-  atoms.push(['C', c4[0]+bn[0]*a*0.87+bep[0]*s30, 0, c4[2]+bn[2]*a*0.87+bep[2]*s30]); // 6
-  atoms.push(['C', c4[0]+bn[0]*a*0.87+bn[0]*a*0.87+bep[0]*0, 0, c4[2]+bn[2]*a*0.87+bn[2]*a*0.87]); // too complex
-  // Actually let me just build ring B as a translated hexagon sharing the C3-C4 edge
-  // Ring B center = ring A center + 2*c30 in the outward direction from C3-C4 midpoint
-  atoms.length = 6; // keep ring A
-  const rbCx = bn[0]*2*c30, rbCz = bn[2]*2*c30; // ring B center offset
-  // Ring B atoms in local frame, rotated to align shared edge
-  // The shared edge C3-C4 in ring A should match with two adjacent atoms of ring B
-  // Angle of C3: hexPos(a,3) = (a*cos(180°), 0, a*sin(180°)) = (-a, 0, 0)
-  // Angle of C4: hexPos(a,4) = (a*cos(240°), 0, a*sin(240°)) = (-a/2, 0, -a*√3/2)
-  // Midpoint direction from center: (-3a/4, 0, -a√3/4), normalize
-  // For ring B: place its hex so that its atoms at positions 0 and 1 coincide with C4 and C3
-  // Ring B hex: local angle offset so pos 0 aligns with C4 direction from ring B center
-  // Ring B center is at 2*c30 in the outward direction from ring A center through the C3-C4 midpoint
-  // The outward direction from midpoint of C3,C4 is: bn = normalize(mid(C3,C4))
-  const rbC = [rbCx, 0, rbCz]; // ring B center
-  // ring B pos 0 should be at C4, so C4 = rbC + a*[cos(θ0), 0, sin(θ0)]
-  // Solve for θ0: cos(θ0) = (C4.x - rbC.x)/a, sin(θ0) = (C4.z - rbC.z)/a
-  const rbTheta0 = Math.atan2(c4[2]-rbC[2], c4[0]-rbC[0]);
-  // Ring B atoms: skip 0 (=C4, idx 4) and 5 (=C3, idx 3), add 1-4 as new
-  for (let i = 1; i < 5; i++) {
-    const ang = rbTheta0 + i * Math.PI / 3;
-    atoms.push(['C', rbC[0]+a*Math.cos(ang), 0, rbC[2]+a*Math.sin(ang)]); // 6,7,8,9
-  }
-  // Ring C (pyran, O-containing) fused at C0-C5 edge (right side), extends right
-  const c0 = hexPos(a, 0), c5 = hexPos(a, 5);
-  const cm = [(c0[0]+c5[0])/2, 0, (c0[2]+c5[2])/2];
-  const cl = Math.sqrt(cm[0]*cm[0]+cm[2]*cm[2])||1;
-  const cn = [cm[0]/cl, 0, cm[2]/cl]; // outward direction
-  const rcC = [cn[0]*2*c30, 0, cn[2]*2*c30]; // ring C center
-  const rcTheta0 = Math.atan2(c5[2]-rcC[2], c5[0]-rcC[0]);
-  // Ring C: pos 0 = C5 (idx 5), pos 5 = C0 (idx 0), new atoms at pos 1-4
-  // But ring C is a pyran (one O): replace one atom with O
-  atoms.push(['O', rcC[0]+a*Math.cos(rcTheta0+Math.PI/3), 0, rcC[2]+a*Math.sin(rcTheta0+Math.PI/3)]); // 10: O
-  for (let i = 2; i < 5; i++) {
-    const ang = rcTheta0 + i * Math.PI / 3;
-    atoms.push(['C', rcC[0]+a*Math.cos(ang), 0, rcC[2]+a*Math.sin(ang)]); // 11,12,13
-  }
-  // OH on C2 (ring A, para to pentyl attachment)
-  const c2 = hexPos(a, 2);
-  const c2n = [c2[0]/a, 0, c2[2]/a]; // outward unit
-  atoms.push(['O', c2[0]+c2n[0]*2.70, 0, c2[2]+c2n[2]*2.70]); // 14: OH
-  atoms.push(['H', c2[0]+c2n[0]*4.53, 0, c2[2]+c2n[2]*4.53]); // 15
-  // Pentyl chain from C0 (outward from ring A)
-  const c0n = [c0[0]/a, 0, c0[2]/a]; // outward unit from C0
-  for (let i = 1; i <= 5; i++) {
-    atoms.push(['C', c0[0]+c0n[0]*2.88*i, 0, c0[2]+c0n[2]*2.88*i]); // 16-20
-  }
-  // Gem-dimethyl on C8 (ring B)
-  atoms.push(['C', atoms[8][1], 2.88, atoms[8][3]]); // 21
-  atoms.push(['C', atoms[8][1], -2.88, atoms[8][3]]); // 22
-  // H on ring A: C1, C3
-  const c1 = hexPos(a, 1);
-  const c1n = [c1[0]/a, 0, c1[2]/a];
-  const c3n = [c3[0]/a, 0, c3[2]/a];
-  atoms.push(['H', c1[0]+c1n[0]*2.06, 0, c1[2]+c1n[2]*2.06]); // 23
-  atoms.push(['H', c3[0]+c3n[0]*2.06, 0, c3[2]+c3n[2]*2.06]); // 24 (if C3 has H - check bonds)
-  // H on ring B carbons (6,7,8,9): each sp3 C gets 1-2H
-  // C6,C9: 2 ring bonds each + H → need 1-2H (sp3 with 2H or sp2 with 1H)
-  // For cyclohexene: C6=C7 double bond, C8,C9 single. So C6,C7 are sp2 (1H), C8,C9 are sp3 (2H)
-  atoms.push(['H', atoms[6][1], 2.06, atoms[6][3]]); // 25: H on C6
-  atoms.push(['H', atoms[7][1], 2.06, atoms[7][3]]); // 26: H on C7
-  atoms.push(['H', atoms[9][1], 2.06, atoms[9][3]]); // 27: H on C9
-  atoms.push(['H', atoms[9][1], -2.06, atoms[9][3]]); // 28: H on C9
-  // H on ring C non-O carbons (11,12,13): sp3, 1H each (other bond to ring)
-  atoms.push(['H', atoms[11][1], 2.06, atoms[11][3]]); // 29
-  atoms.push(['H', atoms[12][1], 2.06, atoms[12][3]]); // 30
-  atoms.push(['H', atoms[13][1], 2.06, atoms[13][3]]); // 31
-  // H on pentyl chain: 2H per CH₂ (16-19), 3H on terminal CH₃ (20)
-  for (let i = 16; i <= 19; i++) {
-    atoms.push(['H', atoms[i][1], 2.06, atoms[i][3]]);
-    atoms.push(['H', atoms[i][1], -2.06, atoms[i][3]]);
-  } // 32-39
-  atoms.push(['H', atoms[20][1]+c0n[0]*2.06, 0, atoms[20][3]+c0n[2]*2.06]); // 40
-  atoms.push(['H', atoms[20][1], 2.06, atoms[20][3]]); // 41
-  atoms.push(['H', atoms[20][1], -2.06, atoms[20][3]]); // 42
-  // H on gem-dimethyl: 3H each
-  atoms.push(['H', atoms[21][1]+1.94, atoms[21][2]+0.68, atoms[21][3]]); // 43
-  atoms.push(['H', atoms[21][1]-0.97, atoms[21][2]+1.68, atoms[21][3]]); // 44
-  atoms.push(['H', atoms[21][1]-0.97, atoms[21][2]-1.00, atoms[21][3]+1.78]); // 45
-  atoms.push(['H', atoms[22][1]+1.94, atoms[22][2]-0.68, atoms[22][3]]); // 46
-  atoms.push(['H', atoms[22][1]-0.97, atoms[22][2]-1.68, atoms[22][3]]); // 47
-  atoms.push(['H', atoms[22][1]-0.97, atoms[22][2]+1.00, atoms[22][3]+1.78]); // 48
-  const bonds = [
-    [0,1,1.5],[1,2,1.5],[2,3,1.5],[3,4,1.5],[4,5,1.5],[5,0,1.5], // ring A
-    [4,6],[6,7,2],[7,8],[8,9],[9,3], // ring B (C6=C7 double)
-    [5,10],[10,11],[11,12],[12,13],[13,0], // ring C pyran
-    [2,14],[14,15], // OH
-    [0,16],[16,17],[17,18],[18,19],[19,20], // pentyl
-    [8,21],[8,22], // gem-dimethyl
-    [1,23],[3,24], // ring A H
-    [6,25],[7,26],[9,27],[9,28], // ring B H
-    [11,29],[12,30],[13,31], // ring C H
-    [16,32],[16,33],[17,34],[17,35],[18,36],[18,37],[19,38],[19,39], // pentyl CH₂ H
-    [20,40],[20,41],[20,42], // pentyl CH₃
-    [21,43],[21,44],[21,45],[22,46],[22,47],[22,48], // gem-dimethyl H
-  ];
-  addMol({
-    name: 'THC', category: 'Drug',
+addMol({
+  name: 'THC',
+  label: 'C₂₁H₃₀O₂ (THC)',
+  category: 'Drug',
   pubchemCid: 16078,
-    label: 'C\u2082\u2081H\u2083\u2080O\u2082 (THC)',
-    atoms, bonds, he: 30,
-    mos: [
-      ['\u03C0 ring A', [[0,2,1,1,'sin',0.33],[1,2,1,1,'sin',0.33],[2,2,1,1,'sin',0.33],[3,2,1,1,'sin',0.33],[4,2,1,1,'sin',0.33],[5,2,1,1,'sin',0.33]]],
-      ['O lone pair (phenol)', [[14,2,1,1,'cos',0.8]]],
-      ['O lone pair (pyran)', [[10,2,1,1,'cos',0.8]]],
-      ['\u03C3 frame', [[0,2,0,0,'real',0.2],[1,2,0,0,'real',0.2],[2,2,0,0,'real',0.2],[3,2,0,0,'real',0.2],[4,2,0,0,'real',0.2],[5,2,0,0,'real',0.2],[6,2,0,0,'real',0.2],[7,2,0,0,'real',0.2],[8,2,0,0,'real',0.2],[9,2,0,0,'real',0.2]]],
-    ]
-  });
-}
+  atoms: [
+    ['O', -3.76, 0.94, -1.09],
+    ['O', 5.09, -1.57, -0.75],
+    ['C', -1.75, 0.32, -5.22],
+    ['C', 0.6, -0.93, -4.01],
+    ['C', -4.12, -0.14, -3.57],
+    ['C', -1.96, -0.53, -7.99],
+    ['C', 0.74, -0.15, -1.25],
+    ['C', 0.35, 0.36, -9.49],
+    ['C', 2.92, -0.42, -5.6],
+    ['C', 2.81, 0.18, -8.07],
+    ['C', -1.43, 0.71, 0],
+    ['C', -6.6, 0.9, -4.68],
+    ['C', -4.51, -2.98, -3.08],
+    ['C', 2.97, -0.43, 0.17],
+    ['C', -1.33, 1.42, 2.55],
+    ['C', 5.15, 0.69, -9.6],
+    ['C', 0.92, 1.2, 3.9],
+    ['C', 3.06, 0.26, 2.72],
+    ['C', 1.01, 1.93, 6.62],
+    ['C', 0.35, -0.21, 8.47],
+    ['C', 0.34, 0.65, 11.23],
+    ['C', -0.37, -1.52, 13],
+    ['C', -0.45, -0.66, 15.74],
+    ['H', -1.45, 2.38, -5.23],
+    ['H', 0.39, -3, -4.01],
+    ['H', -3.66, 0.22, -8.89],
+    ['H', -2.08, -2.6, -8.09],
+    ['H', 0.06, 2.35, -10.03],
+    ['H', 0.46, -0.73, -11.25],
+    ['H', 4.79, -0.57, -4.8],
+    ['H', -6.4, 2.91, -5.12],
+    ['H', -7.16, -0.09, -6.41],
+    ['H', -8.14, 0.75, -3.31],
+    ['H', -6.24, -3.28, -1.97],
+    ['H', -4.73, -4.04, -4.84],
+    ['H', -3.02, -3.87, -1.96],
+    ['H', -3.03, 2.11, 3.48],
+    ['H', 5.08, 2.59, -10.4],
+    ['H', 5.31, -0.67, -11.15],
+    ['H', 6.87, 0.54, -8.46],
+    ['H', 4.79, 0.02, 3.8],
+    ['H', 2.89, 2.67, 7.07],
+    ['H', -0.28, 3.53, 6.94],
+    ['H', 1.7, -1.77, 8.23],
+    ['H', -1.52, -0.98, 7.99],
+    ['H', 6.4, -1.59, 0.54],
+    ['H', 2.21, 1.38, 11.74],
+    ['H', -1.01, 2.21, 11.47],
+    ['H', 1, -3.06, 12.81],
+    ['H', -2.23, -2.28, 12.48],
+    ['H', -1.85, 0.84, 16.01],
+    ['H', -0.96, -2.24, 16.98],
+    ['H', 1.39, 0.06, 16.35],
+  ],
+  bonds: [
+    [0, 4], [0, 10], [1, 13], [1, 45],
+    [2, 3], [2, 4], [2, 5], [2, 23],
+    [3, 6], [3, 8], [3, 24], [4, 11],
+    [4, 12], [5, 7], [5, 25], [5, 26],
+    [6, 10, 1.5], [6, 13, 1.5], [7, 9], [7, 27],
+    [7, 28], [8, 9, 2], [8, 29], [9, 15],
+    [10, 14, 1.5], [11, 30], [11, 31], [11, 32],
+    [12, 33], [12, 34], [12, 35], [13, 17, 1.5],
+    [14, 16, 1.5], [14, 36], [15, 37], [15, 38],
+    [15, 39], [16, 17, 1.5], [16, 18], [17, 40],
+    [18, 19], [18, 41], [18, 42], [19, 20],
+    [19, 43], [19, 44], [20, 21], [20, 46],
+    [20, 47], [21, 22], [21, 48], [21, 49],
+    [22, 50], [22, 51], [22, 52],
+  ],
+  he: 23,
+  mos: [
+    ['π ring', [
+      [6, 2, 1, 1, 'sin', 0.41],
+      [10, 2, 1, 1, 'sin', 0.41],
+      [13, 2, 1, 1, 'sin', 0.41],
+      [14, 2, 1, 1, 'sin', 0.41],
+      [16, 2, 1, 1, 'sin', 0.41],
+      [17, 2, 1, 1, 'sin', 0.41],
+    ]],
+    ['π(C=C)', [[8, 2, 1, 1, 'sin', 0.65], [9, 2, 1, 1, 'sin', 0.65]]],
+    ['O lone pair', [[0, 2, 1, 1, 'sin', 0.7], [1, 2, 1, 1, 'sin', 0.7]]],
+    ['σ frame', [
+      [0, 2, 0, 0, 'real', 0.35],
+      [1, 2, 0, 0, 'real', 0.35],
+      [2, 2, 0, 0, 'real', 0.35],
+      [3, 2, 0, 0, 'real', 0.35],
+      [4, 2, 0, 0, 'real', 0.35],
+      [5, 2, 0, 0, 'real', 0.35],
+      [6, 2, 0, 0, 'real', 0.35],
+      [7, 2, 0, 0, 'real', 0.35],
+      [8, 2, 0, 0, 'real', 0.35],
+      [9, 2, 0, 0, 'real', 0.35],
+      [10, 2, 0, 0, 'real', 0.35],
+      [11, 2, 0, 0, 'real', 0.35],
+      [12, 2, 0, 0, 'real', 0.35],
+      [13, 2, 0, 0, 'real', 0.35],
+      [14, 2, 0, 0, 'real', 0.35],
+      [15, 2, 0, 0, 'real', 0.35],
+      [16, 2, 0, 0, 'real', 0.35],
+      [17, 2, 0, 0, 'real', 0.35],
+      [18, 2, 0, 0, 'real', 0.35],
+      [19, 2, 0, 0, 'real', 0.35],
+      [20, 2, 0, 0, 'real', 0.35],
+      [21, 2, 0, 0, 'real', 0.35],
+      [22, 2, 0, 0, 'real', 0.35],
+    ]],
+  ]
+});
