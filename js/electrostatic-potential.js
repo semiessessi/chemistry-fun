@@ -93,6 +93,27 @@ export async function computeElectrostaticPotential(atomInfo, densityData, gridS
     potential[i] += Vel[i];
   }
 
+  // Step 4: Subtract mean boundary potential.
+  // V_nuc decays as 1/r so it's still significant at grid edges, while the
+  // Poisson solver forces V_el=0 there (underestimating electron screening).
+  // Removing this baseline makes the potential ~0 at edges and prevents
+  // isosurfaces from extending to the grid boundary for large molecules.
+  let boundarySum = 0, boundaryCount = 0;
+  for (let iz = 0; iz < N; iz++) {
+    for (let iy = 0; iy < N; iy++) {
+      for (let ix = 0; ix < N; ix++) {
+        if (ix === 0 || ix === N - 1 || iy === 0 || iy === N - 1 || iz === 0 || iz === N - 1) {
+          boundarySum += potential[iz * N2 + iy * N + ix];
+          boundaryCount++;
+        }
+      }
+    }
+  }
+  const baseline = boundaryCount > 0 ? boundarySum / boundaryCount : 0;
+  for (let i = 0; i < N3; i++) {
+    potential[i] -= baseline;
+  }
+
   return potential;
 }
 

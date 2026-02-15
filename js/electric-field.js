@@ -424,7 +424,7 @@ function createStreamlineMesh(pts, parent, coneDatas, potentialGrid, gs, he) {
     uniforms: {
       uTime: { value: 0.0 },
       uBaseColor: { value: tubeColor },
-      uOpacity: { value: 0.45 },
+      uOpacity: { value: 0.28 },
     },
     vertexShader: `
       varying vec2 vUv;
@@ -439,9 +439,9 @@ function createStreamlineMesh(pts, parent, coneDatas, potentialGrid, gs, he) {
       uniform float uOpacity;
       varying vec2 vUv;
       void main() {
-        float pattern = fract(vUv.x * 6.0 - uTime * 0.8);
+        float pattern = fract(vUv.x * 6.0 - uTime * 0.3);
         float dash = smoothstep(0.0, 0.12, pattern) * (1.0 - smoothstep(0.45, 0.57, pattern));
-        float alpha = mix(0.10, uOpacity, dash);
+        float alpha = mix(0.05, uOpacity, dash);
         gl_FragColor = vec4(uBaseColor, alpha);
       }
     `,
@@ -478,7 +478,7 @@ function createDirectionCones(coneDatas, parent, usePotColor) {
   coneGeo.translate(0, 0.075, 0);
 
   const mat = new THREE.MeshPhongMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.65,
+    color: 0xffffff, transparent: true, opacity: 0.4,
     depthWrite: false, shininess: 30,
     vertexColors: usePotColor,
   });
