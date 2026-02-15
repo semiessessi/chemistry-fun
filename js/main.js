@@ -125,7 +125,7 @@ let currentCaches = []; // Array of { data, halfExtent, gridSize }
 let currentProbability = 0.8;
 let currentLayers = 5;
 let rebuildTimeout = null;
-let currentOpacityTarget = 35; // percentage (5-70), default is half of max 70
+let currentOpacityTarget = 70; // percentage (5-90)
 
 // Perceptual opacity correction: adjusts per-layer opacity so the visual
 // combined result roughly matches the slider value, regardless of layer count.
