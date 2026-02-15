@@ -26,6 +26,7 @@ import { VibrationController, generateVibrationalModes } from './vibrations.js';
 import { TransitionController, transitionWavelength, wavelengthToRGB } from './transitions.js';
 import { renderAtomicDiagram, renderMolecularDiagram, renderDiatomicDiagram, clearDiagram } from './energy-diagram.js';
 import { computeELF } from './elf.js';
+import { MixerController, COMPONENTS, PRESETS } from './orbital-mixer.js';
 
 // ---- Dropdown elements ----
 const d1Select = document.getElementById('d1-select');
@@ -543,14 +544,23 @@ function loadSelectedOrbital() {
         vibWrapper.classList.add('dropdown-hidden');
       }
       transitionWrapper.classList.add('dropdown-hidden');
+      mixerWrapper.classList.add('dropdown-hidden');
     } else if (d1Select.value === 'Transitions') {
       clearMoleculeContext();
       vibWrapper.classList.add('dropdown-hidden');
       transitionWrapper.classList.remove('dropdown-hidden');
+      mixerWrapper.classList.add('dropdown-hidden');
+    } else if (d1Select.value === 'Orbital Mixer') {
+      clearMoleculeContext();
+      vibWrapper.classList.add('dropdown-hidden');
+      transitionWrapper.classList.add('dropdown-hidden');
+      mixerWrapper.classList.remove('dropdown-hidden');
+      populateMixerSliders();
     } else {
       clearMoleculeContext();
       vibWrapper.classList.add('dropdown-hidden');
       transitionWrapper.classList.add('dropdown-hidden');
+      mixerWrapper.classList.add('dropdown-hidden');
     }
     const startVibAfterLoad = () => {
       if (!vibWrapper.classList.contains('dropdown-hidden') &&
@@ -561,6 +571,9 @@ function loadSelectedOrbital() {
     if (orbital.isTransition) {
       // Load initial state first, then start transition build
       loadOrbitalAsync(orbital).then(() => startTransitionBuild(orbital));
+    } else if (orbital.isMixer) {
+      // Load the mixer's current orbital (with updated coefficients)
+      loadOrbitalAsync(mixer.buildOrbital());
     } else if (orbital.isELF) {
       loadELFAsync(orbital).then(startVibAfterLoad);
     } else if (orbital.isElectrostaticPotential) {
@@ -985,6 +998,9 @@ function restoreStaticMeshes() {
     for (const m of currentMeshes) m.visible = showDensityField;
     if (showFieldVis) setFieldVisVisible(true);
     vibStaticMeshesHidden = false;
+    // Re-sync opacity and legend so static view matches current settings
+    updateOrbitalOpacity();
+    updateLegend(currentLayers, currentProbability, getColorMode());
   }
 }
 
@@ -1219,6 +1235,76 @@ transitionPlayBtn.addEventListener('click', () => {
       transitionController.lastFrameIdx = 0;
     }
   }
+});
+
+// ---- Orbital Mixer ----
+
+const mixer = new MixerController();
+const mixerWrapper = document.getElementById('mixer-wrapper');
+const mixerPreset = document.getElementById('mixer-preset');
+const mixerSlidersDiv = document.getElementById('mixer-sliders');
+const mixerNormalize = document.getElementById('mixer-normalize');
+let mixerRebuildTimeout = null;
+
+function populateMixerSliders() {
+  mixerSlidersDiv.innerHTML = '';
+  const active = mixer.getActiveComponents();
+  for (const comp of active) {
+    const row = document.createElement('div');
+    row.className = 'mixer-slider-row';
+
+    const label = document.createElement('span');
+    label.className = 'mixer-label';
+    label.textContent = comp.name;
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '-100';
+    slider.max = '100';
+    slider.value = String(Math.round(mixer.coeffs[comp.index] * 100));
+    slider.dataset.idx = comp.index;
+
+    const valSpan = document.createElement('span');
+    valSpan.className = 'mixer-value';
+    valSpan.textContent = (mixer.coeffs[comp.index]).toFixed(2);
+
+    slider.addEventListener('input', () => {
+      const val = parseInt(slider.value) / 100;
+      mixer.setCoefficient(comp.index, val);
+      valSpan.textContent = val.toFixed(2);
+      scheduleMixerRebuild();
+    });
+
+    row.appendChild(label);
+    row.appendChild(slider);
+    row.appendChild(valSpan);
+    mixerSlidersDiv.appendChild(row);
+  }
+}
+
+function scheduleMixerRebuild() {
+  if (mixerRebuildTimeout) clearTimeout(mixerRebuildTimeout);
+  mixerRebuildTimeout = setTimeout(() => {
+    const orbital = mixer.buildOrbital();
+    // Replace the registered orbital in ORBITAL_MAP and tree
+    const existing = ORBITAL_MAP['Custom Mix'];
+    if (existing) {
+      existing.terms = orbital.terms;
+      existing.halfExtent = orbital.halfExtent;
+    }
+    loadOrbitalAsync(orbital);
+  }, 150);
+}
+
+mixerPreset.addEventListener('change', () => {
+  mixer.setPreset(mixerPreset.value);
+  populateMixerSliders();
+  scheduleMixerRebuild();
+});
+
+mixerNormalize.addEventListener('change', () => {
+  mixer.normalize = mixerNormalize.checked;
+  scheduleMixerRebuild();
 });
 
 // ---- Variant select ----

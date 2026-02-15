@@ -270,6 +270,30 @@ details.section[open] > summary { margin-bottom: 6px; }
   margin-top: -10px;
   margin-bottom: 10px;
 }
+/* Orbital Mixer */
+#mixer-wrapper select { margin-bottom: 10px; }
+.mixer-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.mixer-slider-row .mixer-label {
+  font-size: 11px;
+  color: #aaa;
+  min-width: 28px;
+  text-align: right;
+}
+.mixer-slider-row input[type=range] {
+  flex: 1;
+  margin-bottom: 0;
+}
+.mixer-slider-row .mixer-value {
+  font-size: 11px;
+  color: #6af;
+  min-width: 36px;
+  font-family: 'Consolas', 'Menlo', monospace;
+}
 /* Variant dropdown */
 #variant-wrapper select { margin-bottom: 14px; }
 #vib-amplitude-display {

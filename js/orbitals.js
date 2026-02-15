@@ -296,3 +296,15 @@ function registerTransitions(seriesName, seriesLabel, transitionList) {
 registerTransitions('lyman', 'Lyman', TRANSITIONS.lyman);
 registerTransitions('balmer', 'Balmer', TRANSITIONS.balmer);
 registerTransitions('paschen', 'Paschen', TRANSITIONS.paschen);
+
+// --- Orbital Mixer (placeholder, dynamically replaced by MixerController) ---
+add({
+  name: 'Custom Mix',
+  terms: [
+    { n: 2, l: 0, m: 0, angType: 'real', center: [0, 0, 0], coeff: 1 / Math.sqrt(2) },
+    { n: 2, l: 1, m: 0, angType: 'real', center: [0, 0, 0], coeff: 1 / Math.sqrt(2) },
+  ],
+  halfExtent: 18,
+  d1: 'Orbital Mixer', d2: 'Mixer', d3: 'Custom Mix', d4: null,
+  isMixer: true,
+});

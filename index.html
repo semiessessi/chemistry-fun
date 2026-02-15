@@ -38,6 +38,20 @@
     <label id="d4-label" for="d4-select">Orbital</label>
     <select id="d4-select"></select>
   </div>
+  <div id="mixer-wrapper" class="dropdown-hidden">
+    <label for="mixer-preset">Preset</label>
+    <select id="mixer-preset">
+      <option value="sp">sp</option>
+      <option value="sp2">sp²</option>
+      <option value="sp3">sp³</option>
+      <option value="custom">Custom</option>
+    </select>
+    <div id="mixer-sliders"></div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="mixer-normalize" checked>
+      Normalize
+    </label>
+  </div>
   <label for="prob-slider">Probability Cutoff</label>
   <input type="range" id="prob-slider" min="1" max="99" value="80">
   <div id="prob-display">80%</div>
