@@ -173,6 +173,16 @@ export function addMol(mol) {
     molecule: mol.name,
     isChargeDensity: true,
   });
+
+  // Electron Localization Function (ELF)
+  // Computed from per-MO grids in a separate loading pathway
+  add({
+    name: mol.name + ' ELF',
+    halfExtent: mol.he,
+    d1: 'Molecules', d2: mol.name, d3: 'ELF', d4: null,
+    molecule: mol.name,
+    isELF: true,
+  });
 }
 
 // ---- Displacement mechanism for vibrations ----

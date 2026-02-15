@@ -25,6 +25,7 @@ import { initDynamicsUI, setupDynamicsEvents, tickDynamics,
 import { VibrationController, generateVibrationalModes } from './vibrations.js';
 import { TransitionController, transitionWavelength, wavelengthToRGB } from './transitions.js';
 import { renderAtomicDiagram, renderMolecularDiagram, renderDiatomicDiagram, clearDiagram } from './energy-diagram.js';
+import { computeELF } from './elf.js';
 
 // ---- Dropdown elements ----
 const d1Select = document.getElementById('d1-select');
@@ -197,9 +198,10 @@ function updateOrbitalOpacity() {
 
 function isDensityMode() { return d3Select.value === 'electron density'; }
 function isChargeDensityMode() { return d3Select.value === 'charge visualisation'; }
+function isELFMode() { return d3Select.value === 'ELF'; }
 
 function getColorMode() {
-  if (isDensityMode() || isESPotentialMode()) return 'density';
+  if (isDensityMode() || isESPotentialMode() || isELFMode()) return 'density';
   if (isChargeDensityMode()) return 'charge';
   return 'orbital';
 }
@@ -227,7 +229,7 @@ function applyDensityFieldVisibility() {
 function isESPotentialMode() { return d3Select.value === 'electrostatic potential'; }
 
 function updateFieldSourceOptions() {
-  const isFieldMode = isDensityMode() || isESPotentialMode() || isChargeDensityMode();
+  const isFieldMode = isDensityMode() || isESPotentialMode() || isChargeDensityMode() || isELFMode();
   const d1 = d1Select.value;
   const hasAtoms = d1 === 'Molecules' || d1 === 'Bond Formation';
 
@@ -269,7 +271,7 @@ function updateEnergyDiagram() {
     const d3Keys = Object.keys((ORBITAL_TREE[d1] || {})[molName] || {});
     // Build MO list from d3 entries that aren't special fields
     const moList = d3Keys
-      .filter(k => k !== 'electron density' && k !== 'electrostatic potential' && k !== 'charge visualisation')
+      .filter(k => k !== 'electron density' && k !== 'electrostatic potential' && k !== 'charge visualisation' && k !== 'ELF')
       .map(k => [k]);
     renderMolecularDiagram(energyDiagramContainer, molName, moList, selectedInfo, onEnergyDiagramSelect);
   } else if (d1 === 'Molecular') {
@@ -559,6 +561,8 @@ function loadSelectedOrbital() {
     if (orbital.isTransition) {
       // Load initial state first, then start transition build
       loadOrbitalAsync(orbital).then(() => startTransitionBuild(orbital));
+    } else if (orbital.isELF) {
+      loadELFAsync(orbital).then(startVibAfterLoad);
     } else if (orbital.isElectrostaticPotential) {
       loadElectrostaticPotentialAsync(orbital).then(startVibAfterLoad);
     } else if (orbital.isChargeDensity) {
@@ -691,6 +695,33 @@ async function loadChargeDensityAsync(orbital) {
   showProgress('Rendering...', 0.7);
   clearMeshes();
   await renderChargeVisualisation();
+
+  if (!isDragging && !isDynamics) {
+    const dist = halfExtent * 1.8;
+    const dir = camera.position.clone().normalize();
+    camera.position.copy(dir.multiplyScalar(dist));
+    controls.update();
+  }
+}
+
+// ---- ELF loader ----
+
+async function loadELFAsync(orbital) {
+  cancelCompute();
+  const halfExtent = orbital.halfExtent || 14;
+  const gs = adaptiveGrid(halfExtent, false, halfExtent < 28);
+
+  showProgress('Computing ELF: sampling MOs...', 0);
+  const elfData = await computeELF(orbital.molecule, gs, halfExtent,
+    (f) => showProgress(`Computing ELF...`, f * 0.7));
+
+  if (!elfData) return;
+
+  // Store as cache for re-rendering (treated as density-like field)
+  currentCaches = [{ data: elfData, halfExtent, gridSize: gs }];
+  showProgress('Rendering ELF...', 0.7);
+  await renderFromCachesAsync(currentProbability, gs);
+  hideProgress();
 
   if (!isDragging && !isDynamics) {
     const dist = halfExtent * 1.8;
