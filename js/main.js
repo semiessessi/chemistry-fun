@@ -607,6 +607,7 @@ function cancelVibration() {
 function restoreStaticMeshes() {
   if (vibStaticMeshesHidden) {
     for (const m of currentMeshes) m.visible = showDensityField;
+    if (showFieldVis) setFieldVisVisible(true);
     vibStaticMeshesHidden = false;
   }
 }
@@ -614,6 +615,7 @@ function restoreStaticMeshes() {
 function hideStaticMeshes() {
   if (!vibStaticMeshesHidden) {
     for (const m of currentMeshes) m.visible = false;
+    setFieldVisVisible(false);
     vibStaticMeshesHidden = true;
   }
 }
@@ -647,6 +649,8 @@ async function startVibBuild() {
     gridSize: gs,
     halfExtent,
     isDensity: true,
+    showFieldVis,
+    atomInfo: showFieldVis ? getCurrentAtomInfo() : null,
   };
 
   if (isRandom) {

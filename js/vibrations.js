@@ -8,8 +8,9 @@ import { sampleGridAsync, cancelCompute } from './worker-pool.js';
 import { computeMultiThresholds } from './grid.js';
 import { getLayerMaterials } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
-import { getMoleculeData, buildDisplacedDensitySampler } from './molecules/index.js';
+import { getMoleculeData, buildDisplacedDensitySampler, getMoleculeAtoms } from './molecules/index.js';
 import { scene } from './scene.js';
+import { buildFieldVisIntoGroup } from './electric-field.js';
 
 const NUM_FRAMES = 24;
 
@@ -305,7 +306,7 @@ export class VibrationController {
 
     const {
       moleculeName, mode, mixModes, amplitude, probability, layers,
-      gridSize, halfExtent, isDensity,
+      gridSize, halfExtent, isDensity, showFieldVis, atomInfo,
     } = settings;
 
     this.moleculeName = moleculeName;
@@ -384,6 +385,22 @@ export class VibrationController {
             group.add(mesh);
           }
         }
+      }
+
+      // Build field vis (arrows/streamlines) into this frame's group
+      if (showFieldVis) {
+        let displacedAtomInfo = null;
+        if (atomInfo) {
+          displacedAtomInfo = atomInfo.map((a, ai) => ({
+            Z: a.Z,
+            x: a.x + displacements[ai][0],
+            y: a.y + displacements[ai][1],
+            z: a.z + displacements[ai][2],
+          }));
+        }
+        buildFieldVisIntoGroup(group,
+          [{ data, halfExtent: he, gridSize: gs }],
+          probability, displacedAtomInfo);
       }
 
       if (stale()) {

@@ -561,6 +561,63 @@ function collectStreamlineSeeds(grad, data, gs, he, step, bounds, useMagnitudeBo
   return seeds;
 }
 
+// ---- Standalone field vis builder (no module state, for vibration frames) ----
+
+export function buildFieldVisIntoGroup(group, caches, probability, atomInfo) {
+  if (!caches || caches.length === 0) return;
+
+  const doArrows = currentMode === 'arrows' || currentMode === 'both';
+  const doStreamlines = currentMode === 'streamlines' || currentMode === 'both';
+  const isElectrostatic = currentSource === 'electrostatic';
+  const isMagnetic = currentSource === 'magnetic';
+
+  for (const c of caches) {
+    const gs = c.gridSize;
+    const he = c.halfExtent;
+    const step = (2 * he) / (gs - 1);
+
+    let grad, bounds = null, magBounds = null;
+    const useMagnitudeBounds = isElectrostatic || isMagnetic;
+
+    if (isMagnetic && atomInfo && atomInfo.length > 0) {
+      grad = computeMagneticField(atomInfo, gs, he);
+      magBounds = computeMagnitudeBounds(grad, gs, 0.001, 0.15);
+    } else if (isElectrostatic) {
+      grad = computeGradient(c.data, gs, he);
+      for (let i = 0; i < grad.length; i++) grad[i] = -grad[i];
+      magBounds = computeMagnitudeBounds(grad, gs);
+    } else {
+      grad = computeGradient(c.data, gs, he);
+      bounds = computeFilterBounds(c.data, he, gs, probability || 0.8);
+    }
+
+    if (doArrows) {
+      const { arrows, maxMag, stride } = collectArrowCandidates(
+        grad, c.data, gs, he, step, bounds, useMagnitudeBounds, magBounds);
+      createArrowMeshes(arrows, maxMag, step, stride, group, null, gs, he);
+    }
+
+    if (doStreamlines) {
+      const seeds = collectStreamlineSeeds(
+        grad, c.data, gs, he, step, bounds, useMagnitudeBounds, magBounds);
+      const dt = step * 0.8;
+      const maxSteps = 200;
+      const coneDatas = [];
+
+      for (let j = 0; j < seeds.length; j++) {
+        const s = seeds[j];
+        const fwd = integrateStreamline(grad, gs, he, step, s.x, s.y, s.z, maxSteps, dt, 1);
+        const bwd = integrateStreamline(grad, gs, he, step, s.x, s.y, s.z, maxSteps, dt, -1);
+        bwd.reverse();
+        const allPts = bwd.concat(fwd.slice(1));
+        createStreamlineMesh(allPts, group, coneDatas, null, gs, he);
+      }
+
+      createDirectionCones(coneDatas, group, false);
+    }
+  }
+}
+
 // ---- Public API ----
 
 export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, probability, onProgress, atomInfo, potentialGrid) {
