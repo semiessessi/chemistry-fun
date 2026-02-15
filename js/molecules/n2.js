@@ -5,7 +5,10 @@ addMol({
   label: 'N\u2082 (Nitrogen)',
   category: 'Diatomic',
   pubchemCid: 947,
-  atoms: [['N', 0, 0, -1.04], ['N', 0, 0, 1.04]],
+  atoms: [
+    ['N', 0, 0, -1.05],
+    ['N', 0, 0, 1.05],
+  ],
   bonds: [[0, 1, 3]],
   he: 16,
   mos: [

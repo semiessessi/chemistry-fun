@@ -5,7 +5,10 @@ addMol({
   label: 'HF (Hydrogen Fluoride)',
   category: 'Diatomic',
   pubchemCid: 14917,
-  atoms: [['H', 0, 0, -0.87], ['F', 0, 0, 0.87]],
+  atoms: [
+    ['H', 0, 0, -0.89],
+    ['F', 0, 0, 0.89],
+  ],
   bonds: [[0, 1]],
   he: 14,
   mos: [

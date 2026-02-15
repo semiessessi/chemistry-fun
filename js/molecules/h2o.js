@@ -5,7 +5,11 @@ addMol({
   label: 'H\u2082O (Water)',
   category: 'Triatomic',
   pubchemCid: 962,
-  atoms: [['O', 0, 0, 0], ['H', 1.43, 0, 1.11], ['H', -1.43, 0, 1.11]],
+  atoms: [
+    ['O', 0, 0, -0.01],
+    ['H', 1.44, 0, 1.12],
+    ['H', -1.44, 0, 1.12],
+  ],
   bonds: [[0, 1], [0, 2]],
   he: 12,
   mos: [
