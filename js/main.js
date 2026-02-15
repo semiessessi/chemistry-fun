@@ -455,8 +455,8 @@ function loadSelectedOrbital() {
     if (d1Select.value === 'Molecules') {
       showMoleculeContext(orbital.name);
       applyBallStickVisibility();
-      // Show vibration controls for electron density mode
-      if (isDensityMode() && orbital.molecule) {
+      // Show vibration controls for any molecule field mode
+      if (orbital.molecule) {
         populateVibModes(orbital.molecule);
         vibWrapper.classList.remove('dropdown-hidden');
       } else {
@@ -466,18 +466,18 @@ function loadSelectedOrbital() {
       clearMoleculeContext();
       vibWrapper.classList.add('dropdown-hidden');
     }
+    const startVibAfterLoad = () => {
+      if (!vibWrapper.classList.contains('dropdown-hidden') &&
+          (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0)) {
+        startVibBuild();
+      }
+    };
     if (orbital.isElectrostaticPotential) {
-      loadElectrostaticPotentialAsync(orbital);
+      loadElectrostaticPotentialAsync(orbital).then(startVibAfterLoad);
     } else if (orbital.isChargeDensity) {
-      loadChargeDensityAsync(orbital);
+      loadChargeDensityAsync(orbital).then(startVibAfterLoad);
     } else {
-      loadOrbitalAsync(orbital).then(() => {
-        // After orbital load completes, auto-start vibration build if a mode is selected
-        if (!vibWrapper.classList.contains('dropdown-hidden') &&
-            (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0)) {
-          startVibBuild();
-        }
-      });
+      loadOrbitalAsync(orbital).then(startVibAfterLoad);
     }
   }
 }
@@ -750,7 +750,7 @@ let vibStaticMeshesHidden = false;
 
 function updateVibWrapperVisibility() {
   const d1 = d1Select.value;
-  const show = d1 === 'Molecules' && isDensityMode();
+  const show = d1 === 'Molecules';
   vibWrapper.classList.toggle('dropdown-hidden', !show);
   if (!show) cancelVibration();
 }
@@ -877,7 +877,9 @@ async function startVibBuild() {
     () => {
       vibProgress.classList.add('dropdown-hidden');
       vibPlayBtn.disabled = false;
-      vibPlayBtn.textContent = '\u25B6 Play';
+      hideStaticMeshes();
+      vibController.play();
+      vibPlayBtn.textContent = '\u23F8 Pause';
     }
   );
 }
