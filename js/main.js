@@ -7,7 +7,7 @@ import { sampleGridAsync, renderLayersAsync, cancelCompute } from './worker-pool
 import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
 import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
-import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible } from './molecules.js';
+import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible, MOLECULE_LABELS, MOLECULE_CATEGORIES } from './molecules.js';
 import { showBondFormingContext, clearBondFormingContext, morseEnergy,
          BOND_FORMING_CONFIG, generateH2Orbital, setActiveBondConfig, setContextAtomStyle,
          showBondFormingContextAtPositions, setBondCylinderOpacity,
@@ -28,16 +28,19 @@ const d3Label = document.getElementById('d3-label');
 const d4Label = document.getElementById('d4-label');
 const d4Wrapper = document.getElementById('d4-wrapper');
 
+const categorySelect = document.getElementById('category-select');
+const categoryWrapper = document.getElementById('category-wrapper');
+
 const D2_LABELS = { Atomic: 'Shell', Molecular: 'Basis', Hybrid: 'Hybridization', Molecules: 'Molecule', 'Bond Formation': 'Molecule' };
 const D3_LABELS = { Atomic: 'Subshell', Molecular: 'Bond Type', Hybrid: 'Lobe', Molecules: 'Orbital', 'Bond Formation': 'Orbital' };
 const D4_LABELS = { Atomic: 'Orbital', Molecular: 'Orbital', Hybrid: 'Orbital', Molecules: 'Orbital', 'Bond Formation': 'Orbital' };
 
-function populateSelect(sel, options) {
+function populateSelect(sel, options, labels) {
   sel.innerHTML = '';
   for (const text of options) {
     const opt = document.createElement('option');
     opt.value = text;
-    opt.textContent = text;
+    opt.textContent = (labels && labels[text]) || text;
     sel.appendChild(opt);
   }
 }
@@ -51,12 +54,48 @@ function getD3Orbitals() {
 }
 
 // ---- Cascading dropdown logic ----
+function populateCategoryFilter(d1) {
+  if (d1 !== 'Molecules') {
+    categoryWrapper.classList.add('dropdown-hidden');
+    return;
+  }
+  // Collect unique categories for molecules in the current tree
+  const molNames = Object.keys(ORBITAL_TREE[d1] || {});
+  const catSet = new Set();
+  for (const n of molNames) {
+    const c = MOLECULE_CATEGORIES[n];
+    if (c) catSet.add(c);
+  }
+  const cats = Array.from(catSet).sort();
+  categorySelect.innerHTML = '';
+  const allOpt = document.createElement('option');
+  allOpt.value = '';
+  allOpt.textContent = 'All';
+  categorySelect.appendChild(allOpt);
+  for (const c of cats) {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    categorySelect.appendChild(opt);
+  }
+  categoryWrapper.classList.remove('dropdown-hidden');
+}
+
+function getFilteredD2Keys(d1) {
+  const allKeys = Object.keys(ORBITAL_TREE[d1] || {});
+  if (d1 !== 'Molecules' || !categorySelect.value) return allKeys;
+  const cat = categorySelect.value;
+  return allKeys.filter(n => MOLECULE_CATEGORIES[n] === cat);
+}
+
 function onD1Change() {
   const d1 = d1Select.value;
   d2Label.textContent = D2_LABELS[d1] || 'Category';
   d3Label.textContent = D3_LABELS[d1] || 'Subcategory';
   d4Label.textContent = D4_LABELS[d1] || 'Orbital';
-  populateSelect(d2Select, Object.keys(ORBITAL_TREE[d1] || {}));
+  populateCategoryFilter(d1);
+  const labels = (d1 === 'Molecules' || d1 === 'Bond Formation') ? MOLECULE_LABELS : undefined;
+  populateSelect(d2Select, getFilteredD2Keys(d1), labels);
   onD2Change();
 }
 
@@ -100,6 +139,12 @@ function getSelectedOrbital() {
 populateSelect(d1Select, Object.keys(ORBITAL_TREE));
 
 d1Select.addEventListener('change', onD1Change);
+categorySelect.addEventListener('change', () => {
+  const d1 = d1Select.value;
+  const labels = d1 === 'Molecules' ? MOLECULE_LABELS : undefined;
+  populateSelect(d2Select, getFilteredD2Keys(d1), labels);
+  onD2Change();
+});
 d2Select.addEventListener('change', onD2Change);
 d3Select.addEventListener('change', onD3Change);
 d4Select.addEventListener('change', onD4Change);
@@ -114,7 +159,7 @@ function adaptiveGrid(halfExtent, lowRes, hiRes) {
   const targetStep = lowRes ? 0.7 : hiRes ? 0.34 : 0.45; // Bohr per voxel
   let gs = Math.round(2 * halfExtent / targetStep) + 1;
   if (gs % 2 === 0) gs++;
-  const max = lowRes ? 57 : hiRes ? 129 : 97;
+  const max = lowRes ? 57 : hiRes ? 129 : 109;  // standard raised from 97 to 109
   const min = lowRes ? 33 : hiRes ? 65 : 57;
   return Math.max(min, Math.min(max, gs));
 }
@@ -332,7 +377,7 @@ function renderFromCaches(probability, gridSize, targetParent, numLayers) {
 
 function loadOrbital(orbital, gridSize, targetParent) {
   const halfExt = getHalfExtent(orbital);
-  const gs = gridSize || adaptiveGrid(halfExt, false, !isBondForming);
+  const gs = gridSize || adaptiveGrid(halfExt, false, !isBondForming && halfExt < 28);
   currentCaches = [];
   const halfExtent = getHalfExtent(orbital);
   const parts = orbital.lobes || [orbital];
@@ -415,7 +460,7 @@ async function renderFromCachesAsync(probability, gridSize, targetParent, numLay
 async function loadOrbitalAsync(orbital, gridSize, targetParent) {
   cancelCompute();
   const halfExtent = getHalfExtent(orbital);
-  const gs = gridSize || adaptiveGrid(halfExtent, false, !isBondForming);
+  const gs = gridSize || adaptiveGrid(halfExtent, false, !isBondForming && halfExtent < 28);
   currentCaches = [];
   const parts = orbital.lobes || [orbital];
   const totalParts = parts.length;
