@@ -3771,52 +3771,70 @@ MOLECULE_LABELS['Malic Acid'] = 'C\u2084H\u2086O\u2085 (Malic Acid)';
 // Vitamin D₃ (Cholecalciferol) — C₂₇H₄₄O — simplified
 // ============================================================
 {
-  // Ring C (cyclohexane) + Ring D (cyclopentane fused at C1-C2) + triene + side chain
-  const a = 2.88, s30 = a*0.5, c30 = a*Math.sqrt(3)/2;
+  // Secosteroid: ring C (cyclohexane) fused to ring D (cyclopentane),
+  // triene from ring C, ring A fragment with OH, side chain from ring D.
+  // All coordinates explicit in xz plane.
+  const b = 2.88; // C-C single bond
+  const r6 = []; for (let i = 0; i < 6; i++) r6.push(hexPos(b, i));
+  // Ring C using hexPos: C0-C5
+  // Ring D: cyclopentane fused at C1-C2 edge of ring C
+  // Midpoint of C1-C2 shared edge
+  const mx12 = (r6[1][0]+r6[2][0])/2, mz12 = (r6[1][2]+r6[2][2])/2;
+  // Outward direction from ring C center toward midpoint
+  const ol = Math.sqrt(mx12*mx12+mz12*mz12)||1;
+  const onx = mx12/ol, onz = mz12/ol;
+  // 3 extra atoms for ring D, placed outward from shared edge
+  const d5r = 2.40; // pentane ring radius
+  // Edge direction of C1-C2
+  const edx = r6[2][0]-r6[1][0], edz = r6[2][2]-r6[1][2];
+  const el = Math.sqrt(edx*edx+edz*edz)||1;
+  const epx = -edz/el, epz = edx/el; // perpendicular outward
+  // Check which direction is outward (same as onx,onz)
+  const dot = epx*onx + epz*onz;
+  const opx = dot > 0 ? epx : -epx, opz = dot > 0 ? epz : -epz;
+  // Ring D apex and two side atoms
+  const d6x = r6[1][0] + opx*b*0.7, d6z = r6[1][2] + opz*b*0.7;
+  const d8x = r6[2][0] + opx*b*0.7, d8z = r6[2][2] + opz*b*0.7;
+  const d7x = mx12 + opx*b*1.3, d7z = mz12 + opz*b*1.3;
+
   const atoms = [
     // Ring C: C0-C5
-    ['C', 0, 0, a],        // 0
-    ['C', 0, 0, -a],       // 1 (shared with D)
-    ['C', -c30, 0, a+s30], // 2
-    ['C', -c30, 0, -a-s30],// 3 (shared with D)
-    ['C', -2*c30, 0, a],   // 4
-    ['C', -2*c30, 0, -a],  // 5
-    // Ring D: 3 new atoms fused at C1(=1) and C3(=3)
-    ['C', c30, 0, -a-s30],    // 6
-    ['C', c30*1.5, 0, -a-s30-a*0.7], // 7
-    ['C', 0, 0, -a-s30-a*1.0],  // 8
-    // Chain from C4: broken B-ring
-    ['C', -2*c30-2.88, 0, a],  // 9
-    ['C', -2*c30-5.76, 0, a],  // 10
-    ['O', -2*c30-5.76, 0, a-2.70], // 11: OH
-    ['H', -2*c30-5.76, 0, a-4.53],
-    // Triene from C5
-    ['C', -2*c30-2.53, 0, -a-1.27], // 13
-    ['C', -2*c30-5.06, 0, -a-1.27], // 14
-    // Side chain from ring D atom 7
-    ['C', c30*1.5+2.88, 0, -a-s30-a*0.7], // 15
-    ['C', c30*1.5+5.76, 0, -a-s30-a*0.7], // 16
-    ['C', c30*1.5+8.64, 0, -a-s30-a*0.7], // 17
+    ['C', ...r6[0]], ['C', ...r6[1]], ['C', ...r6[2]], ['C', ...r6[3]],
+    ['C', ...r6[4]], ['C', ...r6[5]],
+    // Ring D: C6, C7 (apex), C8 — fused at C1,C2
+    ['C', d6x, 0, d6z],  // 6
+    ['C', d7x, 0, d7z],  // 7
+    ['C', d8x, 0, d8z],  // 8
+    // Triene from C5 (broken B-ring): C=C-C=C extending outward
+    ['C', r6[5][0]/b*(b+2.53)*0.87, 0, r6[5][2]/b*(b+2.53)*0.87 - 1.27], // 9
+    ['C', r6[5][0]/b*(b+5.06)*0.80, 0, r6[5][2]/b*(b+5.06)*0.80 - 2.54], // 10
+    // Ring A fragment: 2 carbons + OH at end of triene
+    ['C', r6[5][0]/b*(b+7.59)*0.75, 0, r6[5][2]/b*(b+7.59)*0.75 - 3.81], // 11
+    ['O', r6[5][0]/b*(b+7.59)*0.75 - 2.70, 0, r6[5][2]/b*(b+7.59)*0.75 - 3.81], // 12: OH
+    ['H', r6[5][0]/b*(b+7.59)*0.75 - 4.53, 0, r6[5][2]/b*(b+7.59)*0.75 - 3.81], // 13
+    // Side chain from ring D atom 7: 3 carbons extending outward
+    ['C', d7x + opx*2.88, 0, d7z + opz*2.88], // 14
+    ['C', d7x + opx*5.76, 0, d7z + opz*5.76], // 15
+    ['C', d7x + opx*8.64, 0, d7z + opz*8.64], // 16
     // Methyl groups
-    ['C', 0, 2.88, a],     // 18: CH₃ on C0
-    ['C', c30, 2.88, -a-s30], // 19: CH₃ on C6
+    ['C', r6[0][0], 2.88, r6[0][2]], // 17: CH₃ on C0
+    ['C', d6x, 2.88, d6z],           // 18: CH₃ on C6
   ];
   const bonds = [
-    [0,2],[2,4],[4,5],[5,3],[3,1],[1,0], // ring C
-    [1,6],[6,7],[7,8],[8,3], // ring D (fused at 1,3)
-    [4,9],[9,10],[10,11],[11,12], // chain + OH
-    [5,13,2],[13,14,2], // triene
-    [7,15],[15,16],[16,17], // side chain
-    [0,18],[6,19], // methyls
+    [0,1],[1,2],[2,3],[3,4],[4,5],[5,0], // ring C
+    [1,6],[6,7],[7,8],[8,2], // ring D
+    [5,9,2],[9,10],[10,11,2],[11,12],[12,13], // triene + OH
+    [7,14],[14,15],[15,16], // side chain
+    [0,17],[6,18], // methyls
   ];
   addMol({
     name: 'Vitamin D\u2083', category: 'Vitamin',
     atoms, bonds, he: 28,
     mos: [
-      ['\u03C0 triene', [[5,2,1,1,'sin',0.4],[13,2,1,1,'sin',-0.4],[14,2,1,1,'sin',0.4]]],
-      ['O lone pair', [[11,2,1,1,'cos',0.9]]],
+      ['\u03C0 triene', [[5,2,1,1,'sin',0.4],[9,2,1,1,'sin',-0.4],[10,2,1,1,'sin',0.4],[11,2,1,1,'sin',-0.4]]],
+      ['O lone pair', [[12,2,1,1,'cos',0.9]]],
       ['\u03C3 ring C', [[0,2,0,0,'real',0.25],[1,2,0,0,'real',0.25],[2,2,0,0,'real',0.25],[3,2,0,0,'real',0.25],[4,2,0,0,'real',0.25],[5,2,0,0,'real',0.25]]],
-      ['\u03C3 ring D', [[1,2,0,0,'real',0.2],[3,2,0,0,'real',0.2],[6,2,0,0,'real',0.3],[7,2,0,0,'real',0.3],[8,2,0,0,'real',0.3]]],
+      ['\u03C3 ring D', [[1,2,0,0,'real',0.2],[2,2,0,0,'real',0.2],[6,2,0,0,'real',0.3],[7,2,0,0,'real',0.3],[8,2,0,0,'real',0.3]]],
     ]
   });
   MOLECULE_LABELS['Vitamin D\u2083'] = 'C\u2082\u2087H\u2084\u2084O (Cholecalciferol)';
