@@ -389,7 +389,7 @@ export class VibrationController {
       // Build marching cubes layers
       const group = new THREE.Group();
       const thresholds = computeMultiThresholds(data, probability, layers, he, gs);
-      const mats = getLayerMaterials(layers, isDensity);
+      const mats = getLayerMaterials(layers, isDensity ? 'density' : 'orbital');
       const step = (2 * he) / (gs - 1);
 
       for (let li = 0; li < layers; li++) {

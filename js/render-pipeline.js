@@ -92,7 +92,7 @@ export function renderFromCaches(probability, gridSize, targetParent, numLayers)
   clearFieldVis();
   const parent = targetParent || scene;
   const layers = numLayers || s.currentLayers;
-  const density = s.isDensityMode();
+  const colorMode = s.getColorMode();
   const meshes = [];
 
   for (const cache of s.currentCaches) {
@@ -101,9 +101,10 @@ export function renderFromCaches(probability, gridSize, targetParent, numLayers)
     if (layers === 1) {
       const threshold = computeThreshold(cache.data, probability, cache.halfExtent, gs);
 
+      const mats1 = colorMode !== 'orbital' ? getLayerMaterials(1, colorMode) : null;
       const posGeo = buildGeometry(cache.data, cache.halfExtent, threshold, gs);
       if (posGeo) {
-        const mesh = new THREE.Mesh(posGeo, matPositive);
+        const mesh = new THREE.Mesh(posGeo, mats1 ? mats1.pos[0] : matPositive);
         parent.add(mesh);
         meshes.push(mesh);
       }
@@ -112,7 +113,7 @@ export function renderFromCaches(probability, gridSize, targetParent, numLayers)
       for (let j = 0; j < cache.data.length; j++) negData[j] = -cache.data[j];
       const negGeo = buildGeometry(negData, cache.halfExtent, threshold, gs);
       if (negGeo) {
-        const mesh = new THREE.Mesh(negGeo, matNegative);
+        const mesh = new THREE.Mesh(negGeo, mats1 ? mats1.neg[0] : matNegative);
         parent.add(mesh);
         meshes.push(mesh);
       }
@@ -120,7 +121,7 @@ export function renderFromCaches(probability, gridSize, targetParent, numLayers)
       const thresholds = computeMultiThresholds(cache.data, probability, layers, cache.halfExtent, gs);
       const negData = new Float32Array(cache.data.length);
       for (let j = 0; j < cache.data.length; j++) negData[j] = -cache.data[j];
-      const mats = getLayerMaterials(layers, density);
+      const mats = getLayerMaterials(layers, colorMode);
 
       for (let i = 0; i < layers; i++) {
         const posGeo = buildGeometry(cache.data, cache.halfExtent, thresholds[i], gs);
@@ -143,7 +144,7 @@ export function renderFromCaches(probability, gridSize, targetParent, numLayers)
   }
 
   setState({ currentMeshes: meshes });
-  updateLegend(layers, probability, density);
+  updateLegend(layers, probability, colorMode);
   s.updateOrbitalOpacity();
   if (!s.showDensityField) s.applyDensityFieldVisibility();
   rebuildFieldVis(parent !== scene ? parent : undefined, s.getCurrentAtomInfo);
@@ -157,7 +158,7 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
   clearFieldVis();
   const parent = targetParent || scene;
   const layers = numLayers || s.currentLayers;
-  const density = s.isDensityMode();
+  const colorMode = s.getColorMode();
   const meshes = [];
 
   const totalCaches = s.currentCaches.length;
@@ -169,7 +170,7 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
     const cacheWeight = 1 / totalCaches;
 
     const result = await renderLayersAsync(
-      cache.data, cache.halfExtent, gs, probability, layers, density,
+      cache.data, cache.halfExtent, gs, probability, layers, colorMode === 'density',
       (frac) => showProgress('Rendering...', baseProgress + cacheWeight * frac)
     );
 
@@ -177,7 +178,7 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
 
     const step = (2 * cache.halfExtent) / (gs - 1);
     const he = cache.halfExtent;
-    const mats = layers === 1 ? null : getLayerMaterials(layers, density);
+    const mats = layers === 1 && colorMode === 'orbital' ? null : getLayerMaterials(layers, colorMode);
 
     for (const r of result.results) {
       if (r.indices.length === 0) continue;
@@ -193,7 +194,7 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
       geo.computeVertexNormals();
 
       let mat;
-      if (layers === 1) {
+      if (layers === 1 && !mats) {
         mat = r.side === 'pos' ? matPositive : matNegative;
       } else {
         const matIdx = layers - 1 - r.layer;
@@ -209,7 +210,7 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
   }
 
   setState({ currentMeshes: meshes });
-  updateLegend(layers, probability, density);
+  updateLegend(layers, probability, colorMode);
   s.updateOrbitalOpacity();
   if (!s.showDensityField) s.applyDensityFieldVisibility();
   rebuildFieldVis(parent !== scene ? parent : undefined, s.getCurrentAtomInfo);

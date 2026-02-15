@@ -96,6 +96,64 @@ export async function computeElectrostaticPotential(atomInfo, densityData, gridS
   return potential;
 }
 
+// ---- Charge density computation (Gaussian-smeared nuclear − electronic) ----
+
+export async function computeChargeDensity(atomInfo, densityData, gridSize, halfExtent, onProgress) {
+  const N = gridSize, N2 = N * N, N3 = N * N * N;
+  const step = (2 * halfExtent) / (N - 1);
+
+  let totalZ = 0;
+  for (const atom of atomInfo) totalZ += atom.Z;
+
+  // Normalize electron density: ∫ρ dV = totalZ
+  let densitySum = 0;
+  const voxelVol = step * step * step;
+  for (let i = 0; i < N3; i++) {
+    densitySum += densityData[i] * densityData[i] * voxelVol;
+  }
+  const elScale = densitySum > 0 ? totalZ / densitySum : 0;
+
+  // Gaussian width for smearing nuclear point charges.
+  // Larger σ spreads the nuclear charge over a wider volume, reducing the peak
+  // so it's comparable to the diffuse electronic density (peak ∝ Z/σ³).
+  const sigma = 0.8; // Bohr radii
+  const sigma2 = sigma * sigma;
+  const norm = 1 / (sigma * sigma * sigma * Math.pow(2 * Math.PI, 1.5));
+
+  const chargeData = new Float32Array(N3);
+
+  for (let iz = 0; iz < N; iz++) {
+    const z = -halfExtent + iz * step;
+    for (let iy = 0; iy < N; iy++) {
+      const y = -halfExtent + iy * step;
+      for (let ix = 0; ix < N; ix++) {
+        const x = -halfExtent + ix * step;
+        const idx = iz * N2 + iy * N + ix;
+
+        // Nuclear charge density (Gaussian-smeared)
+        let rhoNuc = 0;
+        for (const atom of atomInfo) {
+          const dx = x - atom.x, dy = y - atom.y, dz = z - atom.z;
+          const r2 = dx * dx + dy * dy + dz * dz;
+          rhoNuc += atom.Z * norm * Math.exp(-r2 / (2 * sigma2));
+        }
+
+        // Electronic charge density
+        const rhoEl = densityData[idx] * densityData[idx] * elScale;
+
+        // Net charge density: positive near nuclei, negative in electron cloud
+        chargeData[idx] = rhoNuc - rhoEl;
+      }
+    }
+    if (iz % 10 === 0 && onProgress) {
+      onProgress(iz / N);
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  return chargeData;
+}
+
 // ---- Build geometry from scalar grid ----
 
 function buildPotentialGeometry(data, halfExtent, threshold, gridSize) {

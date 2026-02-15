@@ -156,6 +156,17 @@ export function addMol(mol) {
     molecule: mol.name,
     isElectrostaticPotential: true,
   });
+
+  // Charge density: ρ_nuclear(Gaussian-smeared) − ρ_electronic
+  // Positive near nuclei, negative in electron cloud; rendered as red/blue lobes
+  add({
+    name: mol.name + ' charge visualisation',
+    customSample: densitySampler,
+    halfExtent: mol.he,
+    d1: 'Molecules', d2: mol.name, d3: 'charge visualisation', d4: null,
+    molecule: mol.name,
+    isChargeDensity: true,
+  });
 }
 
 // ---- Displacement mechanism for vibrations ----

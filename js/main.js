@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { ALL_ORBITALS, ORBITAL_MAP, ORBITAL_TREE } from './orbitals.js';
 import { sampleGridAsync, cancelCompute } from './worker-pool.js';
+import { computeMultiThresholds, computeThreshold } from './grid.js';
 import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
 import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
 import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
@@ -13,7 +14,7 @@ import { fetchPubChem, pubchemUrl, pubchemCitation, formatFormula } from './pubc
 import { BOND_FORMING_CONFIG, clearBondFormingContext,
          setBondFormingContextVisible } from './bond-forming.js';
 import { clearFieldVis, purgeFieldCache, setFieldVisVisible, setFieldMode, setFieldSource, getFieldSource } from './electric-field.js';
-import { computeElectrostaticPotential } from './electrostatic-potential.js';
+import { computeElectrostaticPotential, computeChargeDensity } from './electrostatic-potential.js';
 import { SIM_STATE, SIM3_STATE } from './dynamics.js';
 import { initRenderPipeline, adaptiveGrid, getHalfExtent, loadOrbital, loadOrbitalAsync,
          renderFromCaches, renderFromCachesAsync, rebuildFieldVis,
@@ -178,17 +179,24 @@ function getCurrentAtomInfo() {
 function updateOrbitalOpacity() {
   const T = currentOpacityTarget / 100;
   const N = currentLayers;
-  const density = isDensityMode();
-  const baseMax = density ? 0.65 : 0.70;
+  const colorMode = getColorMode();
+  const baseMax = colorMode === 'density' ? 0.65 : 0.70;
   const effectiveLayers = Math.max(1, N * 0.4);
   const correctedMax = 1 - Math.pow(1 - T, 1 / effectiveLayers);
   const scale = correctedMax / baseMax;
   matPositive.opacity = correctedMax;
   matNegative.opacity = correctedMax;
-  if (N > 1) applyOpacityScale(N, density, scale);
+  if (N > 1) applyOpacityScale(N, colorMode, scale);
 }
 
 function isDensityMode() { return d3Select.value === 'electron density'; }
+function isChargeDensityMode() { return d3Select.value === 'charge visualisation'; }
+
+function getColorMode() {
+  if (isDensityMode() || isESPotentialMode()) return 'density';
+  if (isChargeDensityMode()) return 'charge';
+  return 'orbital';
+}
 
 function applyBallStickVisibility() {
   setMoleculeContextVisible(showBallAndStick);
@@ -213,7 +221,7 @@ function applyDensityFieldVisibility() {
 function isESPotentialMode() { return d3Select.value === 'electrostatic potential'; }
 
 function updateFieldSourceOptions() {
-  const isFieldMode = isDensityMode() || isESPotentialMode();
+  const isFieldMode = isDensityMode() || isESPotentialMode() || isChargeDensityMode();
   const d1 = d1Select.value;
   const hasAtoms = d1 === 'Molecules' || d1 === 'Bond Formation';
 
@@ -244,7 +252,7 @@ function stateGetter() {
     lastSampledR, lastSampledR3, dynFinalRendered,
     lastSampledOrientations, lastSampledOrientations3,
     showFieldVis, showDensityField, showBallAndStick,
-    isDensityMode, updateOrbitalOpacity, applyDensityFieldVisibility,
+    isDensityMode, getColorMode, updateOrbitalOpacity, applyDensityFieldVisibility,
     getCurrentAtomInfo,
   };
 }
@@ -459,6 +467,8 @@ function loadSelectedOrbital() {
     }
     if (orbital.isElectrostaticPotential) {
       loadElectrostaticPotentialAsync(orbital);
+    } else if (orbital.isChargeDensity) {
+      loadChargeDensityAsync(orbital);
     } else {
       loadOrbitalAsync(orbital).then(() => {
         // After orbital load completes, auto-start vibration build if a mode is selected
@@ -493,6 +503,86 @@ async function loadElectrostaticPotentialAsync(orbital) {
   currentCaches = [{ data: potential, halfExtent, gridSize: gs }];
   showProgress('Rendering...', 0.6);
   await renderFromCachesAsync(currentProbability, gs);
+  hideProgress();
+
+  if (!isDragging && !isDynamics) {
+    const dist = halfExtent * 1.8;
+    const dir = camera.position.clone().normalize();
+    camera.position.copy(dir.multiplyScalar(dist));
+    controls.update();
+  }
+}
+
+// ---- Charge visualisation loader (two-step: density → charge) ----
+// Renders positive (nuclear) and negative (electronic) with independent
+// thresholds so both sides get balanced isosurfaces despite very different
+// spatial distributions.
+
+async function loadChargeDensityAsync(orbital) {
+  cancelCompute();
+  const halfExtent = getHalfExtent(orbital);
+  const gs = adaptiveGrid(halfExtent, false, halfExtent < 28);
+
+  // Step 1: sample electron density grid
+  showProgress('Sampling density...', 0);
+  const densityData = await sampleGridAsync(orbital, gs, halfExtent,
+    (f) => showProgress('Sampling density...', f * 0.5));
+  if (!densityData) return;
+
+  // Step 2: compute net charge visualisation (nuclear − electronic)
+  const atomInfo = getCurrentAtomInfo();
+  const chargeData = await computeChargeDensity(atomInfo, densityData, gs, halfExtent,
+    (f) => showProgress('Computing charge visualisation...', 0.5 + f * 0.2));
+
+  // Step 3: split into positive-only and negative-only (negated) arrays
+  // so each side gets independent threshold computation
+  const N3 = chargeData.length;
+  const posData = new Float32Array(N3);
+  const negData = new Float32Array(N3); // |negative values|
+  for (let i = 0; i < N3; i++) {
+    if (chargeData[i] > 0) posData[i] = chargeData[i];
+    else if (chargeData[i] < 0) negData[i] = -chargeData[i];
+  }
+
+  // Step 4: render with independent thresholds per side
+  showProgress('Rendering...', 0.7);
+  clearMeshes();
+  const meshes = [];
+  const layers = currentLayers;
+  const mats = getLayerMaterials(layers, 'charge');
+  const he = halfExtent;
+
+  const renderSide = (data, matArr) => {
+    if (layers === 1) {
+      const threshold = computeThreshold(data, currentProbability, he, gs);
+      const geo = buildGeometry(data, he, threshold, gs);
+      if (geo) {
+        const mesh = new THREE.Mesh(geo, matArr[0]);
+        scene.add(mesh);
+        meshes.push(mesh);
+      }
+    } else {
+      const thresholds = computeMultiThresholds(data, currentProbability, layers, he, gs);
+      for (let i = 0; i < layers; i++) {
+        const geo = buildGeometry(data, he, thresholds[i], gs);
+        if (geo) {
+          const mesh = new THREE.Mesh(geo, matArr[layers - 1 - i]);
+          mesh.renderOrder = i;
+          scene.add(mesh);
+          meshes.push(mesh);
+        }
+      }
+    }
+  };
+
+  renderSide(posData, mats.pos); // nuclear (red)
+  renderSide(negData, mats.neg); // electronic (blue)
+
+  currentCaches = [{ data: chargeData, halfExtent, gridSize: gs }];
+  currentMeshes = meshes;
+  updateLegend(layers, currentProbability, 'charge');
+  updateOrbitalOpacity();
+  if (!showDensityField) applyDensityFieldVisibility();
   hideProgress();
 
   if (!isDragging && !isDynamics) {

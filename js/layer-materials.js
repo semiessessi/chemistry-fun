@@ -46,6 +46,17 @@ function elevationOpacity(t) {
   return 0.65 - 0.50 * t;
 }
 
+// Charge density ramps (t: 0=inner, 1=outer)
+function chargeRedRamp(t) {
+  // deep red (inner) → white (outer)
+  return hslToHex(0, 80 * (1 - t), 40 + 60 * t);
+}
+
+function chargeBlueRamp(t) {
+  // deep blue (inner) → white (outer)
+  return hslToHex(225, 75 * (1 - t), 40 + 60 * t);
+}
+
 // ---- Material creation ----
 
 function makeMat(color, opacity) {
@@ -63,15 +74,18 @@ function makeMat(color, opacity) {
 
 const cache = {};
 
-export function getLayerMaterials(numLayers, isDensity) {
-  const key = `${numLayers}-${isDensity}`;
+export function getLayerMaterials(numLayers, colorMode) {
+  const key = `${numLayers}-${colorMode}`;
   if (cache[key]) return cache[key];
   const mats = { pos: [], neg: [] };
   for (let i = 0; i < numLayers; i++) {
     const t = numLayers === 1 ? 0 : i / (numLayers - 1); // 0=inner, 1=outer
-    if (isDensity) {
+    if (colorMode === 'density') {
       mats.pos.push(makeMat(elevationColor(t), elevationOpacity(t)));
       mats.neg.push(mats.pos[i]); // density is always positive
+    } else if (colorMode === 'charge') {
+      mats.pos.push(makeMat(chargeRedRamp(t), orbitalOpacity(t)));
+      mats.neg.push(makeMat(chargeBlueRamp(t), orbitalOpacity(t)));
     } else {
       mats.pos.push(makeMat(redRamp(t), orbitalOpacity(t)));
       mats.neg.push(makeMat(blueRamp(t), orbitalOpacity(t)));
@@ -83,13 +97,13 @@ export function getLayerMaterials(numLayers, isDensity) {
 
 // ---- Opacity scaling ----
 
-export function applyOpacityScale(numLayers, isDensity, scale) {
-  const key = `${numLayers}-${isDensity}`;
+export function applyOpacityScale(numLayers, colorMode, scale) {
+  const key = `${numLayers}-${colorMode}`;
   const mats = cache[key];
   if (!mats) return;
   for (let i = 0; i < numLayers; i++) {
     const t = numLayers === 1 ? 0 : i / (numLayers - 1);
-    const baseOp = isDensity ? elevationOpacity(t) : orbitalOpacity(t);
+    const baseOp = colorMode === 'density' ? elevationOpacity(t) : orbitalOpacity(t);
     mats.pos[i].opacity = baseOp * scale;
     if (mats.neg[i] !== mats.pos[i]) mats.neg[i].opacity = baseOp * scale;
   }
@@ -114,7 +128,7 @@ function buildGradientCSS(colorFn, opacityFn) {
   return `linear-gradient(to right, ${parts.join(', ')})`;
 }
 
-export function updateLegend(numLayers, maxProb, isDensity) {
+export function updateLegend(numLayers, maxProb, colorMode) {
   const container = document.getElementById('layer-key');
   if (!container) return;
   container.innerHTML = '';
@@ -128,8 +142,11 @@ export function updateLegend(numLayers, maxProb, isDensity) {
     container.appendChild(bar);
   };
 
-  if (isDensity) {
+  if (colorMode === 'density') {
     addBar(elevationColor, elevationOpacity);
+  } else if (colorMode === 'charge') {
+    addBar(chargeRedRamp, orbitalOpacity);
+    addBar(chargeBlueRamp, orbitalOpacity);
   } else {
     addBar(redRamp, orbitalOpacity);
     addBar(blueRamp, orbitalOpacity);
