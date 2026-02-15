@@ -4,9 +4,14 @@ export {
   showMoleculeContext,
   clearMoleculeContext,
   setMoleculeContextVisible,
+  updateMoleculeContextPositions,
+  resetMoleculeContextPositions,
   MOLECULE_LABELS,
   MOLECULE_CATEGORIES,
   getMoleculeAtoms,
+  getMoleculeData,
+  buildDisplacedOrbital,
+  buildDisplacedDensitySampler,
 } from './core.js';
 
 // Import all molecules to trigger registration

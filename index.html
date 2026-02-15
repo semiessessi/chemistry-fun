@@ -42,7 +42,7 @@
   <div id="field-options" class="dropdown-hidden">
     <select id="field-source-select">
       <option value="gradient" selected>Gradient (&nabla;&psi; / &nabla;&rho;)</option>
-      <option value="electrostatic">Electrostatic (Coulomb)</option>
+      <option value="electrostatic">Electron Field (&minus;&nabla;&rho;)</option>
       <option value="magnetic">Magnetic (B-field)</option>
     </select>
     <select id="field-style-select">
@@ -83,6 +83,22 @@
       <button id="dyn-reset">&#x21BA; Reset</button>
     </div>
     <div id="dyn-info"></div>
+  </div>
+  <div id="vibration-wrapper" class="dropdown-hidden">
+    <label for="vib-mode-select">Vibration Mode</label>
+    <select id="vib-mode-select">
+      <option value="-1">None</option>
+    </select>
+    <label for="vib-amplitude">Amplitude</label>
+    <input type="range" id="vib-amplitude" min="5" max="100" value="30">
+    <div id="vib-amplitude-display">0.30 a&#x2080;</div>
+    <div id="vib-progress" class="dropdown-hidden">
+      <div id="vib-progress-label">Building frame 0/24...</div>
+      <div id="vib-progress-track"><div id="vib-progress-fill"></div></div>
+    </div>
+    <div id="vib-buttons">
+      <button id="vib-play" disabled>&#x25B6; Play</button>
+    </div>
   </div>
   <div id="computing">
     <div id="progress-label">Computing...</div>

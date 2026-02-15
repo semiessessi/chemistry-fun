@@ -1,7 +1,7 @@
 // Vector field visualization: arrow glyphs (InstancedMesh) + streamline tubes with direction cones.
 // Supports three field sources:
 //   - Gradient: ∇ψ or ∇ρ computed via central finite differences from the cached scalar grid
-//   - Electrostatic: Coulomb field E = Σ Zᵢ(r−Rᵢ)/|r−Rᵢ|³ from nuclear point charges
+//   - Electron field: −∇ρ (negative gradient of electron density)
 //   - Magnetic: nuclear magnetic dipole B-field B = Σ μᵢ·dipole(r−Rᵢ)
 // Fully async with progress reporting. Ring-buffer cache (8 entries).
 
@@ -14,23 +14,13 @@ let currentSource = 'gradient';    // 'gradient' | 'electrostatic' | 'magnetic'
 let buildGeneration = 0;
 let currentCacheKey = null;
 
-// ---- Atomic numbers ----
-
-const ATOMIC_Z = {
-  H: 1, He: 2, C: 6, N: 7, O: 8, F: 9, Na: 11, Al: 13,
-  P: 15, S: 16, Cl: 17, Ca: 20, Ti: 22, Fe: 26, Cu: 29,
-};
-
 // ---- Ring-buffer cache ----
 
 const CACHE_SIZE = 8;
 const cache = [];
 
-function cacheFingerprint(caches, probability, atomInfo) {
+function cacheFingerprint(caches, probability) {
   let fp = `p${probability.toFixed(3)}m${currentMode}s${currentSource}`;
-  if ((currentSource === 'electrostatic' || currentSource === 'magnetic') && atomInfo) {
-    for (const a of atomInfo) fp += `|${a.Z}@${a.x.toFixed(2)},${a.y.toFixed(2)},${a.z.toFixed(2)}`;
-  }
   for (const c of caches) {
     const d = c.data;
     const n = d.length;
@@ -76,7 +66,7 @@ function yield_() {
 
 // ---- Gradient computation (central finite differences on scalar grid) ----
 
-function computeGradient(data, gridSize, halfExtent) {
+export function computeGradient(data, gridSize, halfExtent) {
   const h = (2 * halfExtent) / (gridSize - 1);
   const N = gridSize, N2 = N * N;
   const grad = new Float32Array(N * N * N * 3);
@@ -89,40 +79,6 @@ function computeGradient(data, gridSize, halfExtent) {
         grad[oi]     = (data[idx + 1]  - data[idx - 1])  / (2 * h);
         grad[oi + 1] = (data[idx + N]  - data[idx - N])  / (2 * h);
         grad[oi + 2] = (data[idx + N2] - data[idx - N2]) / (2 * h);
-      }
-    }
-  }
-  return grad;
-}
-
-// ---- Electrostatic field: E = Σ Zᵢ (r−Rᵢ)/|r−Rᵢ|³ ----
-
-function computeElectrostaticField(atomInfo, gridSize, halfExtent) {
-  const N = gridSize, N2 = N * N;
-  const step = (2 * halfExtent) / (N - 1);
-  const grad = new Float32Array(N * N * N * 3);
-  const softening2 = 0.25; // avoid singularity at nuclei
-
-  for (let iz = 0; iz < N; iz++) {
-    const z = -halfExtent + iz * step;
-    for (let iy = 0; iy < N; iy++) {
-      const y = -halfExtent + iy * step;
-      for (let ix = 0; ix < N; ix++) {
-        const x = -halfExtent + ix * step;
-        const oi = (iz * N2 + iy * N + ix) * 3;
-        let ex = 0, ey = 0, ez = 0;
-        for (const atom of atomInfo) {
-          const dx = x - atom.x, dy = y - atom.y, dz = z - atom.z;
-          const r2 = dx * dx + dy * dy + dz * dz + softening2;
-          const r = Math.sqrt(r2);
-          const f = atom.Z / (r2 * r);
-          ex += f * dx;
-          ey += f * dy;
-          ez += f * dz;
-        }
-        grad[oi] = ex;
-        grad[oi + 1] = ey;
-        grad[oi + 2] = ez;
       }
     }
   }
@@ -153,7 +109,7 @@ function computeMagneticField(atomInfo, gridSize, halfExtent) {
   const N = gridSize, N2 = N * N;
   const step = (2 * halfExtent) / (N - 1);
   const field = new Float32Array(N * N * N * 3);
-  const softening2 = 0.25; // same softening as electrostatic
+  const softening2 = 0.25;
 
   for (let iz = 0; iz < N; iz++) {
     const z = -halfExtent + iz * step;
@@ -215,7 +171,7 @@ function computeFilterBounds(data, halfExtent, gridSize, probability) {
   return { lo: outerThreshold * 0.3, hi: outerThreshold * 2.5 };
 }
 
-// ---- Electrostatic filter: magnitude-based band ----
+// ---- Magnitude-based filter band ----
 
 function computeMagnitudeBounds(grad, gridSize, loFrac = 0.02, hiFrac = 0.5) {
   const N = gridSize * gridSize * gridSize;
@@ -227,7 +183,6 @@ function computeMagnitudeBounds(grad, gridSize, loFrac = 0.02, hiFrac = 0.5) {
     mags[i] = m;
     if (m > maxMag) maxMag = m;
   }
-  // Show arrows in mid-range magnitudes (skip near-zero and very strong near nuclei)
   return { lo: maxMag * loFrac, hi: maxMag * hiFrac, mags, maxMag };
 }
 
@@ -260,6 +215,25 @@ function trilinearInterp(grad, gs, he, step, x, y, z) {
     result[c] = c0 * (1 - tz) + c1 * tz;
   }
   return result;
+}
+
+// ---- Trilinear interpolation of scalar field ----
+
+export function trilinearInterpScalar(grid, gs, he, step, x, y, z) {
+  const fx = (x + he) / step, fy = (y + he) / step, fz = (z + he) / step;
+  const ix = Math.floor(fx), iy = Math.floor(fy), iz = Math.floor(fz);
+  if (ix < 0 || ix >= gs - 1 || iy < 0 || iy >= gs - 1 || iz < 0 || iz >= gs - 1) return 0;
+
+  const tx = fx - ix, ty = fy - iy, tz = fz - iz;
+  const N = gs, N2 = N * N;
+  const i000 = iz * N2 + iy * N + ix;
+  const c00 = grid[i000] * (1 - tx) + grid[i000 + 1] * tx;
+  const c10 = grid[i000 + N] * (1 - tx) + grid[i000 + N + 1] * tx;
+  const c01 = grid[i000 + N2] * (1 - tx) + grid[i000 + N2 + 1] * tx;
+  const c11 = grid[i000 + N2 + N] * (1 - tx) + grid[i000 + N2 + N + 1] * tx;
+  const c0 = c00 * (1 - ty) + c10 * ty;
+  const c1 = c01 * (1 - ty) + c11 * ty;
+  return c0 * (1 - tz) + c1 * tz;
 }
 
 // ---- Streamline integration (RK4) ----
@@ -313,9 +287,18 @@ function integrateStreamline(grad, gs, he, step, startX, startY, startZ, maxStep
   return pts;
 }
 
-// ---- Arrow construction (InstancedMesh) ----
+// ---- Potential color ramp: red (+) → white (0) → blue (−) ----
 
-function createArrowMeshes(arrows, maxMag, step, stride, parent) {
+function potentialColor(t) {
+  // t in [-1, +1], normalized potential
+  if (t > 0) return new THREE.Color(1, 1 - 0.6 * t, 1 - 0.6 * t);  // white→red
+  const a = -t;
+  return new THREE.Color(1 - 0.7 * a, 1 - 0.7 * a, 1);  // white→blue
+}
+
+// ---- Arrow construction (InstancedMesh) with optional potential coloring ----
+
+function createArrowMeshes(arrows, maxMag, step, stride, parent, potentialGrid, gs, he) {
   if (arrows.length === 0) return;
 
   const upY = new THREE.Vector3(0, 1, 0);
@@ -325,16 +308,44 @@ function createArrowMeshes(arrows, maxMag, step, stride, parent) {
   const headGeo = new THREE.ConeGeometry(0.08, 0.25, 6);
   headGeo.translate(0, 0.125, 0);
 
-  const mat = new THREE.MeshPhongMaterial({
+  const usePotColor = potentialGrid && gs && he;
+
+  const shaftMat = new THREE.MeshPhongMaterial({
     color: 0xffffff, transparent: true, opacity: 0.8,
     depthWrite: false, shininess: 30,
+    vertexColors: usePotColor,
+  });
+  const headMat = new THREE.MeshPhongMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.8,
+    depthWrite: false, shininess: 30,
+    vertexColors: usePotColor,
   });
 
   const count = arrows.length;
-  const shaftMesh = new THREE.InstancedMesh(shaftGeo, mat, count);
-  const headMesh = new THREE.InstancedMesh(headGeo, mat.clone(), count);
+  const shaftMesh = new THREE.InstancedMesh(shaftGeo, shaftMat, count);
+  const headMesh = new THREE.InstancedMesh(headGeo, headMat, count);
   const dummy = new THREE.Object3D();
   const invMaxMag = maxMag > 0 ? 1 / maxMag : 1;
+
+  // Precompute potential range for normalization
+  let potMin = Infinity, potMax = -Infinity;
+  if (usePotColor) {
+    const potStep = (2 * he) / (gs - 1);
+    for (let i = 0; i < count; i++) {
+      const a = arrows[i];
+      const v = trilinearInterpScalar(potentialGrid, gs, he, potStep, a.x, a.y, a.z);
+      if (v < potMin) potMin = v;
+      if (v > potMax) potMax = v;
+    }
+  }
+  const potRange = Math.max(Math.abs(potMin), Math.abs(potMax)) || 1;
+
+  if (usePotColor) {
+    shaftMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
+    headMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(count * 3), 3);
+  }
+
+  const potStep = usePotColor ? (2 * he) / (gs - 1) : 0;
 
   for (let i = 0; i < count; i++) {
     const a = arrows[i];
@@ -352,47 +363,80 @@ function createArrowMeshes(arrows, maxMag, step, stride, parent) {
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     headMesh.setMatrixAt(i, dummy.matrix);
+
+    if (usePotColor) {
+      const v = trilinearInterpScalar(potentialGrid, gs, he, potStep, a.x, a.y, a.z);
+      const t = Math.max(-1, Math.min(1, v / potRange));
+      const col = potentialColor(t);
+      shaftMesh.instanceColor.setXYZ(i, col.r, col.g, col.b);
+      headMesh.instanceColor.setXYZ(i, col.r, col.g, col.b);
+    }
   }
 
   shaftMesh.instanceMatrix.needsUpdate = true;
   headMesh.instanceMatrix.needsUpdate = true;
+  if (usePotColor) {
+    shaftMesh.instanceColor.needsUpdate = true;
+    headMesh.instanceColor.needsUpdate = true;
+  }
   parent.add(shaftMesh);
   parent.add(headMesh);
   return [shaftMesh, headMesh];
 }
 
-// ---- Streamline mesh + direction cones ----
+// ---- Streamline mesh + direction cones with optional potential coloring ----
 
-function createStreamlineMesh(pts, parent, coneDatas) {
+function createStreamlineMesh(pts, parent, coneDatas, potentialGrid, gs, he) {
   if (pts.length < 4) return null;
   const vectors = pts.map(p => new THREE.Vector3(p[0], p[1], p[2]));
   const curve = new THREE.CatmullRomCurve3(vectors);
   const segments = Math.min(vectors.length * 2, 100);
   const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.02, 4, false);
 
+  let tubeColor = 0xffffff;
+  if (potentialGrid && gs && he) {
+    // Average potential along streamline path
+    const potStep = (2 * he) / (gs - 1);
+    let potSum = 0, potCount = 0, potMin = Infinity, potMax = -Infinity;
+    // Sample a subset of points for efficiency
+    const sampleStep = Math.max(1, Math.floor(pts.length / 10));
+    for (let i = 0; i < pts.length; i += sampleStep) {
+      const v = trilinearInterpScalar(potentialGrid, gs, he, potStep, pts[i][0], pts[i][1], pts[i][2]);
+      potSum += v;
+      potCount++;
+      if (v < potMin) potMin = v;
+      if (v > potMax) potMax = v;
+    }
+    // Use global magnitude estimate from endpoint range
+    const range = Math.max(Math.abs(potMin), Math.abs(potMax)) || 1;
+    const avg = potSum / potCount;
+    const t = Math.max(-1, Math.min(1, avg / range));
+    tubeColor = potentialColor(t);
+  }
+
   const mat = new THREE.MeshPhongMaterial({
-    color: 0xffffff, transparent: true, opacity: 0.45,
+    color: tubeColor, transparent: true, opacity: 0.45,
     depthWrite: false, shininess: 40, side: THREE.DoubleSide,
   });
 
   const mesh = new THREE.Mesh(tubeGeo, mat);
   parent.add(mesh);
 
-  // Collect direction cone positions along this streamline
-  const CONE_INTERVAL = 15; // place a cone every N points
+  const CONE_INTERVAL = 15;
   for (let i = CONE_INTERVAL; i < pts.length - 1; i += CONE_INTERVAL) {
     const p = pts[i];
     const pn = pts[i + 1];
     coneDatas.push({
       x: p[0], y: p[1], z: p[2],
       dx: pn[0] - p[0], dy: pn[1] - p[1], dz: pn[2] - p[2],
+      color: tubeColor,
     });
   }
 
   return mesh;
 }
 
-function createDirectionCones(coneDatas, parent) {
+function createDirectionCones(coneDatas, parent, usePotColor) {
   if (coneDatas.length === 0) return null;
 
   const upY = new THREE.Vector3(0, 1, 0);
@@ -403,10 +447,15 @@ function createDirectionCones(coneDatas, parent) {
   const mat = new THREE.MeshPhongMaterial({
     color: 0xffffff, transparent: true, opacity: 0.65,
     depthWrite: false, shininess: 30,
+    vertexColors: usePotColor,
   });
 
   const mesh = new THREE.InstancedMesh(coneGeo, mat, coneDatas.length);
   const dummy = new THREE.Object3D();
+
+  if (usePotColor) {
+    mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(coneDatas.length * 3), 3);
+  }
 
   for (let i = 0; i < coneDatas.length; i++) {
     const c = coneDatas[i];
@@ -419,9 +468,14 @@ function createDirectionCones(coneDatas, parent) {
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
+
+    if (usePotColor && c.color && c.color.isColor) {
+      mesh.instanceColor.setXYZ(i, c.color.r, c.color.g, c.color.b);
+    }
   }
 
   mesh.instanceMatrix.needsUpdate = true;
+  if (usePotColor && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   parent.add(mesh);
   return mesh;
 }
@@ -509,11 +563,11 @@ function collectStreamlineSeeds(grad, data, gs, he, step, bounds, useMagnitudeBo
 
 // ---- Public API ----
 
-export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, probability, onProgress, atomInfo) {
+export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, probability, onProgress, atomInfo, potentialGrid) {
   detachFieldVis();
   if (!caches || caches.length === 0) return;
 
-  const key = cacheFingerprint(caches, probability, atomInfo);
+  const key = cacheFingerprint(caches, probability);
 
   const hit = cacheGet(key);
   if (hit) {
@@ -559,25 +613,12 @@ export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, p
     const useMagnitudeBounds = isElectrostatic || isMagnetic;
 
     if (isMagnetic && atomInfo && atomInfo.length > 0) {
-      // Nuclear magnetic dipole B-field — 1/r³ falloff needs much wider band
       grad = computeMagneticField(atomInfo, gs, he);
       magBounds = computeMagnitudeBounds(grad, gs, 0.001, 0.15);
-    } else if (isElectrostatic && atomInfo && atomInfo.length > 0) {
-      // Nuclear Coulomb field
-      grad = computeElectrostaticField(atomInfo, gs, he);
-      // Add electron density gradient (electrons are negative charges,
-      // their field points toward higher density)
-      const densGrad = computeGradient(c.data, gs, he);
-      // Scale electron contribution: match average magnitudes
-      let nucAvg = 0, elAvg = 0;
-      const N3 = gs * gs * gs;
-      for (let i = 0; i < N3; i++) {
-        const oi = i * 3;
-        nucAvg += Math.sqrt(grad[oi] * grad[oi] + grad[oi+1] * grad[oi+1] + grad[oi+2] * grad[oi+2]);
-        elAvg += Math.sqrt(densGrad[oi] * densGrad[oi] + densGrad[oi+1] * densGrad[oi+1] + densGrad[oi+2] * densGrad[oi+2]);
-      }
-      const scale = elAvg > 0 ? -(nucAvg / elAvg) * 0.5 : 0;
-      for (let i = 0; i < grad.length; i++) grad[i] += scale * densGrad[i];
+    } else if (isElectrostatic) {
+      // Electron cloud field: −∇ρ (negative gradient of electron density)
+      grad = computeGradient(c.data, gs, he);
+      for (let i = 0; i < grad.length; i++) grad[i] = -grad[i];
       magBounds = computeMagnitudeBounds(grad, gs);
     } else {
       grad = computeGradient(c.data, gs, he);
@@ -596,7 +637,8 @@ export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, p
       await yield_();
       if (stale()) return;
 
-      const arrowMeshes = createArrowMeshes(arrows, maxMag, step, stride, fieldGroup);
+      const arrowMeshes = createArrowMeshes(arrows, maxMag, step, stride, fieldGroup,
+        potentialGrid, gs, he);
       if (arrowMeshes) fieldMeshes.push(...arrowMeshes);
       report(0.15 + arrowWeight);
       await yield_();
@@ -612,6 +654,7 @@ export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, p
       const maxSteps = 200;
       const BATCH = 10;
       const coneDatas = [];
+      const usePotColor = !!(potentialGrid && gs && he);
 
       for (let si = 0; si < seeds.length; si += BATCH) {
         if (stale()) return;
@@ -624,7 +667,8 @@ export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, p
 
           bwd.reverse();
           const allPts = bwd.concat(fwd.slice(1));
-          const mesh = createStreamlineMesh(allPts, fieldGroup, coneDatas);
+          const mesh = createStreamlineMesh(allPts, fieldGroup, coneDatas,
+            potentialGrid, gs, he);
           if (mesh) fieldMeshes.push(mesh);
         }
 
@@ -632,8 +676,7 @@ export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, p
         await yield_();
       }
 
-      // Create direction cones for all streamlines at once (single draw call)
-      const coneMesh = createDirectionCones(coneDatas, fieldGroup);
+      const coneMesh = createDirectionCones(coneDatas, fieldGroup, usePotColor);
       if (coneMesh) fieldMeshes.push(coneMesh);
     }
   }

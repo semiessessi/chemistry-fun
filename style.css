@@ -163,6 +163,57 @@ input[type=range]::-webkit-slider-thumb {
   margin-top: -10px;
   margin-bottom: 10px;
 }
+#vib-amplitude-display {
+  font-size: 12px;
+  color: #6af;
+  margin-top: -10px;
+  margin-bottom: 10px;
+  font-family: 'Consolas', 'Menlo', monospace;
+}
+#vib-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+#vib-buttons button {
+  flex: 1;
+  padding: 6px 10px;
+  background: #222;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+#vib-buttons button:hover:not(:disabled) {
+  background: #333;
+  border-color: #666;
+}
+#vib-buttons button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+#vib-progress-label {
+  font-size: 12px;
+  color: #fa5;
+  margin-bottom: 4px;
+}
+#vib-progress-track {
+  width: 100%;
+  height: 6px;
+  background: #333;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+#vib-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #6af;
+  border-radius: 3px;
+  transition: width 0.1s;
+}
 #layer-key {
   display: flex;
   flex-direction: column;

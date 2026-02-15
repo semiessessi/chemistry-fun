@@ -48,6 +48,8 @@ const bondMaterial = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 3
 // ---- Context mesh tracking ----
 
 let contextMeshes = [];
+let trackedAtoms = [];  // [{mesh, label, atomIdx, origPos, origLabelPos}]
+let trackedBonds = [];  // [{mesh, atomI, atomJ, origPos}]
 
 // ---- Molecule registry (for context rendering) ----
 
@@ -125,6 +127,54 @@ export function addMol(mol) {
     d1: 'Molecules', d2: mol.name, d3: 'electron density', d4: null,
     molecule: mol.name,
   });
+
+  // Electrostatic potential: V(r) = V_nuc(r) + V_el(r)
+  // Uses density sampler for initial grid, then transforms to potential in the load pathway
+  add({
+    name: mol.name + ' electrostatic potential',
+    customSample: densitySampler,
+    halfExtent: mol.he,
+    d1: 'Molecules', d2: mol.name, d3: 'electrostatic potential', d4: null,
+    molecule: mol.name,
+    isElectrostaticPotential: true,
+  });
+}
+
+// ---- Displacement mechanism for vibrations ----
+
+export function getMoleculeData(name) { return MOLECULES[name]; }
+
+export function buildDisplacedOrbital(moleculeName, moIndex, displacements) {
+  const mol = MOLECULES[moleculeName];
+  if (!mol) return null;
+  const [moName, termDefs] = mol.mos[moIndex];
+  const terms = termDefs.map(([atomIdx, n, l, m, angType, coeff]) => ({
+    n, l, m, angType, coeff,
+    center: [
+      mol.atoms[atomIdx][1] + displacements[atomIdx][0],
+      mol.atoms[atomIdx][2] + displacements[atomIdx][1],
+      mol.atoms[atomIdx][3] + displacements[atomIdx][2],
+    ],
+  }));
+  return { name: `${moleculeName} ${moName}`, terms, halfExtent: mol.he };
+}
+
+export function buildDisplacedDensitySampler(moleculeName, displacements) {
+  const mol = MOLECULES[moleculeName];
+  if (!mol) return null;
+  const moOrbitals = mol.mos.map((_, i) => buildDisplacedOrbital(moleculeName, i, displacements));
+  return {
+    name: `${moleculeName} density (vibrating)`,
+    customSample: (x, y, z) => {
+      let rho = 0;
+      for (const mo of moOrbitals) {
+        const psi = evaluateOrbital(mo, x, y, z);
+        rho += 2 * psi * psi;
+      }
+      return Math.sqrt(rho);
+    },
+    halfExtent: mol.he,
+  };
 }
 
 // ---- Bond rendering helpers ----
@@ -207,8 +257,8 @@ export function showMoleculeContext(orbitalName) {
   }
 
   // Nuclei + atom labels
-  for (const atom of mol.atoms) {
-    const [elem, x, y, z] = atom;
+  for (let ai = 0; ai < mol.atoms.length; ai++) {
+    const [elem, x, y, z] = mol.atoms[ai];
     const el = ELEMENTS[elem] || { radius: 0.4 };
     const mesh = new THREE.Mesh(sphereGeo, getElementMaterial(elem));
     mesh.position.set(x, y, z);
@@ -219,9 +269,16 @@ export function showMoleculeContext(orbitalName) {
     const label = makeAtomLabel(elem, x, y, z);
     scene.add(label);
     contextMeshes.push(label);
+
+    trackedAtoms.push({
+      mesh, label, atomIdx: ai,
+      origPos: new THREE.Vector3(x, y, z),
+      origLabelPos: new THREE.Vector3(x, y + 0.6, z),
+    });
   }
 
-  // Helper: add a bond cylinder
+  // Helper: add a bond cylinder (tracks atom indices for vibration animation)
+  let currentBondAtoms = [0, 0]; // set before each addCyl call
   const addCyl = (pos, quat, radius, length) => {
     const m = new THREE.Mesh(cylGeo, bondMaterial);
     m.position.copy(pos);
@@ -229,11 +286,18 @@ export function showMoleculeContext(orbitalName) {
     m.quaternion.copy(quat);
     scene.add(m);
     contextMeshes.push(m);
+    trackedBonds.push({
+      mesh: m,
+      atomI: currentBondAtoms[0],
+      atomJ: currentBondAtoms[1],
+      origPos: pos.clone(),
+    });
   };
 
   // Bonds
   for (const bond of mol.bonds) {
     const i = bond[0], j = bond[1], order = bond[2] || 1;
+    currentBondAtoms = [i, j];
     const a = mol.atoms[i], b = mol.atoms[j];
     const ax = a[1], ay = a[2], az = a[3];
     const bx = b[1], by = b[2], bz = b[3];
@@ -362,8 +426,40 @@ export function clearMoleculeContext() {
     // Don't dispose shared geometries/materials; just remove from scene
   }
   contextMeshes = [];
+  trackedAtoms = [];
+  trackedBonds = [];
 }
 
 export function setMoleculeContextVisible(visible) {
   for (const m of contextMeshes) m.visible = visible;
+}
+
+export function updateMoleculeContextPositions(moleculeName, displacements) {
+  const mol = MOLECULES[moleculeName];
+  if (!mol || !displacements) return;
+
+  for (const { mesh, label, atomIdx, origPos, origLabelPos } of trackedAtoms) {
+    const d = displacements[atomIdx];
+    mesh.position.set(origPos.x + d[0], origPos.y + d[1], origPos.z + d[2]);
+    if (label) label.position.set(origLabelPos.x + d[0], origLabelPos.y + d[1], origLabelPos.z + d[2]);
+  }
+
+  for (const { mesh, atomI, atomJ, origPos } of trackedBonds) {
+    const di = displacements[atomI], dj = displacements[atomJ];
+    mesh.position.set(
+      origPos.x + (di[0] + dj[0]) / 2,
+      origPos.y + (di[1] + dj[1]) / 2,
+      origPos.z + (di[2] + dj[2]) / 2,
+    );
+  }
+}
+
+export function resetMoleculeContextPositions() {
+  for (const { mesh, label, origPos, origLabelPos } of trackedAtoms) {
+    mesh.position.copy(origPos);
+    if (label) label.position.copy(origLabelPos);
+  }
+  for (const { mesh, origPos } of trackedBonds) {
+    mesh.position.copy(origPos);
+  }
 }

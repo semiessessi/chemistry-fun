@@ -1,23 +1,25 @@
-// Main entry point: cascading dropdown UI, grid sampling, rendering, dynamics.
+// Main entry point: cascading dropdown UI, state management, animation loop.
 
 import * as THREE from 'three';
 import { ALL_ORBITALS, ORBITAL_MAP, ORBITAL_TREE } from './orbitals.js';
-import { sampleGrid, computeThreshold, computeMultiThresholds } from './grid.js';
-import { sampleGridAsync, renderLayersAsync, cancelCompute } from './worker-pool.js';
+import { sampleGridAsync, cancelCompute } from './worker-pool.js';
 import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
-import { marchingCubes } from './marching-cubes.js';
 import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
-import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible, MOLECULE_LABELS, MOLECULE_CATEGORIES, getMoleculeAtoms } from './molecules/index.js';
-import { showBondFormingContext, clearBondFormingContext, morseEnergy,
-         BOND_FORMING_CONFIG, generateH2Orbital, setActiveBondConfig, setContextAtomStyle,
-         showBondFormingContextAtPositions, setBondCylinderOpacity,
-         setContextMode, showTriatomicContext, setTriatomicBondOpacity,
+import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
+         updateMoleculeContextPositions, resetMoleculeContextPositions,
+         MOLECULE_LABELS, MOLECULE_CATEGORIES, getMoleculeAtoms } from './molecules/index.js';
+import { BOND_FORMING_CONFIG, clearBondFormingContext,
          setBondFormingContextVisible } from './bond-forming.js';
-import { buildFieldVisAsync, clearFieldVis, purgeFieldCache, setFieldVisVisible, setFieldMode, setFieldSource, getFieldSource } from './electric-field.js';
-import { SIM_STATE, SIM_CONFIG, stepSimulation, resetSimulation, getAtomPositions,
-         getAtomOrientations, initTrails, recordTrailPoint, clearTrails,
-         SIM3_STATE, step3Simulation, reset3Simulation, get3AtomPositions,
-         get3AtomOrientations, init3Trails, record3TrailPoint, clear3Trails } from './dynamics.js';
+import { clearFieldVis, purgeFieldCache, setFieldVisVisible, setFieldMode, setFieldSource, getFieldSource } from './electric-field.js';
+import { computeElectrostaticPotential } from './electrostatic-potential.js';
+import { SIM_STATE, SIM3_STATE } from './dynamics.js';
+import { initRenderPipeline, adaptiveGrid, getHalfExtent, loadOrbital, loadOrbitalAsync,
+         renderFromCaches, renderFromCachesAsync, rebuildFieldVis,
+         showProgress, hideProgress, clearMeshes, buildGeometry } from './render-pipeline.js';
+import { initDynamicsUI, setupDynamicsEvents, tickDynamics,
+         loadBondFormingOrbital, cleanupDynamicsState, triatomicEquilibrium,
+         sliderToR, rToSlider, dynWrapper, sepWrapper } from './dynamics-ui.js';
+import { VibrationController, generateVibrationalModes } from './vibrations.js';
 
 // ---- Dropdown elements ----
 const d1Select = document.getElementById('d1-select');
@@ -33,7 +35,7 @@ const categorySelect = document.getElementById('category-select');
 const categoryWrapper = document.getElementById('category-wrapper');
 
 const D2_LABELS = { Atomic: 'Shell', Molecular: 'Basis', Hybrid: 'Hybridization', Molecules: 'Molecule', 'Bond Formation': 'Molecule' };
-const D3_LABELS = { Atomic: 'Subshell', Molecular: 'Bond Type', Hybrid: 'Lobe', Molecules: 'Orbital', 'Bond Formation': 'Orbital' };
+const D3_LABELS = { Atomic: 'Subshell', Molecular: 'Bond Type', Hybrid: 'Lobe', Molecules: 'Orbital / Field', 'Bond Formation': 'Orbital' };
 const D4_LABELS = { Atomic: 'Orbital', Molecular: 'Orbital', Hybrid: 'Orbital', Molecules: 'Orbital', 'Bond Formation': 'Orbital' };
 
 function populateSelect(sel, options, labels) {
@@ -54,13 +56,207 @@ function getD3Orbitals() {
   return t2[d3Select.value] || [];
 }
 
+// ---- Shared state ----
+let currentMeshes = [];
+let currentCaches = [];
+let currentProbability = 0.8;
+let currentLayers = 5;
+let currentOpacityTarget = 70;
+let rebuildTimeout = null;
+let isBondForming = false;
+let isTriatomic = false;
+let currentBondOrbital = null;
+let currentR = BOND_FORMING_CONFIG.R_EQ;
+let isDragging = false;
+let isDynamics = false;
+let dynOrbitalGroup = null;
+let lastSampledR = -1;
+let lastSampledR3 = null;
+let dynFinalRendered = false;
+let lastSampledOrientations = null;
+let lastSampledOrientations3 = null;
+
+const layerSelect = document.getElementById('layer-select');
+const ballStickToggle = document.getElementById('ball-stick-toggle');
+let showBallAndStick = ballStickToggle.checked;
+
+const densityFieldToggle = document.getElementById('density-field-toggle');
+let showDensityField = densityFieldToggle.checked;
+
+const fieldVisToggle = document.getElementById('field-vis-toggle');
+const fieldStyleSelect = document.getElementById('field-style-select');
+const fieldSourceSelect = document.getElementById('field-source-select');
+const fieldOptions = document.getElementById('field-options');
+let showFieldVis = fieldVisToggle.checked;
+let fieldStyle = fieldStyleSelect.value;
+
+// ---- Bond-forming defaults ----
+let savedProbability = null;
+let savedLayers = null;
+
+function applyBondFormingDefaults() {
+  // Save current values, apply bond-forming defaults
+  if (savedProbability === null) {
+    savedProbability = currentProbability;
+    savedLayers = currentLayers;
+  }
+  currentProbability = 0.5;
+  probSlider.value = '50';
+  probDisplay.textContent = '50%';
+  currentLayers = 1;
+  layerSelect.value = '1';
+}
+
+function restoreNonBondFormingDefaults() {
+  if (savedProbability !== null) {
+    currentProbability = savedProbability;
+    probSlider.value = String(Math.round(savedProbability * 100));
+    probDisplay.textContent = Math.round(savedProbability * 100) + '%';
+    currentLayers = savedLayers;
+    layerSelect.value = String(savedLayers);
+    savedProbability = null;
+    savedLayers = null;
+  }
+}
+
+// ---- Atomic numbers for atom info ----
+const ATOMIC_Z = {
+  H: 1, He: 2, C: 6, N: 7, O: 8, F: 9, Na: 11, Al: 13,
+  P: 15, S: 16, Cl: 17, Ca: 20, Ti: 22, Fe: 26, Cu: 29,
+};
+
+function getCurrentAtomInfo() {
+  const orbital = getSelectedOrbital();
+  if (!orbital) return null;
+
+  if (orbital.molecule) {
+    const atoms = getMoleculeAtoms(orbital.molecule);
+    if (atoms) {
+      return atoms.map(a => ({
+        Z: ATOMIC_Z[a[0]] || 1,
+        x: a[1], y: a[2], z: a[3],
+      }));
+    }
+  }
+
+  if (isBondForming && !isTriatomic && currentBondOrbital) {
+    const cfg = BOND_FORMING_CONFIG;
+    const halfR = currentR / 2;
+    return cfg.elements.map((el, i) => ({
+      Z: ATOMIC_Z[el] || 1,
+      x: 0, y: 0, z: i === 0 ? -halfR : halfR,
+    }));
+  }
+
+  if (isBondForming && isTriatomic && currentBondOrbital) {
+    const triConfig = currentBondOrbital.bondForming.triatomic;
+    const eqPos = triatomicEquilibrium(triConfig);
+    return triConfig.atoms.map((el, i) => ({
+      Z: ATOMIC_Z[el] || 1,
+      x: eqPos[i][0], y: eqPos[i][1], z: eqPos[i][2],
+    }));
+  }
+
+  return [{ Z: 1, x: 0, y: 0, z: 0 }];
+}
+
+// ---- Opacity ----
+
+function updateOrbitalOpacity() {
+  const T = currentOpacityTarget / 100;
+  const N = currentLayers;
+  const density = isDensityMode();
+  const baseMax = density ? 0.65 : 0.70;
+  const effectiveLayers = Math.max(1, N * 0.4);
+  const correctedMax = 1 - Math.pow(1 - T, 1 / effectiveLayers);
+  const scale = correctedMax / baseMax;
+  matPositive.opacity = correctedMax;
+  matNegative.opacity = correctedMax;
+  if (N > 1) applyOpacityScale(N, density, scale);
+}
+
+function isDensityMode() { return d3Select.value === 'electron density'; }
+
+function applyBallStickVisibility() {
+  setMoleculeContextVisible(showBallAndStick);
+  setBondFormingContextVisible(showBallAndStick);
+}
+
+function applyDensityFieldVisibility() {
+  for (const m of currentMeshes) m.visible = showDensityField;
+  if (dynOrbitalGroup) dynOrbitalGroup.visible = showDensityField;
+}
+
+function isESPotentialMode() { return d3Select.value === 'electrostatic potential'; }
+
+function updateFieldSourceOptions() {
+  const isFieldMode = isDensityMode() || isESPotentialMode();
+  const d1 = d1Select.value;
+  const hasAtoms = d1 === 'Molecules' || d1 === 'Bond Formation';
+
+  const gradOpt = fieldSourceSelect.querySelector('option[value="gradient"]');
+  const esOpt = fieldSourceSelect.querySelector('option[value="electrostatic"]');
+  const magOpt = fieldSourceSelect.querySelector('option[value="magnetic"]');
+  if (gradOpt) gradOpt.disabled = isFieldMode;
+  if (esOpt) esOpt.disabled = true;
+  if (magOpt) magOpt.disabled = !(isFieldMode && hasAtoms);
+
+  // Auto-select: magnetic for field modes, gradient otherwise
+  if (isFieldMode && hasAtoms) {
+    fieldSourceSelect.value = 'magnetic';
+    setFieldSource('magnetic');
+  } else if (fieldSourceSelect.value !== 'gradient') {
+    fieldSourceSelect.value = 'gradient';
+    setFieldSource('gradient');
+  }
+}
+
+// ---- State getter/setter for sub-modules ----
+
+function stateGetter() {
+  return {
+    currentMeshes, currentCaches, currentProbability, currentLayers,
+    currentOpacityTarget, isBondForming, isTriatomic, currentBondOrbital,
+    currentR, isDragging, isDynamics, dynOrbitalGroup,
+    lastSampledR, lastSampledR3, dynFinalRendered,
+    lastSampledOrientations, lastSampledOrientations3,
+    showFieldVis, showDensityField, showBallAndStick,
+    isDensityMode, updateOrbitalOpacity, applyDensityFieldVisibility,
+    getCurrentAtomInfo,
+  };
+}
+
+function stateSetter(patch) {
+  if ('currentMeshes' in patch) currentMeshes = patch.currentMeshes;
+  if ('currentCaches' in patch) currentCaches = patch.currentCaches;
+  if ('currentProbability' in patch) currentProbability = patch.currentProbability;
+  if ('currentLayers' in patch) currentLayers = patch.currentLayers;
+  if ('isBondForming' in patch) isBondForming = patch.isBondForming;
+  if ('isTriatomic' in patch) isTriatomic = patch.isTriatomic;
+  if ('currentBondOrbital' in patch) currentBondOrbital = patch.currentBondOrbital;
+  if ('currentR' in patch) currentR = patch.currentR;
+  if ('isDragging' in patch) isDragging = patch.isDragging;
+  if ('isDynamics' in patch) isDynamics = patch.isDynamics;
+  if ('dynOrbitalGroup' in patch) dynOrbitalGroup = patch.dynOrbitalGroup;
+  if ('lastSampledR' in patch) lastSampledR = patch.lastSampledR;
+  if ('lastSampledR3' in patch) lastSampledR3 = patch.lastSampledR3;
+  if ('dynFinalRendered' in patch) dynFinalRendered = patch.dynFinalRendered;
+  if ('lastSampledOrientations' in patch) lastSampledOrientations = patch.lastSampledOrientations;
+  if ('lastSampledOrientations3' in patch) lastSampledOrientations3 = patch.lastSampledOrientations3;
+}
+
+// ---- Initialize sub-modules ----
+initRenderPipeline(stateGetter, stateSetter);
+initDynamicsUI(stateGetter, stateSetter);
+setupDynamicsEvents();
+
 // ---- Cascading dropdown logic ----
+
 function populateCategoryFilter(d1) {
   if (d1 !== 'Molecules') {
     categoryWrapper.classList.add('dropdown-hidden');
     return;
   }
-  // Collect unique categories for molecules in the current tree
   const molNames = Object.keys(ORBITAL_TREE[d1] || {});
   const catSet = new Set();
   for (const n of molNames) {
@@ -105,7 +301,6 @@ function onD2Change() {
   const d2 = d2Select.value;
   const d3Keys = Object.keys((ORBITAL_TREE[d1] || {})[d2] || {});
   populateSelect(d3Select, d3Keys);
-  // Default to electron density for Molecules and Bond Formation
   if (d1 === 'Molecules' || d1 === 'Bond Formation') {
     const densIdx = d3Keys.indexOf('electron density');
     if (densIdx >= 0) d3Select.selectedIndex = densIdx;
@@ -124,9 +319,7 @@ function onD3Change() {
   loadSelectedOrbital();
 }
 
-function onD4Change() {
-  loadSelectedOrbital();
-}
+function onD4Change() { loadSelectedOrbital(); }
 
 function getSelectedOrbital() {
   const orbitals = getD3Orbitals();
@@ -154,819 +347,6 @@ d4Select.addEventListener('change', onD4Change);
 controls.autoRotate = true;
 controls.autoRotateSpeed = 0.5;
 
-// ---- Isosurface state ----
-// Adaptive grid: keep voxel size consistent regardless of molecule extent
-function adaptiveGrid(halfExtent, lowRes, hiRes) {
-  const targetStep = lowRes ? 0.7 : hiRes ? 0.34 : 0.45; // Bohr per voxel
-  let gs = Math.round(2 * halfExtent / targetStep) + 1;
-  if (gs % 2 === 0) gs++;
-  const max = lowRes ? 57 : hiRes ? 129 : 109;  // standard raised from 97 to 109
-  const min = lowRes ? 33 : hiRes ? 65 : 57;
-  return Math.max(min, Math.min(max, gs));
-}
-const GRID_SIZE = 80;      // fallback
-const GRID_SIZE_LOW = 48;  // fallback
-let currentMeshes = [];
-let currentCaches = []; // Array of { data, halfExtent, gridSize }
-let currentProbability = 0.8;
-let currentLayers = 5;
-let rebuildTimeout = null;
-let currentOpacityTarget = 70; // percentage (5-90)
-
-// Perceptual opacity correction: adjusts per-layer opacity so the visual
-// combined result roughly matches the slider value, regardless of layer count.
-function updateOrbitalOpacity() {
-  const T = currentOpacityTarget / 100;
-  const N = currentLayers;
-  const density = isDensityMode();
-  const baseMax = density ? 0.65 : 0.70;
-
-  // With multiple overlapping layers, reduce per-layer opacity so the
-  // visual combination matches T. Use effective overlap of N*0.4 layers
-  // (average viewpoint sees about 40% of all layers overlapping).
-  const effectiveLayers = Math.max(1, N * 0.4);
-  const correctedMax = 1 - Math.pow(1 - T, 1 / effectiveLayers);
-  const scale = correctedMax / baseMax;
-
-  // Single-layer materials
-  matPositive.opacity = correctedMax;
-  matNegative.opacity = correctedMax;
-
-  // Multi-layer materials
-  if (N > 1) applyOpacityScale(N, density, scale);
-}
-
-// ---- Bond-forming state ----
-let isBondForming = false;
-let isTriatomic = false;
-let currentBondOrbital = null; // the orbital entry with .bondForming
-let currentR = BOND_FORMING_CONFIG.R_EQ;
-let isDragging = false;
-
-// ---- Dynamics state ----
-let isDynamics = false;
-let dynOrbitalGroup = null;
-let lastSampledR = -1;
-let lastSampledR3 = null;
-let dynFinalRendered = false;
-let lastSampledOrientations = null;  // for orientation-change detection
-let lastSampledOrientations3 = null;
-
-// Compare two orientation arrays (each element is a 9-element flat rotation matrix).
-// Returns true if any atom has rotated more than ~5° since last sample.
-function orientationChanged(current, last) {
-  if (!current) return false;  // no angular dynamics (e.g. H₂)
-  if (!last) return true;      // first sample
-  for (let i = 0; i < current.length; i++) {
-    // Compare rotation matrices via trace: tr(R1^T * R2) = 1 + 2*cos(angle)
-    // For small differences, using dot product of flattened matrices as proxy:
-    // dot ≈ 3 when identical (trace of identity), < 3 when rotated
-    const a = current[i], b = last[i];
-    let dotSum = 0;
-    for (let j = 0; j < 9; j++) dotSum += a[j] * b[j];
-    // trace of R1^T * R2: rows of a dotted with rows of b
-    // Actually the flattened dot = sum of all element products = trace of (A^T B) for 3x3
-    // For identity: dotSum = 3. threshold for ~5°: cos(5°) ≈ 0.996, trace = 1 + 2*0.996 = 2.992
-    if (dotSum < 2.992) return true;
-  }
-  return false;
-}
-
-const layerSelect = document.getElementById('layer-select');
-const ballStickToggle = document.getElementById('ball-stick-toggle');
-let showBallAndStick = ballStickToggle.checked;
-
-const densityFieldToggle = document.getElementById('density-field-toggle');
-let showDensityField = densityFieldToggle.checked;
-
-const fieldVisToggle = document.getElementById('field-vis-toggle');
-const fieldStyleSelect = document.getElementById('field-style-select');
-const fieldSourceSelect = document.getElementById('field-source-select');
-const fieldOptions = document.getElementById('field-options');
-let showFieldVis = fieldVisToggle.checked;
-let fieldStyle = fieldStyleSelect.value;
-
-// ---- Atomic numbers for electrostatic field ----
-const ATOMIC_Z = {
-  H: 1, He: 2, C: 6, N: 7, O: 8, F: 9, Na: 11, Al: 13,
-  P: 15, S: 16, Cl: 17, Ca: 20, Ti: 22, Fe: 26, Cu: 29,
-};
-
-function getCurrentAtomInfo() {
-  // Build [{Z, x, y, z}, ...] from whatever context is active
-  const orbital = getSelectedOrbital();
-  if (!orbital) return null;
-
-  // Molecule context
-  if (orbital.molecule) {
-    const atoms = getMoleculeAtoms(orbital.molecule);
-    if (atoms) {
-      return atoms.map(a => ({
-        Z: ATOMIC_Z[a[0]] || 1,
-        x: a[1], y: a[2], z: a[3],
-      }));
-    }
-  }
-
-  // Bond-forming context (diatomic)
-  if (isBondForming && !isTriatomic && currentBondOrbital) {
-    const cfg = BOND_FORMING_CONFIG;
-    const halfR = currentR / 2;
-    return cfg.elements.map((el, i) => ({
-      Z: ATOMIC_Z[el] || 1,
-      x: 0, y: 0, z: i === 0 ? -halfR : halfR,
-    }));
-  }
-
-  // Bond-forming context (triatomic)
-  if (isBondForming && isTriatomic && currentBondOrbital) {
-    const triConfig = currentBondOrbital.bondForming.triatomic;
-    const eqPos = triatomicEquilibrium(triConfig);
-    return triConfig.atoms.map((el, i) => ({
-      Z: ATOMIC_Z[el] || 1,
-      x: eqPos[i][0], y: eqPos[i][1], z: eqPos[i][2],
-    }));
-  }
-
-  // Atomic orbital: single nucleus at origin
-  return [{ Z: 1, x: 0, y: 0, z: 0 }];
-}
-
-function applyBallStickVisibility() {
-  setMoleculeContextVisible(showBallAndStick);
-  setBondFormingContextVisible(showBallAndStick);
-}
-
-function applyDensityFieldVisibility() {
-  for (const m of currentMeshes) m.visible = showDensityField;
-  if (dynOrbitalGroup) dynOrbitalGroup.visible = showDensityField;
-}
-
-function isDensityMode() {
-  return d3Select.value === 'electron density';
-}
-
-function updateFieldSourceOptions() {
-  // Electrostatic and magnetic options only available in electron density mode
-  const density = isDensityMode();
-  for (const val of ['electrostatic', 'magnetic']) {
-    const opt = fieldSourceSelect.querySelector(`option[value="${val}"]`);
-    if (opt) {
-      opt.disabled = !density;
-      if (opt.disabled && fieldSourceSelect.value === val) {
-        fieldSourceSelect.value = 'gradient';
-        setFieldSource('gradient');
-      }
-    }
-  }
-}
-
-function getHalfExtent(orbital) {
-  if (orbital.halfExtent) return orbital.halfExtent;
-  let maxN = 1;
-  const parts = orbital.lobes || [orbital];
-  for (const part of parts) {
-    for (const t of part.terms) {
-      if (t.n > maxN) maxN = t.n;
-    }
-  }
-  return maxN * maxN * 3.5 + 4;
-}
-
-function triatomicEquilibrium(triConfig) {
-  if (triConfig.geometry === 'linear') {
-    return [
-      [0, 0, -triConfig.morse[0].R_EQ],
-      [0, 0, 0],
-      [0, 0, triConfig.morse[1].R_EQ],
-    ];
-  } else {
-    const d = triConfig.morse[0].R_EQ;
-    const halfAngle = triConfig.angle.thetaEq / 2;
-    return [
-      [d * Math.sin(halfAngle), 0, d * Math.cos(halfAngle)],
-      [0, 0, 0],
-      [-d * Math.sin(halfAngle), 0, d * Math.cos(halfAngle)],
-    ];
-  }
-}
-
-function dist3(a, b) {
-  const dx = b[0]-a[0], dy = b[1]-a[1], dz = b[2]-a[2];
-  return Math.sqrt(dx*dx + dy*dy + dz*dz);
-}
-
-function clearMeshes() {
-  for (const m of currentMeshes) {
-    if (m.parent) m.parent.remove(m);
-    m.geometry.dispose();
-  }
-  currentMeshes = [];
-  clearFieldVis();
-}
-
-async function rebuildFieldVis(targetParent) {
-  if (!showFieldVis || currentCaches.length === 0) return;
-  const parent = targetParent || scene;
-  const source = getFieldSource();
-  const label = source === 'electrostatic' ? 'Building E-field...'
-    : source === 'magnetic' ? 'Building B-field...' : 'Building gradient...';
-  const atomInfo = (source === 'electrostatic' || source === 'magnetic') ? getCurrentAtomInfo() : null;
-  showProgress(label, 0);
-  await buildFieldVisAsync(currentCaches, null, null, parent, currentProbability,
-    (frac) => showProgress(label, frac), atomInfo);
-  hideProgress();
-}
-
-function buildGeometry(data, halfExtent, threshold, gridSize) {
-  const result = marchingCubes(data, gridSize, threshold);
-  if (result.indices.length === 0) return null;
-
-  const step = (2 * halfExtent) / (gridSize - 1);
-  const verts = result.vertices;
-  for (let i = 0; i < verts.length; i += 3) {
-    verts[i] = verts[i] * step - halfExtent;
-    verts[i + 1] = verts[i + 1] * step - halfExtent;
-    verts[i + 2] = verts[i + 2] * step - halfExtent;
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-  geo.setIndex(new THREE.BufferAttribute(result.indices, 1));
-  geo.computeVertexNormals();
-  return geo;
-}
-
-function renderFromCaches(probability, gridSize, targetParent, numLayers) {
-  clearMeshes();
-  const parent = targetParent || scene;
-  const layers = numLayers || currentLayers;
-  const density = isDensityMode();
-
-  for (const cache of currentCaches) {
-    const gs = gridSize || cache.gridSize;
-
-    if (layers === 1) {
-      // Fast path: single layer, use original materials
-      const threshold = computeThreshold(cache.data, probability, cache.halfExtent, gs);
-
-      const posGeo = buildGeometry(cache.data, cache.halfExtent, threshold, gs);
-      if (posGeo) {
-        const mesh = new THREE.Mesh(posGeo, matPositive);
-        parent.add(mesh);
-        currentMeshes.push(mesh);
-      }
-
-      const negData = new Float32Array(cache.data.length);
-      for (let j = 0; j < cache.data.length; j++) negData[j] = -cache.data[j];
-      const negGeo = buildGeometry(negData, cache.halfExtent, threshold, gs);
-      if (negGeo) {
-        const mesh = new THREE.Mesh(negGeo, matNegative);
-        parent.add(mesh);
-        currentMeshes.push(mesh);
-      }
-    } else {
-      // Multi-layer path
-      const thresholds = computeMultiThresholds(cache.data, probability, layers, cache.halfExtent, gs);
-      const negData = new Float32Array(cache.data.length);
-      for (let j = 0; j < cache.data.length; j++) negData[j] = -cache.data[j];
-      const mats = getLayerMaterials(layers, density);
-
-      for (let i = 0; i < layers; i++) {
-        // i=0 is outermost, i=layers-1 is innermost
-        const posGeo = buildGeometry(cache.data, cache.halfExtent, thresholds[i], gs);
-        if (posGeo) {
-          const mesh = new THREE.Mesh(posGeo, mats.pos[layers - 1 - i]);
-          mesh.renderOrder = i;
-          parent.add(mesh);
-          currentMeshes.push(mesh);
-        }
-
-        const negGeo = buildGeometry(negData, cache.halfExtent, thresholds[i], gs);
-        if (negGeo) {
-          const mesh = new THREE.Mesh(negGeo, mats.neg[layers - 1 - i]);
-          mesh.renderOrder = i;
-          parent.add(mesh);
-          currentMeshes.push(mesh);
-        }
-      }
-    }
-  }
-
-  updateLegend(layers, probability, density);
-  updateOrbitalOpacity();
-  if (!showDensityField) applyDensityFieldVisibility();
-  rebuildFieldVis(parent !== scene ? parent : undefined);
-}
-
-function loadOrbital(orbital, gridSize, targetParent) {
-  const halfExt = getHalfExtent(orbital);
-  const gs = gridSize || adaptiveGrid(halfExt, false, !isBondForming && halfExt < 28);
-  currentCaches = [];
-  const halfExtent = getHalfExtent(orbital);
-  const parts = orbital.lobes || [orbital];
-  for (const part of parts) {
-    const data = sampleGrid(part, gs, halfExtent);
-    currentCaches.push({ data, halfExtent, gridSize: gs });
-  }
-  renderFromCaches(currentProbability, gs, targetParent);
-
-  // Auto-adjust camera distance (skip during drag and dynamics)
-  if (!isDragging && !isDynamics) {
-    const dist = halfExtent * 1.8;
-    const dir = camera.position.clone().normalize();
-    camera.position.copy(dir.multiplyScalar(dist));
-    controls.update();
-  }
-}
-
-// ---- Async computation pipeline ----
-
-async function renderFromCachesAsync(probability, gridSize, targetParent, numLayers) {
-  clearMeshes();
-  const parent = targetParent || scene;
-  const layers = numLayers || currentLayers;
-  const density = isDensityMode();
-
-  const totalCaches = currentCaches.length;
-  let cacheIdx = 0;
-
-  for (const cache of currentCaches) {
-    const gs = gridSize || cache.gridSize;
-    const baseProgress = cacheIdx / totalCaches;
-    const cacheWeight = 1 / totalCaches;
-
-    const result = await renderLayersAsync(
-      cache.data, cache.halfExtent, gs, probability, layers, density,
-      (frac) => showProgress('Rendering...', baseProgress + cacheWeight * frac)
-    );
-
-    if (!result) return; // cancelled
-
-    const step = (2 * cache.halfExtent) / (gs - 1);
-    const he = cache.halfExtent;
-    const mats = layers === 1 ? null : getLayerMaterials(layers, density);
-
-    for (const r of result.results) {
-      if (r.indices.length === 0) continue;
-      const verts = r.vertices;
-      for (let i = 0; i < verts.length; i += 3) {
-        verts[i] = verts[i] * step - he;
-        verts[i + 1] = verts[i + 1] * step - he;
-        verts[i + 2] = verts[i + 2] * step - he;
-      }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-      geo.setIndex(new THREE.BufferAttribute(r.indices, 1));
-      geo.computeVertexNormals();
-
-      let mat;
-      if (layers === 1) {
-        mat = r.side === 'pos' ? matPositive : matNegative;
-      } else {
-        const matIdx = layers - 1 - r.layer;
-        mat = r.side === 'pos' ? mats.pos[matIdx] : mats.neg[matIdx];
-      }
-
-      const mesh = new THREE.Mesh(geo, mat);
-      if (layers > 1) mesh.renderOrder = r.layer;
-      parent.add(mesh);
-      currentMeshes.push(mesh);
-    }
-    cacheIdx++;
-  }
-
-  updateLegend(layers, probability, density);
-  updateOrbitalOpacity();
-  if (!showDensityField) applyDensityFieldVisibility();
-  rebuildFieldVis(parent !== scene ? parent : undefined);
-}
-
-async function loadOrbitalAsync(orbital, gridSize, targetParent) {
-  cancelCompute();
-  const halfExtent = getHalfExtent(orbital);
-  const gs = gridSize || adaptiveGrid(halfExtent, false, !isBondForming && halfExtent < 28);
-  currentCaches = [];
-  const parts = orbital.lobes || [orbital];
-  const totalParts = parts.length;
-
-  showProgress('Sampling grid...', 0);
-
-  for (let pi = 0; pi < totalParts; pi++) {
-    const part = parts[pi];
-    const partBase = pi / totalParts;
-    const partWeight = 1 / totalParts;
-
-    const data = await sampleGridAsync(part, gs, halfExtent,
-      (frac) => showProgress('Sampling grid...', (partBase + partWeight * frac) * 0.7)
-    );
-
-    if (!data) return; // cancelled
-    currentCaches.push({ data, halfExtent, gridSize: gs });
-  }
-
-  showProgress('Rendering...', 0.7);
-  await renderFromCachesAsync(currentProbability, gs, targetParent);
-
-  hideProgress();
-
-  // Auto-adjust camera distance (skip during drag and dynamics)
-  if (!isDragging && !isDynamics) {
-    const dist = halfExtent * 1.8;
-    const dir = camera.position.clone().normalize();
-    camera.position.copy(dir.multiplyScalar(dist));
-    controls.update();
-  }
-}
-
-// ---- UI event handlers ----
-const probSlider = document.getElementById('prob-slider');
-const probDisplay = document.getElementById('prob-display');
-const computingEl = document.getElementById('computing');
-const sepWrapper = document.getElementById('separation-wrapper');
-const sepSlider = document.getElementById('sep-slider');
-const sepDisplay = document.getElementById('sep-display');
-const dynWrapper = document.getElementById('dynamics-wrapper');
-const dynImpactSlider = document.getElementById('dyn-impact');
-const dynImpactDisplay = document.getElementById('dyn-impact-display');
-const dynSpeedSlider = document.getElementById('dyn-speed');
-const dynSpeedDisplay = document.getElementById('dyn-speed-display');
-const dynPlayBtn = document.getElementById('dyn-play');
-const dynResetBtn = document.getElementById('dyn-reset');
-const dynInfo = document.getElementById('dyn-info');
-
-const progressLabel = document.getElementById('progress-label');
-const progressFill = document.getElementById('progress-fill');
-
-function showComputing() { computingEl.style.display = 'block'; progressFill.style.width = '0%'; }
-function hideComputing() { computingEl.style.display = 'none'; progressFill.style.width = '0%'; }
-
-function showProgress(label, fraction) {
-  computingEl.style.display = 'block';
-  progressLabel.textContent = label;
-  progressFill.style.width = (fraction * 100) + '%';
-}
-function hideProgress() {
-  computingEl.style.display = 'none';
-  progressFill.style.width = '0%';
-}
-
-// ---- Slider-to-R mapping (exponential, dynamic per molecule) ----
-
-function getSliderParams() {
-  const { R_EQ, R_MAX } = BOND_FORMING_CONFIG;
-  return { R_EQ, R_MAX, LOG_RATIO: Math.log(R_EQ / R_MAX) };
-}
-
-function sliderToR(sliderValue) {
-  const { R_MAX, LOG_RATIO } = getSliderParams();
-  const t = sliderValue / 100;
-  return R_MAX * Math.exp(LOG_RATIO * t);
-}
-
-function rToSlider(R) {
-  const { R_MAX, LOG_RATIO } = getSliderParams();
-  return Math.round(100 * Math.log(R / R_MAX) / LOG_RATIO);
-}
-
-const BOHR_TO_ANGSTROM = 0.529177;
-
-function updateSepDisplay(R) {
-  const angstrom = R * BOHR_TO_ANGSTROM;
-  const energy = morseEnergy(R);
-  const eSign = energy < 0 ? '\u2212' : '';
-  sepDisplay.textContent = `R = ${R.toFixed(3)} a\u2080 (${angstrom.toFixed(3)} \u00C5) \u00B7 E = ${eSign}${Math.abs(energy).toFixed(3)} eV`;
-}
-
-function renderBondAtR(R, lowRes) {
-  if (!currentBondOrbital) return;
-  const generated = currentBondOrbital.bondForming.generate(R);
-  const he = getHalfExtent(generated);
-  loadOrbital(generated, adaptiveGrid(he, lowRes));
-  showBondFormingContext(R);
-  setBondCylinderOpacity(R);
-}
-
-async function renderBondAtRAsync(R) {
-  if (!currentBondOrbital) return;
-  const generated = currentBondOrbital.bondForming.generate(R);
-  const he = getHalfExtent(generated);
-  await loadOrbitalAsync(generated, adaptiveGrid(he, false));
-  showBondFormingContext(R);
-  setBondCylinderOpacity(R);
-}
-
-// ---- Dynamics orbital group management ----
-
-function ensureDynGroup() {
-  if (!dynOrbitalGroup) {
-    dynOrbitalGroup = new THREE.Group();
-    scene.add(dynOrbitalGroup);
-  }
-}
-
-function clearDynGroup() {
-  if (dynOrbitalGroup) {
-    scene.remove(dynOrbitalGroup);
-    dynOrbitalGroup = null;
-  }
-}
-
-// Resample the orbital along the z-axis, put meshes into dynOrbitalGroup
-function resampleDynOrbital(R, lowRes) {
-  if (!currentBondOrbital) return;
-  ensureDynGroup();
-  const orientations = getAtomOrientations();
-  const generated = currentBondOrbital.bondForming.generate(R, orientations);
-  const he = getHalfExtent(generated);
-  const gs = adaptiveGrid(he, lowRes !== false);
-  currentCaches = [];
-  const halfExtent = getHalfExtent(generated);
-  const parts = generated.lobes || [generated];
-  for (const part of parts) {
-    const data = sampleGrid(part, gs, halfExtent);
-    currentCaches.push({ data, halfExtent, gridSize: gs });
-  }
-  renderFromCaches(currentProbability, gs, dynOrbitalGroup, lowRes ? 1 : currentLayers);
-  lastSampledR = R;
-  lastSampledOrientations = orientations;
-}
-
-async function resampleDynOrbitalAsync(R) {
-  if (!currentBondOrbital) return;
-  ensureDynGroup();
-  const orientations = getAtomOrientations();
-  const generated = currentBondOrbital.bondForming.generate(R, orientations);
-  const he = getHalfExtent(generated);
-  const gs = adaptiveGrid(he, false);
-  currentCaches = [];
-  const halfExtent = getHalfExtent(generated);
-  const parts = generated.lobes || [generated];
-  for (const part of parts) {
-    const data = await sampleGridAsync(part, gs, halfExtent,
-      (frac) => showProgress('Sampling grid...', frac * 0.7)
-    );
-    if (!data) return;
-    currentCaches.push({ data, halfExtent, gridSize: gs });
-  }
-  showProgress('Rendering...', 0.7);
-  await renderFromCachesAsync(currentProbability, gs, dynOrbitalGroup, currentLayers);
-  lastSampledR = R;
-  lastSampledOrientations = orientations;
-}
-
-async function resampleTriatomicOrbitalAsync(posArrays) {
-  if (!currentBondOrbital) return;
-  ensureDynGroup();
-  const orientations = get3AtomOrientations();
-  const generated = currentBondOrbital.bondForming.generate3(posArrays, orientations);
-  const he = getHalfExtent(generated);
-  const gs = adaptiveGrid(he, false);
-  currentCaches = [];
-  const halfExtent = getHalfExtent(generated);
-  const parts = generated.lobes || [generated];
-  for (const part of parts) {
-    const data = await sampleGridAsync(part, gs, halfExtent,
-      (frac) => showProgress('Sampling grid...', frac * 0.7)
-    );
-    if (!data) return;
-    currentCaches.push({ data, halfExtent, gridSize: gs });
-  }
-  showProgress('Rendering...', 0.7);
-  await renderFromCachesAsync(currentProbability, gs, dynOrbitalGroup, currentLayers);
-  lastSampledOrientations3 = orientations;
-}
-
-// Orient the dynOrbitalGroup so its z-axis aligns with the molecular axis
-function orientDynGroup() {
-  if (!dynOrbitalGroup) return;
-  const { a, b } = getAtomPositions();
-  const axis = new THREE.Vector3().subVectors(b, a);
-  const len = axis.length();
-  if (len < 0.01) return;
-  axis.divideScalar(len);
-
-  // The orbital was generated along z-axis, so rotate z-axis to match actual axis
-  dynOrbitalGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
-  // Position at midpoint
-  dynOrbitalGroup.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-}
-
-// ---- Triatomic orbital management ----
-
-function resampleTriatomicOrbital(posArrays, lowRes) {
-  if (!currentBondOrbital) return;
-  ensureDynGroup();
-  const orientations = get3AtomOrientations();
-  const generated = currentBondOrbital.bondForming.generate3(posArrays, orientations);
-  const he = getHalfExtent(generated);
-  const gs = adaptiveGrid(he, lowRes !== false);
-  currentCaches = [];
-  const halfExtent = getHalfExtent(generated);
-  const parts = generated.lobes || [generated];
-  for (const part of parts) {
-    const data = sampleGrid(part, gs, halfExtent);
-    currentCaches.push({ data, halfExtent, gridSize: gs });
-  }
-  renderFromCaches(currentProbability, gs, dynOrbitalGroup, lowRes ? 1 : currentLayers);
-  lastSampledOrientations3 = orientations;
-}
-
-function orientTriatomicDynGroup(positions, triConfig) {
-  if (!dynOrbitalGroup) return;
-
-  if (triConfig.geometry === 'linear') {
-    const axis = new THREE.Vector3().subVectors(positions[2], positions[0]).normalize();
-    dynOrbitalGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
-    dynOrbitalGroup.position.copy(positions[1]);
-  } else {
-    // Bent: canonical has center at origin, bisector along +z, molecule in xz-plane
-    const center = positions[1];
-    const u1 = new THREE.Vector3().subVectors(positions[0], center).normalize();
-    const u2 = new THREE.Vector3().subVectors(positions[2], center).normalize();
-    const bisector = new THREE.Vector3().addVectors(u1, u2);
-
-    if (bisector.length() < 0.01) {
-      // Degenerate: essentially linear
-      const axis = new THREE.Vector3().subVectors(positions[2], positions[0]).normalize();
-      dynOrbitalGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
-    } else {
-      bisector.normalize();
-      const normal = new THREE.Vector3().crossVectors(u1, u2).normalize();
-      const side = new THREE.Vector3().crossVectors(normal, bisector).normalize();
-      // Canonical has atom 0 at +x; ensure side points toward atom 0
-      if (side.dot(u1) < 0) { side.negate(); normal.negate(); }
-      // Canonical: x→side, y→normal, z→bisector
-      const m = new THREE.Matrix4().makeBasis(side, normal, bisector);
-      dynOrbitalGroup.quaternion.setFromRotationMatrix(m);
-    }
-    dynOrbitalGroup.position.copy(center);
-  }
-}
-
-function updateDyn3Info() {
-  const Rs = SIM3_STATE.R;
-  const E = SIM3_STATE.energy;
-  const eSign = E < 0 ? '\u2212' : '+';
-  let status = '';
-  if (SIM3_STATE.settled) status = ' [settled]';
-  else if (Rs.every(r => r < 5)) status = ' [bonded]';
-  else if (SIM3_STATE.running) status = ' [approaching]';
-  const rStr = Rs.map((r, i) => `R${i + 1}=${r.toFixed(2)}`).join(' ');
-  dynInfo.textContent = `${rStr} E=${eSign}${Math.abs(E).toFixed(2)}eV${status}`;
-}
-
-// ---- Dynamics slider helpers ----
-
-function getImpactParam() {
-  return parseInt(dynImpactSlider.value) / 10;
-}
-
-function getApproachSpeed() {
-  return parseInt(dynSpeedSlider.value) / 10;
-}
-
-function updateDynImpactDisplay() {
-  const b = getImpactParam();
-  dynImpactDisplay.textContent = `b = ${b.toFixed(1)} a\u2080`;
-}
-
-function updateDynSpeedDisplay() {
-  const v = getApproachSpeed();
-  dynSpeedDisplay.textContent = `v\u2080 = ${v.toFixed(1)}`;
-}
-
-function updateDynInfo() {
-  const R = SIM_STATE.R;
-  const E = SIM_STATE.energy;
-  const angstrom = R * BOHR_TO_ANGSTROM;
-  const eSign = E < 0 ? '\u2212' : '+';
-  let status = '';
-  if (SIM_STATE.settled) status = ' [settled]';
-  else if (R < 3) status = ' [bonded]';
-  else if (SIM_STATE.running) status = ' [approaching]';
-  dynInfo.textContent = `R=${R.toFixed(2)} a\u2080 (${angstrom.toFixed(2)}\u00C5) E=${eSign}${Math.abs(E).toFixed(2)}eV${status}`;
-}
-
-// ---- Dynamics UI events ----
-
-dynImpactSlider.addEventListener('input', () => {
-  updateDynImpactDisplay();
-  if (isTriatomic) {
-    if (!SIM3_STATE.running) {
-      reset3Simulation(currentBondOrbital.bondForming.triatomic, getImpactParam(), getApproachSpeed());
-    }
-  } else {
-    if (!SIM_STATE.running) {
-      resetSimulation(getImpactParam(), getApproachSpeed());
-    }
-  }
-});
-
-dynSpeedSlider.addEventListener('input', () => {
-  updateDynSpeedDisplay();
-  if (isTriatomic) {
-    if (!SIM3_STATE.running) {
-      reset3Simulation(currentBondOrbital.bondForming.triatomic, getImpactParam(), getApproachSpeed());
-    }
-  } else {
-    if (!SIM_STATE.running) {
-      resetSimulation(getImpactParam(), getApproachSpeed());
-    }
-  }
-});
-
-dynPlayBtn.addEventListener('click', () => {
-  if (!isBondForming) return;
-
-  const simRunning = isTriatomic ? SIM3_STATE.running : SIM_STATE.running;
-
-  if (simRunning) {
-    // Pause
-    if (isTriatomic) SIM3_STATE.running = false;
-    else SIM_STATE.running = false;
-    dynPlayBtn.textContent = '\u25B6 Play';
-    sepSlider.disabled = false;
-    controls.autoRotate = true;
-    (async () => {
-      if (isTriatomic) {
-        const posArrays = get3AtomPositions().map(p => [p.x, p.y, p.z]);
-        await resampleTriatomicOrbitalAsync(posArrays);
-        orientTriatomicDynGroup(get3AtomPositions(), currentBondOrbital.bondForming.triatomic);
-      } else {
-        await resampleDynOrbitalAsync(SIM_STATE.R);
-        orientDynGroup();
-      }
-      hideProgress();
-    })();
-  } else {
-    // Start / resume
-    if (isTriatomic) {
-      if (SIM3_STATE.settled || SIM3_STATE.frameCount === 0) {
-        reset3Simulation(currentBondOrbital.bondForming.triatomic, getImpactParam(), getApproachSpeed());
-        clear3Trails(scene);
-        init3Trails(scene);
-        lastSampledR3 = null;
-        lastSampledOrientations3 = null;
-        dynFinalRendered = false;
-      }
-      SIM3_STATE.running = true;
-    } else {
-      if (SIM_STATE.settled || SIM_STATE.frameCount === 0) {
-        resetSimulation(getImpactParam(), getApproachSpeed());
-        clearTrails(scene);
-        initTrails(scene);
-        lastSampledR = -1;
-        lastSampledOrientations = null;
-        dynFinalRendered = false;
-      }
-      SIM_STATE.running = true;
-    }
-    isDynamics = true;
-    controls.autoRotate = false;
-    dynPlayBtn.textContent = '\u23F8 Pause';
-    sepSlider.disabled = true;
-
-    const camDist = isTriatomic ? 24 : 18;
-    const dir = camera.position.clone().normalize();
-    if (dir.length() < 0.01) dir.set(0, 1, 1).normalize();
-    camera.position.copy(dir.multiplyScalar(camDist));
-    controls.update();
-  }
-});
-
-dynResetBtn.addEventListener('click', () => {
-  if (isTriatomic) SIM3_STATE.running = false;
-  else SIM_STATE.running = false;
-  isDynamics = false;
-  controls.autoRotate = true;
-  dynPlayBtn.textContent = '\u25B6 Play';
-  sepSlider.disabled = false;
-  dynFinalRendered = false;
-
-  if (isTriatomic) {
-    clear3Trails(scene);
-    clearDynGroup();
-    dynInfo.textContent = '';
-    const triConfig = currentBondOrbital.bondForming.triatomic;
-    const eqPos = triatomicEquilibrium(triConfig);
-    (async () => {
-      const generated = currentBondOrbital.bondForming.generate3(eqPos);
-      await loadOrbitalAsync(generated);
-      showTriatomicContext(eqPos, triConfig.bonds);
-      const eqDists = triConfig.bonds.map(([bi, bj]) => dist3(eqPos[bi], eqPos[bj]));
-      setTriatomicBondOpacity(eqDists, triConfig.morse);
-    })();
-  } else {
-    clearTrails(scene);
-    clearDynGroup();
-    dynInfo.textContent = '';
-    currentR = sliderToR(parseInt(sepSlider.value));
-    updateSepDisplay(currentR);
-    renderBondAtRAsync(currentR);
-  }
-});
-
 // ---- Load selected orbital ----
 
 function loadSelectedOrbital() {
@@ -974,111 +354,98 @@ function loadSelectedOrbital() {
   if (!orbital) return;
 
   updateFieldSourceOptions();
-  cancelCompute(); // cancel any in-flight async work
+  cancelCompute();
+  cancelVibration();
 
   // Clean up dynamics state when switching orbitals
   if (isDynamics || SIM_STATE.running || SIM3_STATE.running) {
-    SIM_STATE.running = false;
-    SIM3_STATE.running = false;
-    isDynamics = false;
-    dynPlayBtn.textContent = '\u25B6 Play';
-    sepSlider.disabled = false;
-    clearTrails(scene);
-    clear3Trails(scene);
-    clearDynGroup();
-    dynInfo.textContent = '';
-    dynFinalRendered = false;
+    cleanupDynamicsState();
   }
 
   if (orbital.bondForming) {
-    const bf = orbital.bondForming;
     isBondForming = true;
     currentBondOrbital = orbital;
     dynWrapper.classList.remove('dropdown-hidden');
+    vibWrapper.classList.add('dropdown-hidden');
     clearMoleculeContext();
+    applyBondFormingDefaults();
 
-    if (bf.triatomic) {
-      // Triatomic mode
-      isTriatomic = true;
-      const triConfig = bf.triatomic;
-      setContextMode(3, triConfig.bonds.map(b => b[2] || 1));
-      setContextAtomStyle(triConfig.atoms);
-      sepWrapper.classList.add('dropdown-hidden');
-      reset3Simulation(triConfig, getImpactParam(), getApproachSpeed());
-      updateDynImpactDisplay();
-      updateDynSpeedDisplay();
-
-      (async () => {
-        const eqPos = triatomicEquilibrium(triConfig);
-        const generated = bf.generate3(eqPos);
-        await loadOrbitalAsync(generated);
-        showTriatomicContext(eqPos, triConfig.bonds);
-        const eqDists = triConfig.bonds.map(([bi, bj]) => dist3(eqPos[bi], eqPos[bj]));
-        setTriatomicBondOpacity(eqDists, triConfig.morse);
-        applyBallStickVisibility();
-      })();
-    } else {
-      // Diatomic mode
-      isTriatomic = false;
-      setActiveBondConfig(bf.molecule);
-      setContextMode(2, [BOND_FORMING_CONFIG.bondOrder]);
-      setContextAtomStyle(BOND_FORMING_CONFIG.elements);
-      sepWrapper.classList.remove('dropdown-hidden');
-
-      currentR = sliderToR(parseInt(sepSlider.value));
-      updateSepDisplay(currentR);
-      updateDynImpactDisplay();
-      updateDynSpeedDisplay();
-
-      (async () => {
-        await renderBondAtRAsync(currentR);
-        applyBallStickVisibility();
-      })();
-    }
+    (async () => {
+      await loadBondFormingOrbital(orbital);
+      applyBallStickVisibility();
+    })();
   } else {
-    // Normal mode
     isBondForming = false;
     isTriatomic = false;
     currentBondOrbital = null;
     sepWrapper.classList.add('dropdown-hidden');
     dynWrapper.classList.add('dropdown-hidden');
     clearBondFormingContext();
+    restoreNonBondFormingDefaults();
 
     if (d1Select.value === 'Molecules') {
       showMoleculeContext(orbital.name);
       applyBallStickVisibility();
+      // Show vibration controls for electron density mode
+      if (isDensityMode() && orbital.molecule) {
+        populateVibModes(orbital.molecule);
+        vibWrapper.classList.remove('dropdown-hidden');
+      } else {
+        vibWrapper.classList.add('dropdown-hidden');
+      }
     } else {
       clearMoleculeContext();
+      vibWrapper.classList.add('dropdown-hidden');
     }
-    loadOrbitalAsync(orbital);
+    if (orbital.isElectrostaticPotential) {
+      loadElectrostaticPotentialAsync(orbital);
+    } else {
+      loadOrbitalAsync(orbital).then(() => {
+        // After orbital load completes, auto-start vibration build if a mode is selected
+        if (!vibWrapper.classList.contains('dropdown-hidden') &&
+            (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0)) {
+          startVibBuild();
+        }
+      });
+    }
   }
 }
 
-// ---- Separation slider events ----
-sepSlider.addEventListener('input', () => {
-  if (isDynamics) return; // slider disabled during dynamics
-  isDragging = true;
-  currentR = sliderToR(parseInt(sepSlider.value));
-  updateSepDisplay(currentR);
-  renderBondAtR(currentR, true);
-});
+// ---- Electrostatic potential loader (two-step: density → potential) ----
 
-sepSlider.addEventListener('pointerup', () => {
-  if (isDynamics) return;
-  isDragging = false;
-  renderBondAtRAsync(currentR);
-});
+async function loadElectrostaticPotentialAsync(orbital) {
+  cancelCompute();
+  const halfExtent = getHalfExtent(orbital);
+  const gs = adaptiveGrid(halfExtent, false, halfExtent < 28);
 
-sepSlider.addEventListener('change', () => {
-  if (isDynamics) return;
-  if (!isDragging) {
-    currentR = sliderToR(parseInt(sepSlider.value));
-    updateSepDisplay(currentR);
-    renderBondAtRAsync(currentR);
+  // Step 1: sample electron density grid
+  showProgress('Sampling density...', 0);
+  const densityData = await sampleGridAsync(orbital, gs, halfExtent,
+    (f) => showProgress('Sampling density...', f * 0.3));
+  if (!densityData) return;
+
+  // Step 2: solve Poisson equation for electron potential + add nuclear Coulomb
+  const atomInfo = getCurrentAtomInfo();
+  const potential = await computeElectrostaticPotential(atomInfo, densityData, gs, halfExtent,
+    (f) => showProgress('Solving potential...', 0.3 + f * 0.3));
+
+  // Step 3: cache potential data and render through normal isosurface pipeline
+  currentCaches = [{ data: potential, halfExtent, gridSize: gs }];
+  showProgress('Rendering...', 0.6);
+  await renderFromCachesAsync(currentProbability, gs);
+  hideProgress();
+
+  if (!isDragging && !isDynamics) {
+    const dist = halfExtent * 1.8;
+    const dir = camera.position.clone().normalize();
+    camera.position.copy(dir.multiplyScalar(dist));
+    controls.update();
   }
-});
+}
 
 // ---- Probability slider ----
+const probSlider = document.getElementById('prob-slider');
+const probDisplay = document.getElementById('prob-display');
 let probDragging = false;
 
 probSlider.addEventListener('input', () => {
@@ -1142,7 +509,7 @@ fieldVisToggle.addEventListener('change', () => {
   showFieldVis = fieldVisToggle.checked;
   if (showFieldVis) {
     fieldOptions.classList.remove('dropdown-hidden');
-    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined);
+    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   } else {
     fieldOptions.classList.add('dropdown-hidden');
     clearFieldVis();
@@ -1153,14 +520,14 @@ fieldStyleSelect.addEventListener('change', () => {
   fieldStyle = fieldStyleSelect.value;
   setFieldMode(fieldStyle);
   if (showFieldVis && currentCaches.length > 0) {
-    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined);
+    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
 });
 
 fieldSourceSelect.addEventListener('change', () => {
   setFieldSource(fieldSourceSelect.value);
   if (showFieldVis && currentCaches.length > 0) {
-    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined);
+    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
 });
 
@@ -1176,95 +543,183 @@ if (opacitySlider) {
   });
 }
 
-// ---- Animation loop ----
-function animate() {
-  requestAnimationFrame(animate);
+// ---- Vibration ----
 
-  if (isDynamics && isTriatomic && SIM3_STATE.running) {
-    // 3-body dynamics
-    step3Simulation();
-    record3TrailPoint();
+const vibController = new VibrationController();
+const vibWrapper = document.getElementById('vibration-wrapper');
+const vibModeSelect = document.getElementById('vib-mode-select');
+const vibAmplitudeSlider = document.getElementById('vib-amplitude');
+const vibAmplitudeDisplay = document.getElementById('vib-amplitude-display');
+const vibProgress = document.getElementById('vib-progress');
+const vibProgressLabel = document.getElementById('vib-progress-label');
+const vibProgressFill = document.getElementById('vib-progress-fill');
+const vibPlayBtn = document.getElementById('vib-play');
+let vibAmplitudeTimeout = null;
+let vibCurrentModes = [];
+let vibStaticMeshesHidden = false;
 
-    const positions = get3AtomPositions();
-    const posArrays = positions.map(p => [p.x, p.y, p.z]);
-    const triConfig = currentBondOrbital.bondForming.triatomic;
-    const bondDists = triConfig.bonds.map(([bi, bj]) => positions[bi].distanceTo(positions[bj]));
+function updateVibWrapperVisibility() {
+  const d1 = d1Select.value;
+  const show = d1 === 'Molecules' && isDensityMode();
+  vibWrapper.classList.toggle('dropdown-hidden', !show);
+  if (!show) cancelVibration();
+}
 
-    // Resample when bond distances change enough or orientation changes enough
-    const currentOrientations3 = get3AtomOrientations();
-    const maxDelta = lastSampledR3
-      ? Math.max(...bondDists.map((d, i) => Math.abs(d - lastSampledR3[i])))
-      : Infinity;
-    const needResample3 = maxDelta > 0.2
-      || orientationChanged(currentOrientations3, lastSampledOrientations3);
-    if (needResample3 && !dynFinalRendered) {
-      resampleTriatomicOrbital(posArrays, true);
-      lastSampledR3 = [...bondDists];
-    }
+function populateVibModes(moleculeName) {
+  vibModeSelect.innerHTML = '';
+  const noneOpt = document.createElement('option');
+  noneOpt.value = '-1';
+  noneOpt.textContent = 'None';
+  vibModeSelect.appendChild(noneOpt);
 
-    orientTriatomicDynGroup(positions, triConfig);
-    showTriatomicContext(positions, triConfig.bonds);
-    setTriatomicBondOpacity(bondDists, triConfig.morse);
-    updateDyn3Info();
+  vibCurrentModes = generateVibrationalModes(moleculeName);
 
-    if (SIM3_STATE.settled && !dynFinalRendered) {
-      dynFinalRendered = true;
-      SIM3_STATE.running = false;
-      controls.autoRotate = true;
-      dynPlayBtn.textContent = '\u25B6 Play';
-      (async () => {
-        await resampleTriatomicOrbitalAsync(posArrays);
-        orientTriatomicDynGroup(positions, triConfig);
-        hideProgress();
-      })();
-    }
-  } else if (isDynamics && !isTriatomic && SIM_STATE.running) {
-    // 2-body dynamics
-    stepSimulation();
-    recordTrailPoint();
-
-    const R = SIM_STATE.R;
-
-    // Resample orbital when R changes enough or orientation changes enough
-    const currentOrientations = getAtomOrientations();
-    const needResample = lastSampledR < 0
-      || Math.abs(R - lastSampledR) > 0.15
-      || orientationChanged(currentOrientations, lastSampledOrientations);
-    if (needResample && !dynFinalRendered) {
-      resampleDynOrbital(R, true);
-    }
-
-    // Orient group to match molecular axis
-    orientDynGroup();
-
-    // Update context meshes (atom spheres, bond cylinder)
-    const { a, b } = getAtomPositions();
-    showBondFormingContextAtPositions(a, b);
-    setBondCylinderOpacity(R);
-
-    // Update separation display
-    updateSepDisplay(R);
-    updateDynInfo();
-
-    // Update slider position to match current R (clamped to range)
-    const { R_EQ: rEq, R_MAX: rMax } = getSliderParams();
-    const clampedR = Math.max(rEq, Math.min(rMax, R));
-    sepSlider.value = rToSlider(clampedR);
-
-    // Settling: do one final high-res render, then stop resampling
-    if (SIM_STATE.settled && !dynFinalRendered) {
-      dynFinalRendered = true;
-      SIM_STATE.running = false;
-      controls.autoRotate = true;
-      dynPlayBtn.textContent = '\u25B6 Play';
-      (async () => {
-        await resampleDynOrbitalAsync(R);
-        orientDynGroup();
-        hideProgress();
-      })();
-    }
+  if (vibCurrentModes.length > 0) {
+    const mixOpt = document.createElement('option');
+    mixOpt.value = 'random';
+    mixOpt.textContent = 'Random Mix';
+    vibModeSelect.appendChild(mixOpt);
   }
 
+  for (let i = 0; i < vibCurrentModes.length; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = vibCurrentModes[i].name;
+    vibModeSelect.appendChild(opt);
+  }
+
+  // Pre-select Random Mix as default (build starts when user clicks Play or
+  // after main orbital load completes)
+  if (vibCurrentModes.length > 0) {
+    vibModeSelect.value = 'random';
+  }
+}
+
+function cancelVibration() {
+  vibController.cancel();
+  vibPlayBtn.disabled = true;
+  vibPlayBtn.textContent = '\u25B6 Play';
+  vibProgress.classList.add('dropdown-hidden');
+  restoreStaticMeshes();
+  resetMoleculeContextPositions();
+}
+
+function restoreStaticMeshes() {
+  if (vibStaticMeshesHidden) {
+    for (const m of currentMeshes) m.visible = showDensityField;
+    vibStaticMeshesHidden = false;
+  }
+}
+
+function hideStaticMeshes() {
+  if (!vibStaticMeshesHidden) {
+    for (const m of currentMeshes) m.visible = false;
+    vibStaticMeshesHidden = true;
+  }
+}
+
+async function startVibBuild() {
+  const modeVal = vibModeSelect.value;
+  const isRandom = modeVal === 'random';
+  const modeIdx = isRandom ? -1 : parseInt(modeVal);
+
+  if (!isRandom && (modeIdx < 0 || modeIdx >= vibCurrentModes.length)) {
+    cancelVibration();
+    return;
+  }
+
+  const orbital = getSelectedOrbital();
+  if (!orbital || !orbital.molecule) return;
+
+  const amplitude = parseInt(vibAmplitudeSlider.value) / 100;
+  const halfExtent = getHalfExtent(orbital);
+  const gs = adaptiveGrid(halfExtent, true);
+
+  vibPlayBtn.disabled = true;
+  vibPlayBtn.textContent = '\u25B6 Play';
+  vibProgress.classList.remove('dropdown-hidden');
+
+  const settings = {
+    moleculeName: orbital.molecule,
+    amplitude,
+    probability: currentProbability,
+    layers: currentLayers,
+    gridSize: gs,
+    halfExtent,
+    isDensity: true,
+  };
+
+  if (isRandom) {
+    settings.mixModes = vibCurrentModes.map(mode => ({
+      mode,
+      weight: 0.3 + Math.random() * 0.7,
+      phaseOffset: Math.random() * 2 * Math.PI,
+    }));
+  } else {
+    settings.mode = vibCurrentModes[modeIdx];
+  }
+
+  await vibController.buildFrameCache(
+    settings,
+    (frameIdx, total) => {
+      vibProgressLabel.textContent = `Building frame ${frameIdx + 1}/${total}...`;
+      vibProgressFill.style.width = ((frameIdx + 1) / total * 100) + '%';
+    },
+    () => {
+      vibProgress.classList.add('dropdown-hidden');
+      vibPlayBtn.disabled = false;
+      vibPlayBtn.textContent = '\u25B6 Play';
+    }
+  );
+}
+
+vibModeSelect.addEventListener('change', () => {
+  cancelVibration();
+  if (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0) {
+    startVibBuild();
+  }
+});
+
+vibAmplitudeSlider.addEventListener('input', () => {
+  const v = parseInt(vibAmplitudeSlider.value) / 100;
+  vibAmplitudeDisplay.textContent = v.toFixed(2) + ' a\u2080';
+  if (vibAmplitudeTimeout) clearTimeout(vibAmplitudeTimeout);
+  vibAmplitudeTimeout = setTimeout(() => {
+    if (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0) {
+      cancelVibration();
+      startVibBuild();
+    }
+  }, 300);
+});
+
+vibPlayBtn.addEventListener('click', () => {
+  if (vibController.state === 'playing') {
+    vibController.pause();
+    vibPlayBtn.textContent = '\u25B6 Play';
+    restoreStaticMeshes();
+    resetMoleculeContextPositions();
+  } else if (vibController.state === 'ready') {
+    hideStaticMeshes();
+    vibController.play();
+    vibPlayBtn.textContent = '\u23F8 Pause';
+  }
+});
+
+// ---- Animation loop ----
+let lastTime = performance.now();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
+
+  tickDynamics();
+  const vibFrameChanged = vibController.tick(dt * 3);
+  if (vibFrameChanged && vibController.moleculeName) {
+    const disps = vibController.displacementsAtPhase(vibController.phase);
+    if (disps) updateMoleculeContextPositions(vibController.moleculeName, disps);
+  }
   controls.update();
   updateLabelScales();
   renderer.render(scene, camera);
