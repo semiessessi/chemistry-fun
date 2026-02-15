@@ -22,6 +22,37 @@ const ATOMIC_MASS = {
   Ca: 40.078, Ti: 47.867, Fe: 55.845, Cu: 63.546,
 };
 
+// ---- Harmonic oscillator amplitude computation ----
+// Zero-point amplitude A₀ = 1/√(2μω) = 1/(2μk)^{1/4} in atomic units
+// where μ = reduced mass (electron masses), k = force constant (Eₕ/a₀²)
+
+const AMU_TO_ME = 1822.888;          // 1 amu in electron masses
+const NM_TO_EHBOHR2 = 1 / 1556.893; // 1 N/m in Eₕ/a₀²
+
+// Bond stretching force constants (N/m) — keys match sorted element pairs
+const BOND_FORCE_CONSTANTS = {
+  'H-H': 575,
+  'C-H': 500, 'C-C': 350, 'C-C=2': 600, 'C-C=3': 840,
+  'C-F': 500, 'C-N': 300, 'C-N=2': 600, 'C-N=3': 900,
+  'C-O': 350, 'C-O=2': 1200, 'C-S': 250, 'C-Cl': 350,
+  'F-H': 970, 'H-N': 600, 'H-O': 700, 'H-S': 350,
+  'N-N': 300, 'N-N=2': 700, 'N-N=3': 2300,
+  'N-O': 300, 'N-O=2': 600,
+  'O-O': 350, 'O-O=2': 1100,
+  'O-S': 400, 'O-S=2': 700,
+  'Al-O': 350, 'Ca-O': 250, 'Cu-O': 250,
+  'Fe-O': 300, 'Na-O': 200, 'O-Ti': 400,
+};
+
+const BEND_FORCE_CONSTANT = 70; // N/m, typical angle bending
+
+function zeroPointAmplitude(reducedMassAmu, forceConstantNm) {
+  const mu = reducedMassAmu * AMU_TO_ME;
+  const k = forceConstantNm * NM_TO_EHBOHR2;
+  // A₀ = 1 / (√2 × (μk)^{1/4})  in Bohr
+  return 1 / (Math.SQRT2 * Math.pow(mu * k, 0.25));
+}
+
 // ---- Procedural vibrational mode generation ----
 
 export function generateVibrationalModes(moleculeName) {
@@ -81,9 +112,18 @@ export function generateVibrationalModes(moleculeName) {
       for (let k = 0; k < displacements.length; k++) displacements[k] /= maxD;
     }
 
+    // Compute physical zero-point amplitude for this bond type
+    const bondKey = key.split('=')[0]; // e.g., 'C-H' from 'C-H' or 'C-C=2'
+    const [el1, el2] = bondKey.split('-');
+    const m1 = ATOMIC_MASS[el1] || 12;
+    const m2 = ATOMIC_MASS[el2] || 12;
+    const mu = (m1 * m2) / (m1 + m2);
+    const kForce = BOND_FORCE_CONSTANTS[key] || 300;
+
     modes.push({
       name: `${key} stretch`,
       displacements,
+      physicalAmplitude: zeroPointAmplitude(mu, kForce),
     });
 
     // Asymmetric stretch for groups with 2+ bonds: alternate phase
@@ -123,6 +163,7 @@ export function generateVibrationalModes(moleculeName) {
         modes.push({
           name: `${key} asym. stretch`,
           displacements: asymDisp,
+          physicalAmplitude: zeroPointAmplitude(mu, kForce),
         });
       }
     }
@@ -192,9 +233,12 @@ export function generateVibrationalModes(moleculeName) {
             for (let k = 0; k < bendDisp.length; k++) bendDisp[k] /= maxB;
 
             const nameA = atoms[a][0], nameC = atoms[center][0], nameB = atoms[b][0];
+            // Reduced mass of terminal atoms for bend amplitude
+            const muBend = (massA * massB) / (massA + massB);
             modes.push({
               name: `${nameA}-${nameC}-${nameB} bend`,
               displacements: bendDisp,
+              physicalAmplitude: zeroPointAmplitude(muBend, BEND_FORCE_CONSTANT),
             });
           }
         }

@@ -600,10 +600,14 @@ function populateVibModes(moleculeName) {
     vibModeSelect.appendChild(opt);
   }
 
-  // Pre-select Random Mix as default (build starts when user clicks Play or
-  // after main orbital load completes)
+  // Pre-select Random Mix as default (build starts after main orbital load)
   if (vibCurrentModes.length > 0) {
     vibModeSelect.value = 'random';
+    vibAmplitudeSlider.disabled = true;
+    vibAmplitudeSlider.parentElement.style.opacity = '0.4';
+  } else {
+    vibAmplitudeSlider.disabled = false;
+    vibAmplitudeSlider.parentElement.style.opacity = '1';
   }
 }
 
@@ -614,6 +618,8 @@ function cancelVibration() {
   vibProgress.classList.add('dropdown-hidden');
   restoreStaticMeshes();
   resetMoleculeContextPositions();
+  vibAmplitudeSlider.disabled = false;
+  vibAmplitudeSlider.parentElement.style.opacity = '1';
 }
 
 function restoreStaticMeshes() {
@@ -666,11 +672,13 @@ async function startVibBuild() {
   };
 
   if (isRandom) {
+    // Use physically computed zero-point amplitudes as weights
     settings.mixModes = vibCurrentModes.map(mode => ({
       mode,
-      weight: 0.3 + Math.random() * 0.7,
+      weight: mode.physicalAmplitude || 0.15,
       phaseOffset: Math.random() * 2 * Math.PI,
     }));
+    settings.amplitude = 1.0; // weights are already in Bohr
   } else {
     settings.mode = vibCurrentModes[modeIdx];
   }
@@ -691,7 +699,10 @@ async function startVibBuild() {
 
 vibModeSelect.addEventListener('change', () => {
   cancelVibration();
-  if (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0) {
+  const isRandom = vibModeSelect.value === 'random';
+  vibAmplitudeSlider.disabled = isRandom;
+  vibAmplitudeSlider.parentElement.style.opacity = isRandom ? '0.4' : '1';
+  if (isRandom || parseInt(vibModeSelect.value) >= 0) {
     startVibBuild();
   }
 });
