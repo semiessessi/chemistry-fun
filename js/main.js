@@ -478,6 +478,7 @@ function triggerProbRebuild() {
       await renderFromCachesAsync(currentProbability, undefined, target);
       hideProgress();
     }
+    if (isVibActive()) { cancelVibration(); startVibBuild(); }
   }, 50);
 }
 
@@ -490,6 +491,7 @@ layerSelect.addEventListener('change', async () => {
     await renderFromCachesAsync(currentProbability, undefined, target);
     hideProgress();
   }
+  if (isVibActive()) { cancelVibration(); startVibBuild(); }
 });
 
 // ---- Ball & Stick toggle ----
@@ -593,12 +595,20 @@ function populateVibModes(moleculeName) {
   // Pre-select Random Mix as default (build starts after main orbital load)
   if (vibCurrentModes.length > 0) {
     vibModeSelect.value = 'random';
-    vibAmplitudeSlider.disabled = true;
-    vibAmplitudeGroup.style.opacity = '0.4';
-  } else {
-    vibAmplitudeSlider.disabled = false;
-    vibAmplitudeGroup.style.opacity = '1';
   }
+  updateVibAmplitudeVisibility();
+}
+
+// Show amplitude controls only for individual modes (not Random Mix or None)
+function updateVibAmplitudeVisibility() {
+  const modeVal = vibModeSelect.value;
+  const showAmplitude = parseInt(modeVal) >= 0; // individual mode selected
+  vibAmplitudeGroup.classList.toggle('dropdown-hidden', !showAmplitude);
+}
+
+function isVibActive() {
+  return vibController.state !== 'idle' &&
+    (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0);
 }
 
 function cancelVibration() {
@@ -608,8 +618,6 @@ function cancelVibration() {
   vibProgress.classList.add('dropdown-hidden');
   restoreStaticMeshes();
   resetMoleculeContextPositions();
-  vibAmplitudeSlider.disabled = false;
-  vibAmplitudeGroup.style.opacity = '1';
 }
 
 function restoreStaticMeshes() {
@@ -686,10 +694,8 @@ async function startVibBuild() {
 
 vibModeSelect.addEventListener('change', () => {
   cancelVibration();
-  const isRandom = vibModeSelect.value === 'random';
-  vibAmplitudeSlider.disabled = isRandom;
-  vibAmplitudeGroup.style.opacity = isRandom ? '0.4' : '1';
-  if (isRandom || parseInt(vibModeSelect.value) >= 0) {
+  updateVibAmplitudeVisibility();
+  if (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0) {
     startVibBuild();
   }
 });
