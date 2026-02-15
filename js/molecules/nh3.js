@@ -1,19 +1,15 @@
 import { addMol } from './core.js';
 
-const NH3_R = 1.91;
-const NH3_ANGLE = (107.8 * Math.PI) / 180;
-const NH3_HZ = -NH3_R * Math.cos(Math.PI - NH3_ANGLE);
-const NH3_HR = NH3_R * Math.sin(Math.PI - NH3_ANGLE);
 addMol({
   name: 'NH\u2083',
   label: 'NH\u2083 (Ammonia)',
   category: 'Small Organic',
   pubchemCid: 222,
   atoms: [
-    ['N', 0, 0, 0.12],
-    ['H', 1.78, 0, -0.62],
-    ['H', -0.89, 1.54, -0.62],
-    ['H', -0.89, -1.54, -0.62],
+    ['N', 0, 0, 0],
+    ['H', 1.77, 0, -0.72],
+    ['H', -0.89, 1.53, -0.72],
+    ['H', -0.89, -1.53, -0.72],
   ],
   bonds: [[0, 1], [0, 2], [0, 3]],
   he: 12,
