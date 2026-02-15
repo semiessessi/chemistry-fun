@@ -505,6 +505,15 @@ densityFieldToggle.addEventListener('change', () => {
 });
 
 // ---- Vector Field toggle ----
+
+function rebuildVibIfActive() {
+  if (vibController.state !== 'idle' &&
+      (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0)) {
+    cancelVibration();
+    startVibBuild();
+  }
+}
+
 fieldVisToggle.addEventListener('change', () => {
   showFieldVis = fieldVisToggle.checked;
   if (showFieldVis) {
@@ -514,6 +523,7 @@ fieldVisToggle.addEventListener('change', () => {
     fieldOptions.classList.add('dropdown-hidden');
     clearFieldVis();
   }
+  rebuildVibIfActive();
 });
 
 fieldStyleSelect.addEventListener('change', () => {
@@ -522,6 +532,7 @@ fieldStyleSelect.addEventListener('change', () => {
   if (showFieldVis && currentCaches.length > 0) {
     rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
+  rebuildVibIfActive();
 });
 
 fieldSourceSelect.addEventListener('change', () => {
@@ -529,6 +540,7 @@ fieldSourceSelect.addEventListener('change', () => {
   if (showFieldVis && currentCaches.length > 0) {
     rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
+  rebuildVibIfActive();
 });
 
 // ---- Opacity slider ----
