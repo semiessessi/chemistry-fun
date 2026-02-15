@@ -10,8 +10,12 @@ export {
   MOLECULE_CATEGORIES,
   getMoleculeAtoms,
   getMoleculeData,
+  getMoleculeVariants,
+  getMoleculeCid,
   buildDisplacedOrbital,
   buildDisplacedDensitySampler,
+  addMol,
+  ELEMENTS,
 } from './core.js';
 
 // Import all molecules to trigger registration
