@@ -561,45 +561,90 @@ function collectStreamlineSeeds(grad, data, gs, he, step, bounds, useMagnitudeBo
   return seeds;
 }
 
-// ---- Standalone field vis builder (no module state, for vibration frames) ----
+// ---- Recompute arrow vectors at fixed positions from a new field ----
 
-export function buildFieldVisIntoGroup(group, caches, probability, atomInfo) {
-  if (!caches || caches.length === 0) return;
+function recomputeArrowVectors(positions, grad, gs, he, step) {
+  const arrows = [];
+  let maxMag = 0;
+  for (const pos of positions) {
+    const v = trilinearInterp(grad, gs, he, step, pos.x, pos.y, pos.z);
+    if (!v) continue;
+    const mag = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if (mag < 1e-8) continue;
+    arrows.push({ x: pos.x, y: pos.y, z: pos.z, gx: v[0], gy: v[1], gz: v[2], mag });
+    if (mag > maxMag) maxMag = mag;
+  }
+  return { arrows, maxMag };
+}
+
+// ---- Standalone field vis builder (no module state, for vibration frames) ----
+// When refLayout is null, computes positions from scratch and returns the layout.
+// When refLayout is provided, reuses its arrow/seed positions (no flickering).
+
+export function buildFieldVisIntoGroup(group, caches, probability, atomInfo, refLayout) {
+  if (!caches || caches.length === 0) return null;
 
   const doArrows = currentMode === 'arrows' || currentMode === 'both';
   const doStreamlines = currentMode === 'streamlines' || currentMode === 'both';
   const isElectrostatic = currentSource === 'electrostatic';
   const isMagnetic = currentSource === 'magnetic';
+  const newLayout = refLayout ? null : {};
 
   for (const c of caches) {
     const gs = c.gridSize;
     const he = c.halfExtent;
     const step = (2 * he) / (gs - 1);
 
-    let grad, bounds = null, magBounds = null;
-    const useMagnitudeBounds = isElectrostatic || isMagnetic;
-
+    // Compute vector field for this frame
+    let grad;
     if (isMagnetic && atomInfo && atomInfo.length > 0) {
       grad = computeMagneticField(atomInfo, gs, he);
-      magBounds = computeMagnitudeBounds(grad, gs, 0.001, 0.15);
     } else if (isElectrostatic) {
       grad = computeGradient(c.data, gs, he);
       for (let i = 0; i < grad.length; i++) grad[i] = -grad[i];
-      magBounds = computeMagnitudeBounds(grad, gs);
     } else {
       grad = computeGradient(c.data, gs, he);
-      bounds = computeFilterBounds(c.data, he, gs, probability || 0.8);
+    }
+
+    // Compute filter bounds only for reference frame (determines positions)
+    let bounds = null, magBounds = null;
+    if (!refLayout) {
+      const useMagnitudeBounds = isElectrostatic || isMagnetic;
+      if (isMagnetic) {
+        magBounds = computeMagnitudeBounds(grad, gs, 0.001, 0.15);
+      } else if (isElectrostatic) {
+        magBounds = computeMagnitudeBounds(grad, gs);
+      } else {
+        bounds = computeFilterBounds(c.data, he, gs, probability || 0.8);
+      }
     }
 
     if (doArrows) {
-      const { arrows, maxMag, stride } = collectArrowCandidates(
-        grad, c.data, gs, he, step, bounds, useMagnitudeBounds, magBounds);
+      let arrows, maxMag, stride;
+      if (refLayout) {
+        ({ arrows, maxMag } = recomputeArrowVectors(refLayout.arrowPositions, grad, gs, he, step));
+        stride = refLayout.arrowStride;
+      } else {
+        const useMagnitudeBounds = isElectrostatic || isMagnetic;
+        ({ arrows, maxMag, stride } = collectArrowCandidates(
+          grad, c.data, gs, he, step, bounds, useMagnitudeBounds, magBounds));
+        newLayout.arrowPositions = arrows.map(a => ({ x: a.x, y: a.y, z: a.z }));
+        newLayout.arrowStride = stride;
+      }
       createArrowMeshes(arrows, maxMag, step, stride, group, null, gs, he);
     }
 
     if (doStreamlines) {
-      const seeds = collectStreamlineSeeds(
-        grad, c.data, gs, he, step, bounds, useMagnitudeBounds, magBounds);
+      let seeds;
+      if (refLayout) {
+        seeds = refLayout.seedPositions;
+      } else {
+        const useMagnitudeBounds = isElectrostatic || isMagnetic;
+        seeds = collectStreamlineSeeds(
+          grad, c.data, gs, he, step, bounds, useMagnitudeBounds, magBounds);
+        newLayout.seedPositions = seeds.map(s => ({ x: s.x, y: s.y, z: s.z }));
+      }
+
       const dt = step * 0.8;
       const maxSteps = 200;
       const coneDatas = [];
@@ -616,6 +661,8 @@ export function buildFieldVisIntoGroup(group, caches, probability, atomInfo) {
       createDirectionCones(coneDatas, group, false);
     }
   }
+
+  return newLayout;
 }
 
 // ---- Public API ----

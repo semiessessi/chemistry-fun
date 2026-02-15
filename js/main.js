@@ -7,10 +7,12 @@ import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-mate
 import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
 import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
          updateMoleculeContextPositions, resetMoleculeContextPositions,
-         MOLECULE_LABELS, MOLECULE_CATEGORIES, getMoleculeAtoms } from './molecules/index.js';
+         MOLECULE_LABELS, MOLECULE_CATEGORIES, getMoleculeAtoms,
+         getMoleculeVariants, getMoleculeCid, addMol } from './molecules/index.js';
+import { fetchPubChem, pubchemUrl, pubchemCitation, formatFormula } from './pubchem.js';
 import { BOND_FORMING_CONFIG, clearBondFormingContext,
          setBondFormingContextVisible } from './bond-forming.js';
-import { clearFieldVis, purgeFieldCache, setFieldMode, setFieldSource, getFieldSource } from './electric-field.js';
+import { clearFieldVis, purgeFieldCache, setFieldVisVisible, setFieldMode, setFieldSource, getFieldSource } from './electric-field.js';
 import { computeElectrostaticPotential } from './electrostatic-potential.js';
 import { SIM_STATE, SIM3_STATE } from './dynamics.js';
 import { initRenderPipeline, adaptiveGrid, getHalfExtent, loadOrbital, loadOrbitalAsync,
@@ -33,6 +35,17 @@ const d4Wrapper = document.getElementById('d4-wrapper');
 
 const categorySelect = document.getElementById('category-select');
 const categoryWrapper = document.getElementById('category-wrapper');
+
+const pubchemWrapper = document.getElementById('pubchem-wrapper');
+const pubchemInput = document.getElementById('pubchem-input');
+const pubchemBtn = document.getElementById('pubchem-btn');
+const pubchemStatus = document.getElementById('pubchem-status');
+const pubchemCitationDiv = document.getElementById('pubchem-citation');
+
+const variantWrapper = document.getElementById('variant-wrapper');
+const variantSelect = document.getElementById('variant-select');
+
+const densityOptions = document.getElementById('density-options');
 
 const D2_LABELS = { Atomic: 'Shell', Molecular: 'Basis', Hybrid: 'Hybridization', Molecules: 'Molecule', 'Bond Formation': 'Molecule' };
 const D3_LABELS = { Atomic: 'Subshell', Molecular: 'Bond Type', Hybrid: 'Lobe', Molecules: 'Orbital / Field', 'Bond Formation': 'Orbital' };
@@ -185,6 +198,16 @@ function applyBallStickVisibility() {
 function applyDensityFieldVisibility() {
   for (const m of currentMeshes) m.visible = showDensityField;
   if (dynOrbitalGroup) dynOrbitalGroup.visible = showDensityField;
+  // Also apply to vibration frames during playback
+  if (vibController.state === 'playing') {
+    for (const frame of vibController.frames) {
+      if (frame && frame.group) frame.group.visible = false;
+    }
+    if (showDensityField && vibController.lastFrameIdx >= 0 &&
+        vibController.frames[vibController.lastFrameIdx]) {
+      vibController.frames[vibController.lastFrameIdx].group.visible = true;
+    }
+  }
 }
 
 function isESPotentialMode() { return d3Select.value === 'electrostatic potential'; }
@@ -291,6 +314,13 @@ function onD1Change() {
   d3Label.textContent = D3_LABELS[d1] || 'Subcategory';
   d4Label.textContent = D4_LABELS[d1] || 'Orbital';
   populateCategoryFilter(d1);
+  // Show/hide PubChem search for Molecules mode
+  pubchemWrapper.classList.toggle('dropdown-hidden', d1 !== 'Molecules');
+  if (d1 !== 'Molecules') {
+    pubchemStatus.textContent = '';
+    pubchemCitationDiv.innerHTML = '';
+    variantWrapper.classList.add('dropdown-hidden');
+  }
   const labels = (d1 === 'Molecules' || d1 === 'Bond Formation') ? MOLECULE_LABELS : undefined;
   populateSelect(d2Select, getFilteredD2Keys(d1), labels);
   onD2Change();
@@ -305,7 +335,37 @@ function onD2Change() {
     const densIdx = d3Keys.indexOf('electron density');
     if (densIdx >= 0) d3Select.selectedIndex = densIdx;
   }
+  // Update variant dropdown
+  updateVariantDropdown(d2);
+  // Update PubChem citation/link
+  updatePubchemLink(d2);
   onD3Change();
+}
+
+function updateVariantDropdown(molName) {
+  const variants = getMoleculeVariants(molName);
+  if (!variants || variants.length === 0) {
+    variantWrapper.classList.add('dropdown-hidden');
+    return;
+  }
+  variantSelect.innerHTML = '';
+  for (let i = 0; i < variants.length; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = variants[i].label;
+    variantSelect.appendChild(opt);
+  }
+  variantWrapper.classList.remove('dropdown-hidden');
+}
+
+function updatePubchemLink(molName) {
+  const cid = getMoleculeCid(molName);
+  if (cid) {
+    const url = pubchemUrl(cid);
+    pubchemCitationDiv.innerHTML = `<a href="${url}" target="_blank" rel="noopener">View on PubChem</a>`;
+  } else {
+    pubchemCitationDiv.innerHTML = '';
+  }
 }
 
 function onD3Change() {
@@ -503,10 +563,15 @@ ballStickToggle.addEventListener('change', () => {
 // ---- Density Field toggle ----
 densityFieldToggle.addEventListener('change', () => {
   showDensityField = densityFieldToggle.checked;
+  densityOptions.style.display = showDensityField ? '' : 'none';
   applyDensityFieldVisibility();
 });
 
 // ---- Vector Field toggle ----
+
+function rebuildVibIfActive() {
+  if (isVibActive()) { cancelVibration(); startVibBuild(); }
+}
 
 fieldVisToggle.addEventListener('change', () => {
   showFieldVis = fieldVisToggle.checked;
@@ -517,6 +582,7 @@ fieldVisToggle.addEventListener('change', () => {
     fieldOptions.classList.add('dropdown-hidden');
     clearFieldVis();
   }
+  rebuildVibIfActive();
 });
 
 fieldStyleSelect.addEventListener('change', () => {
@@ -525,6 +591,7 @@ fieldStyleSelect.addEventListener('change', () => {
   if (showFieldVis && currentCaches.length > 0) {
     rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
+  rebuildVibIfActive();
 });
 
 fieldSourceSelect.addEventListener('change', () => {
@@ -532,6 +599,7 @@ fieldSourceSelect.addEventListener('change', () => {
   if (showFieldVis && currentCaches.length > 0) {
     rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
+  rebuildVibIfActive();
 });
 
 // ---- Opacity slider ----
@@ -623,6 +691,7 @@ function cancelVibration() {
 function restoreStaticMeshes() {
   if (vibStaticMeshesHidden) {
     for (const m of currentMeshes) m.visible = showDensityField;
+    if (showFieldVis) setFieldVisVisible(true);
     vibStaticMeshesHidden = false;
   }
 }
@@ -630,7 +699,7 @@ function restoreStaticMeshes() {
 function hideStaticMeshes() {
   if (!vibStaticMeshesHidden) {
     for (const m of currentMeshes) m.visible = false;
-    // Keep field vis visible during vibration — it shows equilibrium field structure
+    setFieldVisVisible(false);
     vibStaticMeshesHidden = true;
   }
 }
@@ -664,6 +733,8 @@ async function startVibBuild() {
     gridSize: gs,
     halfExtent,
     isDensity: true,
+    showFieldVis,
+    atomInfo: showFieldVis ? getCurrentAtomInfo() : null,
   };
 
   if (isRandom) {
@@ -725,6 +796,91 @@ vibPlayBtn.addEventListener('click', () => {
   }
 });
 
+// ---- Variant select ----
+variantSelect.addEventListener('change', async () => {
+  const molName = d2Select.value;
+  const variants = getMoleculeVariants(molName);
+  if (!variants) return;
+  const v = variants[variantSelect.selectedIndex];
+  if (!v) return;
+
+  if (v.molecule) {
+    // Jump to another existing molecule
+    d2Select.value = v.molecule;
+    onD2Change();
+  } else if (v.cid) {
+    // Fetch from PubChem
+    pubchemStatus.textContent = 'Loading variant...';
+    try {
+      const result = await fetchPubChem(String(v.cid));
+      registerPubchemMolecule(result, v.label || result.name);
+      pubchemStatus.textContent = '';
+    } catch (e) {
+      pubchemStatus.textContent = e.message;
+    }
+  }
+  // else: no molecule/cid → this is the current molecule (no-op)
+});
+
+// ---- PubChem search ----
+async function doPubchemSearch() {
+  const query = pubchemInput.value.trim();
+  if (!query) return;
+
+  pubchemStatus.textContent = 'Searching...';
+  pubchemBtn.disabled = true;
+  try {
+    const result = await fetchPubChem(query);
+    registerPubchemMolecule(result, result.name);
+    pubchemStatus.textContent = '';
+    pubchemInput.value = '';
+  } catch (e) {
+    pubchemStatus.textContent = e.message;
+  } finally {
+    pubchemBtn.disabled = false;
+  }
+}
+
+function registerPubchemMolecule(result, displayName) {
+  const { cid, name, iupacName, formula, atoms, bonds, he, mos } = result;
+  // Build label: "Formula (Name)" with unicode subscripts
+  const formattedFormula = formula ? formatFormula(formula) : '';
+  const label = formattedFormula
+    ? `${formattedFormula} (${displayName})`
+    : displayName;
+
+  const molName = `PubChem:${cid}`;
+  addMol({
+    name: molName,
+    label,
+    category: 'PubChem',
+    atoms,
+    bonds,
+    he,
+    mos,
+    pubchemCid: cid,
+  });
+
+  // Refresh category filter to include 'PubChem' category
+  populateCategoryFilter(d1Select.value);
+  // Refresh D2 dropdown
+  const labels = MOLECULE_LABELS;
+  populateSelect(d2Select, getFilteredD2Keys(d1Select.value), labels);
+  // Select the new molecule
+  d2Select.value = molName;
+  onD2Change();
+
+  // Show citation
+  const url = pubchemUrl(cid);
+  const cite = pubchemCitation(displayName, cid);
+  pubchemCitationDiv.innerHTML = `<a href="${url}" target="_blank" rel="noopener">View on PubChem</a>`;
+}
+
+pubchemBtn.addEventListener('click', doPubchemSearch);
+pubchemInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doPubchemSearch();
+});
+
 // ---- Animation loop ----
 let lastTime = performance.now();
 
@@ -737,6 +893,11 @@ function animate() {
   tickDynamics();
   const vibFrameChanged = vibController.tick(dt * 3);
   if (vibFrameChanged && vibController.moleculeName) {
+    // Hide frame if density field toggle is off
+    if (!showDensityField && vibController.lastFrameIdx >= 0 &&
+        vibController.frames[vibController.lastFrameIdx]) {
+      vibController.frames[vibController.lastFrameIdx].group.visible = false;
+    }
     const disps = vibController.displacementsAtPhase(vibController.phase);
     if (disps) updateMoleculeContextPositions(vibController.moleculeName, disps);
   }
