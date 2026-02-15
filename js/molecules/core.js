@@ -49,7 +49,7 @@ const bondMaterial = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 3
 
 let contextMeshes = [];
 let trackedAtoms = [];  // [{mesh, label, atomIdx, origPos, origLabelPos}]
-let trackedBonds = [];  // [{mesh, atomI, atomJ, origPos}]
+let trackedBonds = [];  // [{mesh, atomI, atomJ, origPos, origQuat, origScaleY, midOffset, lengthRatio}]
 
 // ---- Molecule registry (for context rendering) ----
 
@@ -61,10 +61,24 @@ export const MOLECULE_LABELS = {};
 // ---- Category tracking ----
 export const MOLECULE_CATEGORIES = {}; // name → category string
 
+// ---- Variant tracking ----
+const MOLECULE_VARIANTS = {}; // name → variants array
+
+// ---- PubChem CID tracking ----
+const MOLECULE_CIDS = {}; // name → CID number
+
 // ---- Atom data access (for electrostatic field computation) ----
 export function getMoleculeAtoms(name) {
   const mol = MOLECULES[name];
   return mol ? mol.atoms : null; // [[element, x, y, z], ...]
+}
+
+export function getMoleculeVariants(name) {
+  return MOLECULE_VARIANTS[name] || null;
+}
+
+export function getMoleculeCid(name) {
+  return MOLECULE_CIDS[name] || null;
 }
 
 // ---- Geometry helpers ----
@@ -91,14 +105,18 @@ export function addMol(mol) {
   MOLECULES[mol.name] = mol;
   if (mol.label) MOLECULE_LABELS[mol.name] = mol.label;
   if (mol.category) MOLECULE_CATEGORIES[mol.name] = mol.category;
+  if (mol.variants) MOLECULE_VARIANTS[mol.name] = mol.variants;
+  if (mol.pubchemCid) MOLECULE_CIDS[mol.name] = mol.pubchemCid;
   const moOrbitals = [];
-  for (const mo of mol.mos) {
+  for (const mo of (mol.mos || [])) {
     const moName = mo[0];
     const termDefs = mo[1];
     const terms = termDefs.map(td => {
-      const [atomIdx, n, l, m, angType, coeff] = td;
+      const [atomIdx, n, l, m, angType, coeff, rot] = td;
       const pos = mol.atoms[atomIdx];
-      return { n, l, m, angType, center: [pos[1], pos[2], pos[3]], coeff };
+      const term = { n, l, m, angType, center: [pos[1], pos[2], pos[3]], coeff };
+      if (rot) term.rot = rot;
+      return term;
     });
     const fullName = mol.name + ' ' + moName;
     add({
@@ -148,14 +166,19 @@ export function buildDisplacedOrbital(moleculeName, moIndex, displacements) {
   const mol = MOLECULES[moleculeName];
   if (!mol) return null;
   const [moName, termDefs] = mol.mos[moIndex];
-  const terms = termDefs.map(([atomIdx, n, l, m, angType, coeff]) => ({
-    n, l, m, angType, coeff,
-    center: [
-      mol.atoms[atomIdx][1] + displacements[atomIdx][0],
-      mol.atoms[atomIdx][2] + displacements[atomIdx][1],
-      mol.atoms[atomIdx][3] + displacements[atomIdx][2],
-    ],
-  }));
+  const terms = termDefs.map(td => {
+    const [atomIdx, n, l, m, angType, coeff, rot] = td;
+    const term = {
+      n, l, m, angType, coeff,
+      center: [
+        mol.atoms[atomIdx][1] + displacements[atomIdx][0],
+        mol.atoms[atomIdx][2] + displacements[atomIdx][1],
+        mol.atoms[atomIdx][3] + displacements[atomIdx][2],
+      ],
+    };
+    if (rot) term.rot = rot;
+    return term;
+  });
   return { name: `${moleculeName} ${moName}`, terms, halfExtent: mol.he };
 }
 
@@ -286,11 +309,25 @@ export function showMoleculeContext(orbitalName) {
     m.quaternion.copy(quat);
     scene.add(m);
     contextMeshes.push(m);
+
+    const ai = currentBondAtoms[0], aj = currentBondAtoms[1];
+    const aAtom = mol.atoms[ai], bAtom = mol.atoms[aj];
+    const trueMid = new THREE.Vector3(
+      (aAtom[1] + bAtom[1]) / 2, (aAtom[2] + bAtom[2]) / 2, (aAtom[3] + bAtom[3]) / 2,
+    );
+    const bondLen = new THREE.Vector3(
+      bAtom[1] - aAtom[1], bAtom[2] - aAtom[2], bAtom[3] - aAtom[3],
+    ).length();
+
     trackedBonds.push({
       mesh: m,
-      atomI: currentBondAtoms[0],
-      atomJ: currentBondAtoms[1],
+      atomI: ai,
+      atomJ: aj,
       origPos: pos.clone(),
+      origQuat: quat.clone(),
+      origScaleY: length,
+      midOffset: pos.clone().sub(trueMid),
+      lengthRatio: bondLen > 1e-6 ? length / bondLen : 1,
     });
   };
 
@@ -434,6 +471,13 @@ export function setMoleculeContextVisible(visible) {
   for (const m of contextMeshes) m.visible = visible;
 }
 
+// Pre-allocated temporaries for updateMoleculeContextPositions (zero GC pressure)
+const _up = new THREE.Vector3(0, 1, 0);
+const _newDir = new THREE.Vector3();
+const _newQuat = new THREE.Quaternion();
+const _deltaQuat = new THREE.Quaternion();
+const _rotOffset = new THREE.Vector3();
+
 export function updateMoleculeContextPositions(moleculeName, displacements) {
   const mol = MOLECULES[moleculeName];
   if (!mol || !displacements) return;
@@ -444,13 +488,35 @@ export function updateMoleculeContextPositions(moleculeName, displacements) {
     if (label) label.position.set(origLabelPos.x + d[0], origLabelPos.y + d[1], origLabelPos.z + d[2]);
   }
 
-  for (const { mesh, atomI, atomJ, origPos } of trackedBonds) {
+  for (const bond of trackedBonds) {
+    const { mesh, atomI, atomJ, origQuat, midOffset, lengthRatio } = bond;
     const di = displacements[atomI], dj = displacements[atomJ];
+    const a = mol.atoms[atomI], b = mol.atoms[atomJ];
+
+    // New displaced atom positions
+    const ax = a[1] + di[0], ay = a[2] + di[1], az = a[3] + di[2];
+    const bx = b[1] + dj[0], by = b[2] + dj[1], bz = b[3] + dj[2];
+
+    // New direction and length
+    const dx = bx - ax, dy = by - ay, dz = bz - az;
+    const newLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (newLen < 1e-6) continue;
+
+    _newDir.set(dx / newLen, dy / newLen, dz / newLen);
+    _newQuat.setFromUnitVectors(_up, _newDir);
+
+    // Rotate perpendicular offset from old orientation to new
+    _deltaQuat.copy(origQuat).invert().premultiply(_newQuat);
+    _rotOffset.copy(midOffset).applyQuaternion(_deltaQuat);
+
+    // Apply new midpoint + rotated offset, new rotation, new length
     mesh.position.set(
-      origPos.x + (di[0] + dj[0]) / 2,
-      origPos.y + (di[1] + dj[1]) / 2,
-      origPos.z + (di[2] + dj[2]) / 2,
+      (ax + bx) / 2 + _rotOffset.x,
+      (ay + by) / 2 + _rotOffset.y,
+      (az + bz) / 2 + _rotOffset.z,
     );
+    mesh.quaternion.copy(_newQuat);
+    mesh.scale.y = newLen * lengthRatio;
   }
 }
 
@@ -459,7 +525,9 @@ export function resetMoleculeContextPositions() {
     mesh.position.copy(origPos);
     if (label) label.position.copy(origLabelPos);
   }
-  for (const { mesh, origPos } of trackedBonds) {
+  for (const { mesh, origPos, origQuat, origScaleY } of trackedBonds) {
     mesh.position.copy(origPos);
+    mesh.quaternion.copy(origQuat);
+    mesh.scale.y = origScaleY;
   }
 }
