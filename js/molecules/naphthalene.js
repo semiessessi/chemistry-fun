@@ -64,6 +64,7 @@ import { addMol, hexPos } from './core.js';
   addMol({
     name: 'Naphthalene',
     category: 'Aromatic',
+  pubchemCid: 931,
     atoms,
     bonds,
     he: 24,

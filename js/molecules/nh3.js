@@ -8,6 +8,7 @@ addMol({
   name: 'NH\u2083',
   label: 'NH\u2083 (Ammonia)',
   category: 'Small Organic',
+  pubchemCid: 222,
   atoms: [
     ['N', 0, 0, 0],
     ['H', NH3_HR, 0, NH3_HZ],

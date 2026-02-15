@@ -4,6 +4,7 @@ addMol({
   name: 'TiO\u2082',
   label: 'TiO\u2082 (Titanium Dioxide)',
   category: 'Metal Oxide',
+  pubchemCid: 26042,
   atoms: [['Ti', 0, 0, 0], ['O', 2.51, 0, 1.76], ['O', -2.51, 0, 1.76]],
   bonds: [[0, 1, 2], [0, 2, 2]],
   he: 18,

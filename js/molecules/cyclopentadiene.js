@@ -25,6 +25,7 @@ import { addMol, pentPos } from './core.js';
   addMol({
     name: 'C\u2085H\u2086',
     category: 'Aromatic',
+  pubchemCid: 7616,
     atoms,
     bonds,
     he: 18,

@@ -47,6 +47,7 @@ import { addMol, hexPos } from './core.js';
     name: 'Serotonin',
     label: 'C\u2081\u2080H\u2081\u2082N\u2082O (Serotonin)',
     category: 'Neurotransmitter',
+  pubchemCid: 5202,
     atoms, bonds, he: 28,
     mos: [
       ['\u03C0 indole', [[0,2,1,1,'sin',0.30],[1,2,1,1,'sin',0.30],[2,2,1,1,'sin',0.30],[3,2,1,1,'sin',0.33],[4,2,1,1,'sin',0.33],[5,2,1,1,'sin',0.30],[6,2,1,1,'sin',0.30],[7,2,1,1,'sin',0.30],[8,2,1,1,'sin',0.30]]],

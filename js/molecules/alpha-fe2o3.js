@@ -4,6 +4,7 @@ addMol({
   name: '\u03B1-Fe\u2082O\u2083',
   label: '\u03B1-Fe\u2082O\u2083 (Hematite)',
   category: 'Metal Oxide',
+  pubchemCid: 14833,
   atoms: [
     ['Fe', -2.71, 0, 0],
     ['Fe', 2.71, 0, 0],

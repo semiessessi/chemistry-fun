@@ -28,6 +28,7 @@ import { addMol, hexPos } from './core.js';
   bonds.push([2,17],[3,18],[4,19],[5,20]);
   addMol({
     name: 'Aspirin', category: 'Drug',
+  pubchemCid: 2244,
     label: 'C\u2089H\u2088O\u2084 (Aspirin)',
     atoms, bonds, he: 24,
     mos: [

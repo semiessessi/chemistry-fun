@@ -5,6 +5,7 @@ addMol({
   name: 'CH\u2084',
   label: 'CH\u2084 (Methane)',
   category: 'Small Organic',
+  pubchemCid: 297,
   atoms: [
     ['C', 0, 0, 0],
     ['H', CH4_D, CH4_D, CH4_D],

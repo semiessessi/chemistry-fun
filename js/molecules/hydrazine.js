@@ -10,6 +10,7 @@ import { addMol } from './core.js';
     name: 'N\u2082H\u2084',
     label: 'N\u2082H\u2084 (Hydrazine)',
     category: 'Small Organic',
+  pubchemCid: 9321,
     atoms: [
       ['N', 0, 0, -NN],
       ['N', 0, 0, NN],

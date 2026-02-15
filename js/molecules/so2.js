@@ -4,6 +4,7 @@ addMol({
   name: 'SO\u2082',
   label: 'SO\u2082 (Sulfur Dioxide)',
   category: 'Triatomic',
+  pubchemCid: 1119,
   atoms: [['S', 0, 0, 0], ['O', 2.30, 0, 1.17], ['O', -2.30, 0, 1.17]],
   bonds: [[0, 1, 2], [0, 2, 2]],
   he: 18,

@@ -83,6 +83,7 @@ import { addMol, chairHexPos, pentPos } from './core.js';
   addMol({
     name: 'Sucrose',
     category: 'Sugar',
+  pubchemCid: 5988,
     atoms,
     bonds,
     he: 35,

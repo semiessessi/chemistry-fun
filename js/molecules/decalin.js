@@ -45,6 +45,7 @@ import { addMol } from './core.js';
   addMol({
     name: 'Decalin',
     category: 'Cyclic',
+  pubchemCid: 10132,
     atoms,
     bonds,
     he: 28,

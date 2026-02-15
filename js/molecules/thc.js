@@ -154,6 +154,7 @@ import { addMol, hexPos } from './core.js';
   ];
   addMol({
     name: 'THC', category: 'Drug',
+  pubchemCid: 16078,
     label: 'C\u2082\u2081H\u2083\u2080O\u2082 (THC)',
     atoms, bonds, he: 30,
     mos: [

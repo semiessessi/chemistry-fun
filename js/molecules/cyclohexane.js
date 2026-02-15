@@ -29,6 +29,7 @@ import { addMol, chairHexPos } from './core.js';
   addMol({
     name: 'Cyclohexane',
     category: 'Cyclic',
+  pubchemCid: 8078,
     atoms,
     bonds,
     he: 22,

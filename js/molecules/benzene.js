@@ -20,6 +20,7 @@ addMol({
   name: 'C\u2086H\u2086',
   label: 'C\u2086H\u2086 (Benzene)',
   category: 'Aromatic',
+  pubchemCid: 241,
   atoms: benzAtoms,
   bonds: benzBonds,
   he: 20,

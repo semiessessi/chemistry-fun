@@ -29,6 +29,7 @@ import { addMol, pentPos } from './core.js';
   bonds.push([0,5],[1,6],[3,7],[4,8],[8,9],[9,10],[8,11],[8,12],[9,13],[9,14],[10,15],[10,16]);
   addMol({
     name: 'Histamine', category: 'Neurotransmitter',
+  pubchemCid: 774,
     label: 'C\u2085H\u2089N\u2083 (Histamine)',
     atoms, bonds, he: 22,
     mos: [

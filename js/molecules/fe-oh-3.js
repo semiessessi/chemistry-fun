@@ -4,6 +4,7 @@ addMol({
   name: 'Fe(OH)\u2083',
   label: 'Fe(OH)\u2083 (Iron Hydroxide)',
   category: 'Metal Oxide',
+  pubchemCid: 73964,
   atoms: [
     ['Fe', 0, 0, 0],
     ['O', 0, 0, 3.60],

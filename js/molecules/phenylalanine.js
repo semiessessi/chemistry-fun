@@ -27,6 +27,7 @@ import { addMol, hexPos } from './core.js';
     name: 'Phenylalanine',
     label: 'C\u2089H\u2081\u2081NO\u2082 (Phenylalanine)',
     category: 'Amino Acid',
+  pubchemCid: 6140,
     atoms, bonds, he: 24,
     mos: [
       ['\u03C0 ring', [[12,2,1,1,'sin',0.41],[13,2,1,1,'sin',0.41],[14,2,1,1,'sin',0.41],[15,2,1,1,'sin',0.41],[16,2,1,1,'sin',0.41],[17,2,1,1,'sin',0.41]]],

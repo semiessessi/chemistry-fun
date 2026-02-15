@@ -51,6 +51,7 @@ import { addMol, hexPos } from './core.js';
   ];
   addMol({
     name: 'Morphine', category: 'Drug',
+  pubchemCid: 5288826,
     label: 'C\u2081\u2087H\u2081\u2089NO\u2083 (Morphine)',
     atoms, bonds, he: 26,
     mos: [

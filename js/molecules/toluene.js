@@ -25,6 +25,7 @@ import { addMol, hexPos } from './core.js';
     name: 'Toluene',
     label: 'C\u2087H\u2088 (Toluene)',
     category: 'Aromatic',
+  pubchemCid: 1140,
     atoms,
     bonds,
     he: 22,

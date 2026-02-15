@@ -26,6 +26,7 @@ import { addMol, hexPos } from './core.js';
   addMol({
     name: 'Purine',
     category: 'Aromatic',
+  pubchemCid: 1044,
     atoms: [
       ['N', ...r6[0]], // 0: N1
       ['C', ...r6[1]], // 1: C2

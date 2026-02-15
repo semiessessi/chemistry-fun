@@ -21,6 +21,7 @@ import { addMol, hexPos } from './core.js';
     name: 'Adenine',
     label: 'C\u2085H\u2085N\u2085 (Adenine)',
     category: 'DNA/RNA Base',
+  pubchemCid: 190,
     atoms: [
       ['N', ...r6[0]], ['C', ...r6[1]], ['N', ...r6[2]], ['C', ...r6[3]],
       ['C', ...r6[4]], ['C', ...r6[5]],

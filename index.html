@@ -9,15 +9,29 @@
 <body>
 <div id="top-bar">
 <div id="controls">
-  <h2>Orbital Viewer</h2>
-  <label for="d1-select">Type</label>
+  <label for="d1-select">Mode</label>
   <select id="d1-select"></select>
-  <div id="category-wrapper" class="dropdown-hidden">
-    <label for="category-select">Category</label>
-    <select id="category-select"></select>
+  <div id="molecule-row">
+    <div id="d2-col">
+      <label id="d2-label" for="d2-select">Shell</label>
+      <select id="d2-select"></select>
+    </div>
+    <div id="category-wrapper" class="dropdown-hidden">
+      <label for="category-select">Category</label>
+      <select id="category-select"></select>
+    </div>
   </div>
-  <label id="d2-label" for="d2-select">Shell</label>
-  <select id="d2-select"></select>
+  <div id="pubchem-wrapper" class="dropdown-hidden">
+    <div id="pubchem-search-row">
+      <input type="text" id="pubchem-input" placeholder="PubChem: name or CID...">
+      <button id="pubchem-btn">Go</button>
+    </div>
+    <div id="pubchem-status"></div>
+  </div>
+  <div id="variant-wrapper" class="dropdown-hidden">
+    <label id="variant-label" for="variant-select">Variant</label>
+    <select id="variant-select"></select>
+  </div>
   <label id="d3-label" for="d3-select">Subshell</label>
   <select id="d3-select"></select>
   <div id="d4-wrapper">
@@ -27,45 +41,55 @@
   <label for="prob-slider">Probability Cutoff</label>
   <input type="range" id="prob-slider" min="1" max="99" value="80">
   <div id="prob-display">80%</div>
-  <label class="checkbox-row">
-    <input type="checkbox" id="ball-stick-toggle" checked>
-    Ball &amp; Stick Model
-  </label>
-  <label class="checkbox-row">
-    <input type="checkbox" id="density-field-toggle" checked>
-    Density Field
-  </label>
-  <label class="checkbox-row">
-    <input type="checkbox" id="field-vis-toggle">
-    Vector Field
-  </label>
-  <div id="field-options" class="dropdown-hidden">
-    <select id="field-source-select">
-      <option value="gradient" selected>Gradient (&nabla;&psi; / &nabla;&rho;)</option>
-      <option value="electrostatic">Electron Field (&minus;&nabla;&rho;)</option>
-      <option value="magnetic">Magnetic (B-field)</option>
-    </select>
-    <select id="field-style-select">
-      <option value="arrows">Arrows</option>
-      <option value="streamlines">Streamlines</option>
-      <option value="both" selected>Both</option>
-    </select>
-  </div>
-  <label for="layer-select">Layers</label>
-  <select id="layer-select">
-    <option value="1">1</option>
-    <option value="2">2</option>
-    <option value="3">3</option>
-    <option value="5" selected>5</option>
-    <option value="8">8</option>
-    <option value="12">12 (Slow)</option>
-    <option value="24">24 (Slow)</option>
-    <option value="50">50 (Very Slow)</option>
-    <option value="100">100 (Very Slow)</option>
-  </select>
-  <label for="opacity-slider">Opacity</label>
-  <input type="range" id="opacity-slider" min="5" max="90" value="70">
-  <div id="opacity-display">70%</div>
+  <details class="section" open>
+    <summary>Ball &amp; Stick</summary>
+    <label class="checkbox-row">
+      <input type="checkbox" id="ball-stick-toggle" checked>
+      Show Model
+    </label>
+  </details>
+  <details class="section" open>
+    <summary>Visualization</summary>
+    <div id="vis-toggles">
+      <label class="checkbox-row">
+        <input type="checkbox" id="field-vis-toggle">
+        Vector Field
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="density-field-toggle" checked>
+        Density Field
+      </label>
+    </div>
+    <div id="field-options" class="dropdown-hidden">
+      <select id="field-source-select">
+        <option value="gradient" selected>Gradient (&nabla;&psi; / &nabla;&rho;)</option>
+        <option value="electrostatic">Electron Field (&minus;&nabla;&rho;)</option>
+        <option value="magnetic">Magnetic (B-field)</option>
+      </select>
+      <select id="field-style-select">
+        <option value="arrows">Arrows</option>
+        <option value="streamlines">Streamlines</option>
+        <option value="both" selected>Both</option>
+      </select>
+    </div>
+    <div id="density-options">
+      <label for="layer-select">Layers</label>
+      <select id="layer-select">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="5" selected>5</option>
+        <option value="8">8</option>
+        <option value="12">12 (Slow)</option>
+        <option value="24">24 (Slow)</option>
+        <option value="50">50 (Very Slow)</option>
+        <option value="100">100 (Very Slow)</option>
+      </select>
+      <label for="opacity-slider">Opacity</label>
+      <input type="range" id="opacity-slider" min="5" max="90" value="70">
+      <div id="opacity-display">70%</div>
+    </div>
+  </details>
   <div id="separation-wrapper" class="dropdown-hidden">
     <label for="sep-slider">Separation</label>
     <input type="range" id="sep-slider" min="0" max="100" value="100" step="1">
@@ -106,6 +130,7 @@
     <div id="progress-label">Computing...</div>
     <div id="progress-track"><div id="progress-fill"></div></div>
   </div>
+  <div id="pubchem-citation"></div>
 </div>
 <div id="layer-key"></div>
 </div>

@@ -59,6 +59,7 @@ import { addMol } from './core.js';
   ];
   addMol({
     name: 'Cocaine', category: 'Drug',
+  pubchemCid: 446220,
     label: 'C\u2081\u2087H\u2082\u2081NO\u2084 (Cocaine)',
     atoms, bonds, he: 30,
     mos: [

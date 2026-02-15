@@ -4,6 +4,7 @@ addMol({
   name: 'O\u2083',
   label: 'O\u2083 (Ozone)',
   category: 'Triatomic',
+  pubchemCid: 24823,
   atoms: [['O', 0, 0, 0], ['O', 2.14, 0, 1.08], ['O', -2.14, 0, 1.08]],
   bonds: [[0, 1, 1.5], [0, 2, 1.5]],
   he: 16,

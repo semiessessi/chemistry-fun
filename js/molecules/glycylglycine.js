@@ -5,6 +5,7 @@ import { addMol } from './core.js';
 // ============================================================
 addMol({
   name: 'Glycylglycine', category: 'Peptide',
+  pubchemCid: 11163,
   label: 'C\u2084H\u2088N\u2082O\u2083 (Glycylglycine)',
   atoms: [
     // NH₂-CH₂-CO-NH-CH₂-COOH

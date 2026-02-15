@@ -58,6 +58,7 @@ import { addMol } from './core.js';
   }
   addMol({
     name: 'Adamantane', category: 'Cage',
+  pubchemCid: 9254,
     label: 'C\u2081\u2080H\u2081\u2086 (Adamantane)',
     atoms, bonds, he: 22,
     mos: [

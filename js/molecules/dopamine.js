@@ -34,6 +34,7 @@ import { addMol, hexPos } from './core.js';
     name: 'Dopamine',
     label: 'C\u2088H\u2081\u2081NO\u2082 (Dopamine)',
     category: 'Neurotransmitter',
+  pubchemCid: 681,
     atoms, bonds, he: 26,
     mos: [
       ['\u03C0 ring', [[0,2,1,1,'sin',0.41],[1,2,1,1,'sin',0.41],[2,2,1,1,'sin',0.41],[3,2,1,1,'sin',0.41],[4,2,1,1,'sin',0.41],[5,2,1,1,'sin',0.41]]],

@@ -50,6 +50,7 @@ import { addMol, hexPos } from './core.js';
   ];
   addMol({
     name: 'MDMA', category: 'Drug',
+  pubchemCid: 1615,
     label: 'C\u2081\u2081H\u2081\u2085NO\u2082 (MDMA)',
     atoms, bonds, he: 28,
     mos: [

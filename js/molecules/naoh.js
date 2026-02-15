@@ -4,6 +4,7 @@ addMol({
   name: 'NaOH',
   label: 'NaOH (Sodium Hydroxide)',
   category: 'Inorganic',
+  pubchemCid: 14798,
   atoms: [['Na', 0, 0, -3.69], ['O', 0, 0, 0], ['H', 0, 0, 1.83]],
   bonds: [[0, 1], [1, 2]],
   he: 18,

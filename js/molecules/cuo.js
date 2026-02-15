@@ -4,6 +4,7 @@ addMol({
   name: 'CuO',
   label: 'CuO (Copper Oxide)',
   category: 'Metal Oxide',
+  pubchemCid: 14829,
   atoms: [['Cu', 0, 0, -1.63], ['O', 0, 0, 1.63]],
   bonds: [[0, 1, 2]],
   he: 20,

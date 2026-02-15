@@ -4,6 +4,7 @@ addMol({
   name: 'CH\u2083OH',
   label: 'CH\u2083OH (Methanol)',
   category: 'Alcohol',
+  pubchemCid: 887,
   atoms: [
     ['C', 0, 0, 0],
     ['O', 0, 0, 2.70],

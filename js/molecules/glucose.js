@@ -56,6 +56,7 @@ import { addMol, chairHexPos } from './core.js';
   addMol({
     name: 'Glucose',
     category: 'Sugar',
+  pubchemCid: 5793,
     atoms,
     bonds,
     he: 28,

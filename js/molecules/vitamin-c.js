@@ -29,6 +29,7 @@ import { addMol, pentPos } from './core.js';
   atoms.push(['H',pentPos(R5,2)[0],1.80,pentPos(R5,2)[2]+0.70]); // 19: H on C2
   addMol({
     name: 'Vitamin C', category: 'Vitamin',
+  pubchemCid: 54670067,
     label: 'C\u2086H\u2088O\u2086 (Ascorbic Acid)',
     atoms,
     bonds: [

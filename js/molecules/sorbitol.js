@@ -38,6 +38,7 @@ import { addMol } from './core.js';
   }
   addMol({
     name: 'Sorbitol', category: 'Sugar',
+  pubchemCid: 5780,
     label: 'C\u2086H\u2081\u2084O\u2086 (Sorbitol)',
     atoms, bonds, he: 24,
     mos: [

@@ -34,6 +34,7 @@ import { addMol } from './core.js';
   }
   addMol({
     name: 'C\u2086\u2080', category: 'Cage',
+  pubchemCid: 123591,
     label: 'C\u2086\u2080 (Buckminsterfullerene)',
     atoms, bonds, he: 38,
     mos: [

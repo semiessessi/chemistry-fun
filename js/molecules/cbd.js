@@ -97,6 +97,7 @@ import { addMol, hexPos } from './core.js';
   ];
   addMol({
     name: 'CBD', category: 'Drug',
+  pubchemCid: 644019,
     label: 'C\u2082\u2081H\u2083\u2080O\u2082 (CBD)',
     atoms, bonds, he: 32,
     mos: [

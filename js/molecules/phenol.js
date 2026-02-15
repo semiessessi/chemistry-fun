@@ -24,6 +24,7 @@ import { addMol, hexPos } from './core.js';
     name: 'Phenol',
     label: 'C\u2086H\u2085OH (Phenol)',
     category: 'Aromatic',
+  pubchemCid: 996,
     atoms,
     bonds,
     he: 22,

@@ -4,6 +4,7 @@ addMol({
   name: 'Fe\u2083O\u2084',
   label: 'Fe\u2083O\u2084 (Magnetite)',
   category: 'Metal Oxide',
+  pubchemCid: 16211978,
   atoms: [
     ['Fe', 0, 0, 0],
     ['Fe', 3.5, 3.5, 0],

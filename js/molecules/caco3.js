@@ -4,6 +4,7 @@ addMol({
   name: 'CaCO\u2083',
   label: 'CaCO\u2083 (Calcite)',
   category: 'Inorganic',
+  pubchemCid: 10112,
   atoms: [
     ['C', 0, 0, 0],
     ['O', 0, 0, 2.45],

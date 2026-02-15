@@ -12,6 +12,7 @@ import { addMol, hexPos } from './core.js';
     name: 'Thymine',
     label: 'C\u2085H\u2086N\u2082O\u2082 (Thymine)',
     category: 'DNA/RNA Base',
+  pubchemCid: 1135,
     atoms: [
       ['N',...r6[0]],['C',...r6[1]],['N',...r6[2]],['C',...r6[3]],
       ['C',...r6[4]],['C',...r6[5]],

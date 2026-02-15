@@ -45,6 +45,7 @@ import { addMol, hexPos } from './core.js';
   ];
   addMol({
     name: 'Epinephrine', category: 'Neurotransmitter',
+  pubchemCid: 5816,
     label: 'C\u2089H\u2081\u2083NO\u2083 (Epinephrine)',
     atoms, bonds, he: 28,
     mos: [

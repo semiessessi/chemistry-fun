@@ -4,6 +4,7 @@ addMol({
   name: 'CH\u2083NH\u2082',
   label: 'CH\u2083NH\u2082 (Methylamine)',
   category: 'Small Organic',
+  pubchemCid: 6329,
   atoms: [
     ['C', 0, 0, -1.38],
     ['N', 0, 0, 1.38],

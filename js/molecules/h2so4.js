@@ -4,6 +4,7 @@ addMol({
   name: 'H\u2082SO\u2084',
   label: 'H\u2082SO\u2084 (Sulfuric Acid)',
   category: 'Acid',
+  pubchemCid: 1118,
   atoms: [
     ['S', 0, 0, 0],
     ['O', 1.55, 1.55, 1.55],

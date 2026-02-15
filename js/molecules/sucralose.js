@@ -71,6 +71,7 @@ import { addMol, chairHexPos, pentPos } from './core.js';
   ];
   addMol({
     name: 'Sucralose', category: 'Sugar',
+  pubchemCid: 71485,
     label: 'C\u2081\u2082H\u2081\u2089Cl\u2083O\u2088 (Sucralose)',
     atoms, bonds, he: 30,
     mos: [

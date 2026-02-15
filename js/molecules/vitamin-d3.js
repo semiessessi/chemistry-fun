@@ -113,6 +113,7 @@ import { addMol, hexPos } from './core.js';
   ];
   addMol({
     name: 'Vitamin D\u2083', category: 'Vitamin',
+  pubchemCid: 5280795,
     label: 'C\u2082\u2087H\u2084\u2084O (Cholecalciferol)',
     atoms, bonds, he: 28,
     mos: [

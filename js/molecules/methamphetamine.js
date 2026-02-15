@@ -5,6 +5,7 @@ import { addMol, hexPos } from './core.js';
   const R = 2.64, HR = 4.58;
   addMol({
     name: 'Methamphetamine', category: 'Drug',
+  pubchemCid: 10836,
     label: 'C\u2081\u2080H\u2081\u2085N (Methamphetamine)',
     atoms: (() => {
       const a = [];

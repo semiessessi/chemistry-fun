@@ -88,6 +88,7 @@ import { addMol } from './core.js';
   ];
   addMol({
     name: 'Vitamin A', category: 'Vitamin',
+  pubchemCid: 445354,
     label: 'C\u2082\u2080H\u2083\u2080O (Retinol)',
     atoms, bonds, he: 34,
     mos: [

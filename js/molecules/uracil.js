@@ -12,6 +12,7 @@ import { addMol, hexPos } from './core.js';
   addMol({
     name: 'Uracil',
     category: 'DNA/RNA Base',
+  pubchemCid: 1174,
     atoms: [
       ['N', n1x, n1y, n1z],   // 0: N1
       ['C', c2x, c2y, c2z],   // 1: C2

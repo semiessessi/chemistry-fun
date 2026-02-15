@@ -20,6 +20,7 @@ import { addMol, hexPos } from './core.js';
     name: 'C\u2083H\u2083N\u2083',
     label: 'C\u2083H\u2083N\u2083 (Triazine)',
     category: 'Aromatic',
+  pubchemCid: 9262,
     atoms,
     bonds,
     he: 20,

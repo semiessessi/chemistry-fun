@@ -4,6 +4,7 @@ addMol({
   name: 'FeO',
   label: 'FeO (Iron Oxide)',
   category: 'Metal Oxide',
+  pubchemCid: 14945,
   atoms: [['Fe', 0, 0, -1.58], ['O', 0, 0, 1.58]],
   bonds: [[0, 1, 2]],
   he: 18,

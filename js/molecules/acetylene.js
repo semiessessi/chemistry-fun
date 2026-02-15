@@ -4,6 +4,7 @@ addMol({
   name: 'C\u2082H\u2082',
   label: 'C\u2082H\u2082 (Acetylene)',
   category: 'Small Organic',
+  pubchemCid: 6326,
   atoms: [['C', 0, 0, -1.13], ['C', 0, 0, 1.13], ['H', 0, 0, -3.14], ['H', 0, 0, 3.14]],
   bonds: [[0, 1, 3], [0, 2], [1, 3]],
   he: 18,

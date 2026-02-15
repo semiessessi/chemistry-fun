@@ -4,6 +4,7 @@ addMol({
   name: 'HNO\u2083',
   label: 'HNO\u2083 (Nitric Acid)',
   category: 'Acid',
+  pubchemCid: 944,
   atoms: [
     ['N', 0, 0, 0],
     ['O', 0, 0, 2.29],

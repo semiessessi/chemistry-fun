@@ -34,6 +34,7 @@ import { addMol, hexPos } from './core.js';
   ];
   addMol({
     name: 'Norepinephrine', category: 'Neurotransmitter',
+  pubchemCid: 439260,
     label: 'C\u2088H\u2081\u2081NO\u2083 (Norepinephrine)',
     atoms, bonds, he: 26,
     mos: [

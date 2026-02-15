@@ -3,6 +3,7 @@ import { addMol } from './core.js';
 // ---- Citric Acid ----
 addMol({
   name: 'Citric Acid', category: 'Acid',
+  pubchemCid: 311,
   label: 'C\u2086H\u2088O\u2087 (Citric Acid)',
   atoms: [
     ['C',0,0,0],['C',-2.88,0,0],['C',2.88,0,0],

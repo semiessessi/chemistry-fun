@@ -19,6 +19,7 @@ import { addMol, hexPos } from './core.js';
     name: 'C\u2085H\u2085N',
     label: 'C\u2085H\u2085N (Pyridine)',
     category: 'Aromatic',
+  pubchemCid: 1049,
     atoms,
     bonds,
     he: 20,

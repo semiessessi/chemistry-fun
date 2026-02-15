@@ -24,6 +24,7 @@ import { addMol, hexPos } from './core.js';
     name: 'Aniline',
     label: 'C\u2086H\u2085NH\u2082 (Aniline)',
     category: 'Aromatic',
+  pubchemCid: 6115,
     atoms,
     bonds,
     he: 22,

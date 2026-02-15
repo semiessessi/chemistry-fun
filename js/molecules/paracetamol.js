@@ -27,6 +27,7 @@ import { addMol, hexPos } from './core.js';
   bonds.push([1,16],[2,17],[4,18],[5,19]);
   addMol({
     name: 'Paracetamol', category: 'Drug',
+  pubchemCid: 1983,
     label: 'C\u2088H\u2089NO\u2082 (Paracetamol)',
     atoms, bonds, he: 24,
     mos: [

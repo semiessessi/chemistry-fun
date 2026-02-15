@@ -5,6 +5,7 @@ import { addMol } from './core.js';
 // ============================================================
 addMol({
   name: 'MSG', category: 'Amino Acid',
+  pubchemCid: 23672308,
   label: 'C\u2085H\u2088NNaO\u2084 (MSG)',
   atoms: [
     // Glutamate backbone: NH₂-CH-CH₂-CH₂-COO⁻ with COO-Na

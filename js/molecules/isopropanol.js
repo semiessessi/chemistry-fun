@@ -3,6 +3,7 @@ import { addMol } from './core.js';
 // ---- Isopropyl Alcohol ----
 addMol({
   name: 'Isopropanol', category: 'Alcohol',
+  pubchemCid: 3776,
   label: 'C\u2083H\u2088O (Isopropanol)',
   atoms: [
     ['C',0,0,0],['C',-2.50,0,1.20],['C',2.50,0,1.20],

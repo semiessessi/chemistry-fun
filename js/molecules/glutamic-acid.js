@@ -4,6 +4,7 @@ addMol({
   name: 'Glutamic Acid',
   label: 'C\u2085H\u2089NO\u2084 (Glutamic Acid)',
   category: 'Amino Acid',
+  pubchemCid: 33032,
   atoms: [
     ['N',-1.50,0,-2.20],['C',0,0,0],['C',1.50,0,2.20],
     ['O',3.20,0,3.20],['O',2.20,0,0.00],['H',3.60,0,-0.80],

@@ -25,6 +25,7 @@ import { addMol } from './core.js';
   addMol({
     name: 'Norbornene',
     category: 'Cyclic',
+  pubchemCid: 11609,
     atoms,
     bonds: [
       [1, 3], [3, 4, 2], [4, 2], // ring with C=C

@@ -4,6 +4,7 @@ addMol({
   name: 'CO',
   label: 'CO (Carbon Monoxide)',
   category: 'Diatomic',
+  pubchemCid: 281,
   atoms: [['C', 0, 0, -1.066], ['O', 0, 0, 1.066]],
   bonds: [[0, 1, 3]],
   he: 16,

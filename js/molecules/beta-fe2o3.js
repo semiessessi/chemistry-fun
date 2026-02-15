@@ -4,6 +4,7 @@ addMol({
   name: '\u03B2-Fe\u2082O\u2083',
   label: '\u03B2-Fe\u2082O\u2083',
   category: 'Metal Oxide',
+  pubchemCid: 14833,
   atoms: [
     ['Fe', -2.50, 0, 0],
     ['Fe', 2.50, 0, 0],

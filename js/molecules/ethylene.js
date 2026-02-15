@@ -9,6 +9,7 @@ addMol({
   name: 'C\u2082H\u2084',
   label: 'C\u2082H\u2084 (Ethylene)',
   category: 'Small Organic',
+  pubchemCid: 6325,
   atoms: [
     ['C', 0, 0, -C2H4_CC],
     ['C', 0, 0, C2H4_CC],

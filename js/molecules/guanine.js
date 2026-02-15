@@ -20,6 +20,7 @@ import { addMol, hexPos } from './core.js';
     name: 'Guanine',
     label: 'C\u2085H\u2085N\u2085O (Guanine)',
     category: 'DNA/RNA Base',
+  pubchemCid: 764,
     atoms: [
       ['N',...r6[0]],['C',...r6[1]],['N',...r6[2]],['C',...r6[3]],
       ['C',...r6[4]],['C',...r6[5]],

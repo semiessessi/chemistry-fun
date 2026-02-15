@@ -4,6 +4,7 @@ addMol({
   name: '\u03B3-Fe\u2082O\u2083',
   label: '\u03B3-Fe\u2082O\u2083 (Maghemite)',
   category: 'Metal Oxide',
+  pubchemCid: 14833,
   atoms: [
     ['Fe', -2.0, 0, 0],
     ['Fe', 2.0, 0, 0],

@@ -5,6 +5,7 @@ import { addMol } from './core.js';
 // ============================================================
 addMol({
   name: 'Malic Acid', category: 'Acid',
+  pubchemCid: 525,
   label: 'C\u2084H\u2086O\u2085 (Malic Acid)',
   atoms: [
     ['C', -4.32, 0, 0],      // 0: C0 (COOH)

@@ -4,6 +4,7 @@ addMol({
   name: 'Al\u2082O\u2083',
   label: 'Al\u2082O\u2083 (Alumina)',
   category: 'Metal Oxide',
+  pubchemCid: 9989226,
   atoms: [
     ['O', 0, 0, 0],
     ['Al', -3.33, 0, 0],

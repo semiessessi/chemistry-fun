@@ -4,6 +4,7 @@ addMol({
   name: 'C\u2082H\u2085OH',
   label: 'C\u2082H\u2085OH (Ethanol)',
   category: 'Alcohol',
+  pubchemCid: 702,
   atoms: [
     ['C', 0, 0, -1.46],
     ['C', 0, 0, 1.46],
