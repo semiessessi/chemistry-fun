@@ -844,6 +844,7 @@ async function startVibBuild() {
   vibPlayBtn.textContent = '\u25B6 Play';
   vibProgress.classList.remove('dropdown-hidden');
 
+  const colorMode = getColorMode();
   const settings = {
     moleculeName: orbital.molecule,
     amplitude,
@@ -851,9 +852,9 @@ async function startVibBuild() {
     layers: currentLayers,
     gridSize: gs,
     halfExtent,
-    isDensity: true,
+    colorMode,
     showFieldVis,
-    atomInfo: showFieldVis ? getCurrentAtomInfo() : null,
+    atomInfo: (showFieldVis || colorMode === 'charge') ? getCurrentAtomInfo() : null,
   };
 
   if (isRandom) {

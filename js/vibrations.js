@@ -11,6 +11,7 @@ import { marchingCubes } from './marching-cubes.js';
 import { getMoleculeData, buildDisplacedDensitySampler, getMoleculeAtoms } from './molecules/index.js';
 import { scene } from './scene.js';
 import { buildFieldVisIntoGroup } from './electric-field.js';
+import { computeChargeDensity } from './electrostatic-potential.js';
 
 const NUM_FRAMES = 24;
 
@@ -351,8 +352,9 @@ export class VibrationController {
 
     const {
       moleculeName, mode, mixModes, amplitude, probability, layers,
-      gridSize, halfExtent, isDensity, showFieldVis, atomInfo,
+      gridSize, halfExtent, colorMode, showFieldVis, atomInfo,
     } = settings;
+    const isDensityLike = colorMode === 'density';
 
     this.moleculeName = moleculeName;
     this.amplitude = amplitude;
@@ -388,36 +390,14 @@ export class VibrationController {
 
       // Build marching cubes layers
       const group = new THREE.Group();
-      const thresholds = computeMultiThresholds(data, probability, layers, he, gs);
-      const mats = getLayerMaterials(layers, isDensity ? 'density' : 'orbital');
+      const mats = getLayerMaterials(layers, colorMode);
       const step = (2 * he) / (gs - 1);
 
-      for (let li = 0; li < layers; li++) {
-        const result = marchingCubes(data, gs, thresholds[li]);
-        if (result.indices.length > 0) {
-          const verts = result.vertices;
-          for (let vi = 0; vi < verts.length; vi += 3) {
-            verts[vi] = verts[vi] * step - he;
-            verts[vi + 1] = verts[vi + 1] * step - he;
-            verts[vi + 2] = verts[vi + 2] * step - he;
-          }
-          const geo = new THREE.BufferGeometry();
-          geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-          geo.setIndex(new THREE.BufferAttribute(result.indices, 1));
-          geo.computeVertexNormals();
-          const matIdx = layers - 1 - li;
-          const mesh = new THREE.Mesh(geo, mats.pos[matIdx]);
-          mesh.renderOrder = li;
-          group.add(mesh);
-        }
-
-        // Density is always positive (no neg side needed for electron density)
-        if (!isDensity) {
-          const negData = new Float32Array(data.length);
-          for (let j = 0; j < data.length; j++) negData[j] = -data[j];
-          const negResult = marchingCubes(negData, gs, thresholds[li]);
-          if (negResult.indices.length > 0) {
-            const verts = negResult.vertices;
+      const addMeshes = (sideData, thresholds, matArr) => {
+        for (let li = 0; li < layers; li++) {
+          const result = marchingCubes(sideData, gs, thresholds[li]);
+          if (result.indices.length > 0) {
+            const verts = result.vertices;
             for (let vi = 0; vi < verts.length; vi += 3) {
               verts[vi] = verts[vi] * step - he;
               verts[vi + 1] = verts[vi + 1] * step - he;
@@ -425,13 +405,48 @@ export class VibrationController {
             }
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-            geo.setIndex(new THREE.BufferAttribute(negResult.indices, 1));
+            geo.setIndex(new THREE.BufferAttribute(result.indices, 1));
             geo.computeVertexNormals();
             const matIdx = layers - 1 - li;
-            const mesh = new THREE.Mesh(geo, mats.neg[matIdx]);
+            const mesh = new THREE.Mesh(geo, matArr[matIdx]);
             mesh.renderOrder = li;
             group.add(mesh);
           }
+        }
+      };
+
+      if (colorMode === 'charge') {
+        // Compute charge density with displaced atom positions
+        const displacedAtomInfo = atomInfo.map((a, ai) => ({
+          Z: a.Z,
+          x: a.x + displacements[ai][0],
+          y: a.y + displacements[ai][1],
+          z: a.z + displacements[ai][2],
+        }));
+        const chargeData = await computeChargeDensity(displacedAtomInfo, data, gs, he, null);
+        if (stale()) return;
+
+        // Split positive/negative with independent thresholds
+        const N3 = chargeData.length;
+        const posData = new Float32Array(N3);
+        const negCharge = new Float32Array(N3);
+        for (let j = 0; j < N3; j++) {
+          if (chargeData[j] > 0) posData[j] = chargeData[j];
+          else if (chargeData[j] < 0) negCharge[j] = -chargeData[j];
+        }
+        const posThresholds = computeMultiThresholds(posData, probability, layers, he, gs);
+        const negThresholds = computeMultiThresholds(negCharge, probability, layers, he, gs);
+        addMeshes(posData, posThresholds, mats.pos);
+        addMeshes(negCharge, negThresholds, mats.neg);
+      } else {
+        const thresholds = computeMultiThresholds(data, probability, layers, he, gs);
+        addMeshes(data, thresholds, mats.pos);
+
+        // Render negative side for orbital mode (density/ESP is always positive)
+        if (!isDensityLike) {
+          const negData = new Float32Array(data.length);
+          for (let j = 0; j < data.length; j++) negData[j] = -data[j];
+          addMeshes(negData, thresholds, mats.neg);
         }
       }
 
