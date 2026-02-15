@@ -1,7 +1,9 @@
-// Unified orbital definitions: atomic, molecular (LCAO), and hybrid.
+// Unified orbital definitions: atomic, molecular (LCAO), hybrid, and transitions.
 // Each orbital: { name, terms: [...], halfExtent, d1, d2, d3, d4 }
 // Each term: { n, l, m, angType, center: [x,y,z], coeff }
 // "All lobes" entries: { name, lobes: [orbital, ...], halfExtent, d1, d2, d3, d4 }
+
+import { TRANSITIONS } from './transitions.js';
 
 export const ALL_ORBITALS = [];
 export const ORBITAL_MAP = {};
@@ -250,3 +252,47 @@ add({
   halfExtent: null, d1: 'Hybrid', d2: 'sp\u00B3', d3: 'all lobes', d4: null
 });
 
+// --- Electron Transitions (9) ---
+
+function orbitMaxN(orbital) {
+  let maxN = 1;
+  for (const t of orbital.terms) { if (t.n > maxN) maxN = t.n; }
+  return maxN;
+}
+
+function registerTransitions(seriesName, seriesLabel, transitionList) {
+  for (const trans of transitionList) {
+    const orbital1 = ORBITAL_MAP[trans.from];
+    const orbital2 = ORBITAL_MAP[trans.to];
+    if (!orbital1 || !orbital2) continue;
+
+    // Same formula as getHalfExtent in render-pipeline: n²×3.5+4
+    const n = Math.max(orbitMaxN(orbital1), orbitMaxN(orbital2));
+    const maxExtent = n * n * 3.5 + 4;
+
+    add({
+      name: `transition:${trans.from}→${trans.to}`,
+      isTransition: true,
+      transition: {
+        from: trans.from,
+        to: trans.to,
+        n1: trans.n1,
+        n2: trans.n2,
+        label: trans.label,
+        orbital1,
+        orbital2,
+      },
+      // Display initial state when not animating
+      terms: orbital1.terms,
+      halfExtent: maxExtent,
+      d1: 'Transitions',
+      d2: seriesLabel,
+      d3: trans.label,
+      d4: null,
+    });
+  }
+}
+
+registerTransitions('lyman', 'Lyman', TRANSITIONS.lyman);
+registerTransitions('balmer', 'Balmer', TRANSITIONS.balmer);
+registerTransitions('paschen', 'Paschen', TRANSITIONS.paschen);

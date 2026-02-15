@@ -9,7 +9,7 @@ import { scene, camera, renderer, controls, matPositive, matNegative, updateLabe
 import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
          updateMoleculeContextPositions, resetMoleculeContextPositions,
          MOLECULE_LABELS, MOLECULE_CATEGORIES, getMoleculeAtoms,
-         getMoleculeVariants, getMoleculeCid, addMol } from './molecules/index.js';
+         getMoleculeVariants, getMoleculeCid, getMoleculeNist, addMol } from './molecules/index.js';
 import { fetchPubChem, pubchemUrl, pubchemCitation, formatFormula } from './pubchem.js';
 import { BOND_FORMING_CONFIG, clearBondFormingContext,
          setBondFormingContextVisible } from './bond-forming.js';
@@ -23,6 +23,7 @@ import { initDynamicsUI, setupDynamicsEvents, tickDynamics,
          loadBondFormingOrbital, cleanupDynamicsState, triatomicEquilibrium,
          sliderToR, rToSlider, dynWrapper, sepWrapper } from './dynamics-ui.js';
 import { VibrationController, generateVibrationalModes } from './vibrations.js';
+import { TransitionController, transitionWavelength, wavelengthToRGB } from './transitions.js';
 
 // ---- Dropdown elements ----
 const d1Select = document.getElementById('d1-select');
@@ -48,8 +49,8 @@ const variantSelect = document.getElementById('variant-select');
 
 const densityOptions = document.getElementById('density-options');
 
-const D2_LABELS = { Atomic: 'Shell', Molecular: 'Basis', Hybrid: 'Hybridization', Molecules: 'Molecule', 'Bond Formation': 'Molecule' };
-const D3_LABELS = { Atomic: 'Subshell', Molecular: 'Bond Type', Hybrid: 'Lobe', Molecules: 'Orbital / Field', 'Bond Formation': 'Orbital' };
+const D2_LABELS = { Atomic: 'Shell', Molecular: 'Basis', Hybrid: 'Hybridization', Molecules: 'Molecule', 'Bond Formation': 'Molecule', Transitions: 'Series' };
+const D3_LABELS = { Atomic: 'Subshell', Molecular: 'Bond Type', Hybrid: 'Lobe', Molecules: 'Orbital / Field', 'Bond Formation': 'Orbital', Transitions: 'Transition' };
 const D4_LABELS = { Atomic: 'Orbital', Molecular: 'Orbital', Hybrid: 'Orbital', Molecules: 'Orbital', 'Bond Formation': 'Orbital' };
 
 function populateSelect(sel, options, labels) {
@@ -367,13 +368,17 @@ function updateVariantDropdown(molName) {
 }
 
 function updatePubchemLink(molName) {
+  let html = '';
   const cid = getMoleculeCid(molName);
   if (cid) {
     const url = pubchemUrl(cid);
-    pubchemCitationDiv.innerHTML = `<a href="${url}" target="_blank" rel="noopener">View on PubChem</a>`;
-  } else {
-    pubchemCitationDiv.innerHTML = '';
+    html += `<a href="${url}" target="_blank" rel="noopener">View on PubChem</a>`;
   }
+  if (getMoleculeNist(molName)) {
+    if (html) html += '<br>';
+    html += `<a href="https://cccbdb.nist.gov/" target="_blank" rel="noopener">Geometry: NIST CCCBDB</a>`;
+  }
+  pubchemCitationDiv.innerHTML = html;
 }
 
 function onD3Change() {
@@ -385,9 +390,10 @@ function onD3Change() {
     populateSelect(d4Select, orbitals.map(o => o.d4 || o.name));
   }
   loadSelectedOrbital();
+  updateShareLink();
 }
 
-function onD4Change() { loadSelectedOrbital(); }
+function onD4Change() { loadSelectedOrbital(); updateShareLink(); }
 
 function getSelectedOrbital() {
   const orbitals = getD3Orbitals();
@@ -424,6 +430,7 @@ function loadSelectedOrbital() {
   updateFieldSourceOptions();
   cancelCompute();
   cancelVibration();
+  cancelTransition();
   chargeCache = null;
 
   // Clean up dynamics state when switching orbitals
@@ -462,9 +469,15 @@ function loadSelectedOrbital() {
       } else {
         vibWrapper.classList.add('dropdown-hidden');
       }
+      transitionWrapper.classList.add('dropdown-hidden');
+    } else if (d1Select.value === 'Transitions') {
+      clearMoleculeContext();
+      vibWrapper.classList.add('dropdown-hidden');
+      transitionWrapper.classList.remove('dropdown-hidden');
     } else {
       clearMoleculeContext();
       vibWrapper.classList.add('dropdown-hidden');
+      transitionWrapper.classList.add('dropdown-hidden');
     }
     const startVibAfterLoad = () => {
       if (!vibWrapper.classList.contains('dropdown-hidden') &&
@@ -472,7 +485,10 @@ function loadSelectedOrbital() {
         startVibBuild();
       }
     };
-    if (orbital.isElectrostaticPotential) {
+    if (orbital.isTransition) {
+      // Load initial state first, then start transition build
+      loadOrbitalAsync(orbital).then(() => startTransitionBuild(orbital));
+    } else if (orbital.isElectrostaticPotential) {
       loadElectrostaticPotentialAsync(orbital).then(startVibAfterLoad);
     } else if (orbital.isChargeDensity) {
       loadChargeDensityAsync(orbital).then(startVibAfterLoad);
@@ -629,6 +645,7 @@ probSlider.addEventListener('input', () => {
 probSlider.addEventListener('pointerup', () => {
   probDragging = false;
   triggerProbRebuild();
+  updateShareLink();
 });
 
 probSlider.addEventListener('change', () => {
@@ -653,12 +670,15 @@ function triggerProbRebuild() {
       }
     }
     if (isVibActive()) { cancelVibration(); startVibBuild(); }
+    rebuildTransitionIfActive();
   }, 50);
 }
 
 // ---- Layer select ----
-layerSelect.addEventListener('change', async () => {
-  currentLayers = parseInt(layerSelect.value);
+const customLayersRow = document.getElementById('custom-layers-row');
+const customLayersInput = document.getElementById('custom-layers-input');
+
+async function applyLayerChange() {
   if (currentCaches.length > 0) {
     cancelCompute();
     if (isChargeDensityMode() && chargeCache) {
@@ -670,12 +690,34 @@ layerSelect.addEventListener('change', async () => {
     }
   }
   if (isVibActive()) { cancelVibration(); startVibBuild(); }
+  rebuildTransitionIfActive();
+  updateShareLink();
+}
+
+layerSelect.addEventListener('change', async () => {
+  if (layerSelect.value === 'custom') {
+    customLayersRow.classList.remove('dropdown-hidden');
+    customLayersInput.value = currentLayers;
+    customLayersInput.focus();
+  } else {
+    customLayersRow.classList.add('dropdown-hidden');
+    currentLayers = parseInt(layerSelect.value);
+    await applyLayerChange();
+  }
+});
+
+customLayersInput.addEventListener('change', async () => {
+  const v = Math.max(1, Math.min(500, parseInt(customLayersInput.value) || 5));
+  customLayersInput.value = v;
+  currentLayers = v;
+  await applyLayerChange();
 });
 
 // ---- Ball & Stick toggle ----
 ballStickToggle.addEventListener('change', () => {
   showBallAndStick = ballStickToggle.checked;
   applyBallStickVisibility();
+  updateShareLink();
 });
 
 // ---- Density Field toggle ----
@@ -683,6 +725,7 @@ densityFieldToggle.addEventListener('change', () => {
   showDensityField = densityFieldToggle.checked;
   densityOptions.style.display = showDensityField ? '' : 'none';
   applyDensityFieldVisibility();
+  updateShareLink();
 });
 
 // ---- Vector Field toggle ----
@@ -701,6 +744,7 @@ fieldVisToggle.addEventListener('change', () => {
     clearFieldVis();
   }
   rebuildVibIfActive();
+  updateShareLink();
 });
 
 fieldStyleSelect.addEventListener('change', () => {
@@ -710,6 +754,7 @@ fieldStyleSelect.addEventListener('change', () => {
     rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
   rebuildVibIfActive();
+  updateShareLink();
 });
 
 fieldSourceSelect.addEventListener('change', () => {
@@ -718,6 +763,7 @@ fieldSourceSelect.addEventListener('change', () => {
     rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
   rebuildVibIfActive();
+  updateShareLink();
 });
 
 // ---- Opacity slider ----
@@ -729,6 +775,7 @@ if (opacitySlider) {
     currentOpacityTarget = parseInt(opacitySlider.value);
     opacityDisplay.textContent = currentOpacityTarget + '%';
     updateOrbitalOpacity();
+    updateShareLink();
   });
 }
 
@@ -918,6 +965,135 @@ vibPlayBtn.addEventListener('click', () => {
   }
 });
 
+// ---- Electron Transitions ----
+
+const transitionController = new TransitionController();
+const transitionWrapper = document.getElementById('transition-wrapper');
+const transitionProgress = document.getElementById('transition-progress');
+const transitionProgressLabel = document.getElementById('transition-progress-label');
+const transitionProgressFill = document.getElementById('transition-progress-fill');
+const transitionPlayBtn = document.getElementById('transition-play');
+const spectrumBar = document.getElementById('spectrum-bar');
+const spectrumIndicator = document.getElementById('spectrum-indicator');
+const spectrumLabel = document.getElementById('spectrum-label');
+
+function updateTransitionWrapperVisibility() {
+  const d1 = d1Select.value;
+  const show = d1 === 'Transitions';
+  transitionWrapper.classList.toggle('dropdown-hidden', !show);
+  if (!show) cancelTransition();
+}
+
+function cancelTransition() {
+  transitionController.cancel();
+  transitionPlayBtn.disabled = true;
+  transitionPlayBtn.textContent = '\u25B6 Play';
+  transitionProgress.classList.add('dropdown-hidden');
+  for (const m of currentMeshes) m.visible = showDensityField;
+}
+
+function isTransitionActive() {
+  return transitionController.state !== 'idle' && d1Select.value === 'Transitions';
+}
+
+function rebuildTransitionIfActive() {
+  if (!isTransitionActive()) return;
+  const orbital = getSelectedOrbital();
+  if (orbital && orbital.isTransition) {
+    cancelTransition();
+    startTransitionBuild(orbital);
+  }
+}
+
+async function startTransitionBuild(orbital) {
+  if (!orbital.isTransition || !orbital.transition) return;
+
+  const trans = orbital.transition;
+  const halfExtent = orbital.halfExtent || 20;
+  const gs = adaptiveGrid(halfExtent, true);
+
+  transitionPlayBtn.disabled = true;
+  transitionPlayBtn.textContent = '\u25B6 Play';
+  transitionProgress.classList.remove('dropdown-hidden');
+
+  // Update spectrum bar
+  const wavelength = transitionWavelength(trans.n1, trans.n2);
+  updateSpectrumBar(wavelength);
+
+  const colorMode = getColorMode();
+  const settings = {
+    orbital1: trans.orbital1,
+    orbital2: trans.orbital2,
+    transition: trans,
+    probability: currentProbability,
+    layers: currentLayers,
+    gridSize: gs,
+    halfExtent,
+    colorMode,
+  };
+
+  await transitionController.buildFrameCache(
+    settings,
+    (ready, total) => {
+      transitionProgressLabel.textContent = `Building frame ${ready}/${total}...`;
+      transitionProgressFill.style.width = `${(ready / total) * 100}%`;
+    },
+    () => {
+      transitionProgress.classList.add('dropdown-hidden');
+      transitionPlayBtn.disabled = false;
+      // Hide static meshes, start playback
+      for (const m of currentMeshes) m.visible = false;
+      transitionController.play();
+      transitionPlayBtn.textContent = '\u23F8 Pause';
+    }
+  );
+}
+
+function updateSpectrumBar(wavelength) {
+  if (wavelength < 380) {
+    // UV
+    spectrumIndicator.style.left = '0%';
+    spectrumLabel.textContent = `UV: ${wavelength.toFixed(1)} nm`;
+  } else if (wavelength > 780) {
+    // IR
+    spectrumIndicator.style.left = '100%';
+    spectrumLabel.textContent = `IR: ${wavelength.toFixed(1)} nm`;
+  } else {
+    // Visible spectrum: map 380-780nm to 0-100%
+    const percent = ((wavelength - 380) / 400) * 100;
+    spectrumIndicator.style.left = `${percent}%`;
+    spectrumLabel.textContent = `${wavelength.toFixed(1)} nm`;
+
+    // Update indicator color
+    const color = wavelengthToRGB(wavelength);
+    spectrumIndicator.style.borderTopColor = `rgb(${color.r * 255}, ${color.g * 255}, ${color.b * 255})`;
+  }
+}
+
+transitionPlayBtn.addEventListener('click', () => {
+  if (transitionController.state === 'playing') {
+    transitionController.pause();
+    transitionPlayBtn.textContent = '\u25B6 Play';
+    // Hide current frame
+    if (transitionController.lastFrameIdx >= 0 && transitionController.frames[transitionController.lastFrameIdx]) {
+      transitionController.frames[transitionController.lastFrameIdx].group.visible = false;
+    }
+    // Show static mesh
+    for (const m of currentMeshes) m.visible = showDensityField;
+  } else if (transitionController.state === 'ready') {
+    // Hide static mesh
+    for (const m of currentMeshes) m.visible = false;
+    // Start playing (tick will show frame 0)
+    transitionController.play();
+    transitionPlayBtn.textContent = '\u23F8 Pause';
+    // Immediately show frame 0 if not started yet
+    if (transitionController.lastFrameIdx < 0 && transitionController.frames[0]) {
+      transitionController.frames[0].group.visible = true;
+      transitionController.lastFrameIdx = 0;
+    }
+  }
+});
+
 // ---- Variant select ----
 variantSelect.addEventListener('change', async () => {
   const molName = d2Select.value;
@@ -1015,13 +1191,14 @@ function animate() {
   tickDynamics();
   tickFieldAnimation(dt);
   const vibFrameChanged = vibController.tick(dt * 3);
+  transitionController.tick(dt * 2);
   if (vibFrameChanged && vibController.moleculeName) {
     // Hide frame if density field toggle is off
     if (!showDensityField && vibController.lastFrameIdx >= 0 &&
         vibController.frames[vibController.lastFrameIdx]) {
       vibController.frames[vibController.lastFrameIdx].group.visible = false;
     }
-    const disps = vibController.displacementsAtPhase(vibController.phase);
+    const disps = vibController.interpolatedDisplacements();
     if (disps) updateMoleculeContextPositions(vibController.moleculeName, disps);
   }
   controls.update();
@@ -1031,5 +1208,164 @@ function animate() {
 
 animate();
 
+// ---- Shareable link ----
+const shareLinkDiv = document.getElementById('share-link');
+
+function updateShareLink() {
+  const p = new URLSearchParams();
+  p.set('mode', d1Select.value);
+  p.set('d2', d2Select.value);
+  p.set('d3', d3Select.value);
+  if (!d4Wrapper.classList.contains('dropdown-hidden')) p.set('d4', d4Select.value);
+  if (categorySelect.value) p.set('cat', categorySelect.value);
+  if (layerSelect.value === 'custom') {
+    p.set('layers', customLayersInput.value);
+  } else {
+    p.set('layers', layerSelect.value);
+  }
+  p.set('prob', probSlider.value);
+  p.set('opacity', opacitySlider.value);
+  if (!densityFieldToggle.checked) p.set('density', '0');
+  if (fieldVisToggle.checked) {
+    p.set('vector', '1');
+    p.set('vsrc', fieldSourceSelect.value);
+    p.set('vstyle', fieldStyleSelect.value);
+  }
+  if (!ballStickToggle.checked) p.set('atoms', '0');
+  const url = window.location.origin + window.location.pathname + '?' + p.toString();
+  shareLinkDiv.innerHTML = `<a href="${url}">Shareable link</a>`;
+}
+
+function applyUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  if (!p.has('mode')) return false;
+
+  const mode = p.get('mode');
+  if ([...d1Select.options].some(o => o.value === mode)) {
+    d1Select.value = mode;
+  }
+
+  // Trigger d1 cascade to populate d2
+  const d1 = d1Select.value;
+  d2Label.textContent = D2_LABELS[d1] || 'Category';
+  d3Label.textContent = D3_LABELS[d1] || 'Subcategory';
+  d4Label.textContent = D4_LABELS[d1] || 'Orbital';
+  populateCategoryFilter(d1);
+  pubchemWrapper.classList.toggle('dropdown-hidden', d1 !== 'Molecules');
+
+  if (p.has('cat') && p.get('cat')) {
+    categorySelect.value = p.get('cat');
+  }
+
+  const labels = (d1 === 'Molecules' || d1 === 'Bond Formation') ? MOLECULE_LABELS : undefined;
+  populateSelect(d2Select, getFilteredD2Keys(d1), labels);
+
+  if (p.has('d2')) {
+    const d2v = p.get('d2');
+    if ([...d2Select.options].some(o => o.value === d2v)) {
+      d2Select.value = d2v;
+    }
+  }
+
+  // Populate d3
+  const d2 = d2Select.value;
+  const d3Keys = Object.keys((ORBITAL_TREE[d1] || {})[d2] || {});
+  populateSelect(d3Select, d3Keys);
+
+  if (p.has('d3')) {
+    const d3v = p.get('d3');
+    if ([...d3Select.options].some(o => o.value === d3v)) {
+      d3Select.value = d3v;
+    }
+  }
+
+  // Populate d4
+  const orbitals = getD3Orbitals();
+  if (orbitals.length > 1) {
+    d4Wrapper.classList.remove('dropdown-hidden');
+    populateSelect(d4Select, orbitals.map(o => o.d4 || o.name));
+    if (p.has('d4')) {
+      const d4v = p.get('d4');
+      if ([...d4Select.options].some(o => o.value === d4v)) {
+        d4Select.value = d4v;
+      }
+    }
+  } else {
+    d4Wrapper.classList.add('dropdown-hidden');
+  }
+
+  // Layers
+  if (p.has('layers')) {
+    const lv = p.get('layers');
+    const presets = [...layerSelect.options].map(o => o.value).filter(v => v !== 'custom');
+    if (presets.includes(lv)) {
+      layerSelect.value = lv;
+      customLayersRow.classList.add('dropdown-hidden');
+    } else {
+      layerSelect.value = 'custom';
+      customLayersInput.value = parseInt(lv) || 5;
+      customLayersRow.classList.remove('dropdown-hidden');
+    }
+    currentLayers = parseInt(lv) || 5;
+  }
+
+  // Probability
+  if (p.has('prob')) {
+    const pv = parseInt(p.get('prob'));
+    if (pv >= 1 && pv <= 99) {
+      probSlider.value = pv;
+      currentProbability = pv / 100;
+      probDisplay.textContent = pv + '%';
+    }
+  }
+
+  // Opacity
+  if (p.has('opacity')) {
+    const ov = parseInt(p.get('opacity'));
+    if (ov >= 5 && ov <= 90) {
+      opacitySlider.value = ov;
+      currentOpacityTarget = ov;
+      opacityDisplay.textContent = ov + '%';
+    }
+  }
+
+  // Density field
+  if (p.get('density') === '0') {
+    densityFieldToggle.checked = false;
+    showDensityField = false;
+    densityOptions.style.display = 'none';
+  }
+
+  // Vector field
+  if (p.get('vector') === '1') {
+    fieldVisToggle.checked = true;
+    showFieldVis = true;
+    fieldOptions.classList.remove('dropdown-hidden');
+    if (p.has('vsrc')) fieldSourceSelect.value = p.get('vsrc');
+    if (p.has('vstyle')) {
+      fieldStyleSelect.value = p.get('vstyle');
+      fieldStyle = fieldStyleSelect.value;
+    }
+  }
+
+  // Ball & stick
+  if (p.get('atoms') === '0') {
+    ballStickToggle.checked = false;
+    showBallAndStick = false;
+  }
+
+  // Update variant + pubchem link
+  updateVariantDropdown(d2);
+  updatePubchemLink(d2);
+
+  return true;
+}
+
 // ---- Initial load ----
-onD1Change();
+const hadParams = applyUrlParams();
+if (hadParams) {
+  loadSelectedOrbital();
+  updateShareLink();
+} else {
+  onD1Change();
+}

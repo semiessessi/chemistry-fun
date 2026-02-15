@@ -1,0 +1,288 @@
+// Electron transition animation: superposition states showing emission/absorption dynamics.
+// ψ(r,t) = c₁ψ₁e^{-iE₁t} + c₂ψ₂e^{-iE₂t}
+// |ψ|² oscillates at frequency ω = (E₂−E₁)/ℏ with interference term 2c₁c₂ψ₁ψ₂cos(ωt)
+// Frame-cache pattern identical to VibrationController.
+
+import * as THREE from 'three';
+import { evaluateOrbital } from './math.js';
+import { sampleGrid, computeMultiThresholds } from './grid.js';
+import { getLayerMaterials } from './layer-materials.js';
+import { marchingCubes } from './marching-cubes.js';
+import { scene } from './scene.js';
+
+const NUM_FRAMES = 24;
+const RYDBERG = 13.605693122994; // Rydberg constant in eV
+const HC_EV_NM = 1239.84193; // hc in eV·nm
+
+// ---- Predefined transitions ----
+
+export const TRANSITIONS = {
+  lyman: [
+    { from: '1s', to: '2pz', n1: 1, n2: 2, label: '1s \u2192 2p (Lyman \u03B1)' },
+    { from: '1s', to: '3pz', n1: 1, n2: 3, label: '1s \u2192 3p (Lyman \u03B2)' },
+    { from: '1s', to: '4pz', n1: 1, n2: 4, label: '1s \u2192 4p (Lyman \u03B3)' },
+  ],
+  balmer: [
+    { from: '2s', to: '3pz', n1: 2, n2: 3, label: '2s \u2192 3p (H\u03B1)' },
+    { from: '2pz', to: '3s', n1: 2, n2: 3, label: '2p \u2192 3s (H\u03B1 alt)' },
+    { from: '2pz', to: '3dz\u00B2', n1: 2, n2: 3, label: '2p \u2192 3d (H\u03B1 dipole)' },
+  ],
+  paschen: [
+    { from: '3s', to: '4pz', n1: 3, n2: 4, label: '3s \u2192 4p (Paschen \u03B1)' },
+    { from: '3pz', to: '4dz\u00B2', n1: 3, n2: 4, label: '3p \u2192 4d (Paschen dipole)' },
+    { from: '3dz\u00B2', to: '4fz\u00B3', n1: 3, n2: 4, label: '3d \u2192 4f (Paschen quad)' },
+  ],
+};
+
+// ---- Wavelength and color utilities ----
+
+export function transitionWavelength(n1, n2) {
+  const deltaE = RYDBERG * (1 / (n1 * n1) - 1 / (n2 * n2));
+  if (deltaE <= 0) return Infinity;
+  return HC_EV_NM / deltaE;
+}
+
+export function wavelengthToRGB(nm) {
+  if (nm < 380 || nm > 780) {
+    return nm < 380 ? new THREE.Color(0.5, 0, 0.5) : new THREE.Color(0.5, 0, 0);
+  }
+
+  let r = 0, g = 0, b = 0;
+  if (nm < 440) {
+    r = -(nm - 440) / 60; b = 1;
+  } else if (nm < 490) {
+    g = (nm - 440) / 50; b = 1;
+  } else if (nm < 510) {
+    g = 1; b = -(nm - 510) / 20;
+  } else if (nm < 580) {
+    r = (nm - 510) / 70; g = 1;
+  } else if (nm < 645) {
+    r = 1; g = -(nm - 645) / 65;
+  } else {
+    r = 1;
+  }
+
+  let factor = 1;
+  if (nm < 420) factor = 0.3 + 0.7 * (nm - 380) / 40;
+  else if (nm > 700) factor = 0.3 + 0.7 * (780 - nm) / 80;
+
+  return new THREE.Color(r * factor, g * factor, b * factor);
+}
+
+// ---- Shared frame-building helper (used by both Vibration and Transition) ----
+
+function buildFrameMeshes(group, data, layers, colorMode, gs, he) {
+  const mats = getLayerMaterials(layers, colorMode);
+  const step = (2 * he) / (gs - 1);
+
+  const addMeshes = (sideData, thresholds, matArr) => {
+    for (let li = 0; li < layers; li++) {
+      const result = marchingCubes(sideData, gs, thresholds[li]);
+      if (result.indices.length > 0) {
+        const verts = result.vertices;
+        for (let vi = 0; vi < verts.length; vi += 3) {
+          verts[vi] = verts[vi] * step - he;
+          verts[vi + 1] = verts[vi + 1] * step - he;
+          verts[vi + 2] = verts[vi + 2] * step - he;
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+        geo.setIndex(new THREE.BufferAttribute(result.indices, 1));
+        geo.computeVertexNormals();
+        const matIdx = layers - 1 - li;
+        const mesh = new THREE.Mesh(geo, matArr[matIdx]);
+        mesh.renderOrder = li;
+        group.add(mesh);
+      }
+    }
+  };
+
+  const isDensityLike = colorMode === 'density';
+  const thresholds = computeMultiThresholds(data, layers, isDensityLike ? 0.95 : 0.9, he, gs);
+  addMeshes(data, thresholds, mats.pos);
+
+  if (!isDensityLike) {
+    const negData = new Float32Array(data.length);
+    for (let j = 0; j < data.length; j++) negData[j] = -data[j];
+    addMeshes(negData, thresholds, mats.neg);
+  }
+}
+
+// ---- TransitionController class ----
+
+export class TransitionController {
+  constructor() {
+    this.state = 'idle';  // idle | building | ready | playing
+    this.generation = 0;
+    this.frames = [];
+    this.framesReady = 0;
+    this.phase = 0;
+    this.speed = 1;
+    this.lastFrameIdx = -1;
+    this.transition = null;
+    this.orbital1 = null;
+    this.orbital2 = null;
+  }
+
+  cancel() {
+    this.generation++;
+    if (this.state === 'playing') this.pause();
+    this.disposeCache();
+    this.state = 'idle';
+  }
+
+  pause() {
+    if (this.state === 'playing') {
+      this.state = 'ready';
+      if (this.lastFrameIdx >= 0 && this.frames[this.lastFrameIdx]) {
+        this.frames[this.lastFrameIdx].group.visible = false;
+      }
+    }
+  }
+
+  play() {
+    if (this.state === 'ready') {
+      this.state = 'playing';
+    }
+  }
+
+  disposeCache() {
+    for (const frame of this.frames) {
+      if (frame && frame.group) {
+        if (frame.group.parent) frame.group.parent.remove(frame.group);
+        frame.group.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
+    }
+    this.frames = [];
+    this.framesReady = 0;
+    this.lastFrameIdx = -1;
+  }
+
+  async buildFrameCache(settings, onFrameReady, onComplete) {
+    const gen = ++this.generation;
+    const stale = () => gen !== this.generation;
+
+    this.disposeCache();
+    this.state = 'building';
+    this.framesReady = 0;
+
+    const {
+      orbital1, orbital2, transition, probability, layers,
+      gridSize, halfExtent, colorMode,
+    } = settings;
+
+    this.transition = transition;
+    this.orbital1 = orbital1;
+    this.orbital2 = orbital2;
+
+    for (let i = 0; i < NUM_FRAMES; i++) {
+      if (stale()) return;
+
+      // Smoothly morph from initial state to final state:
+      // t goes 0→1 over all frames
+      // c₁ = cos(π·t/2) goes 1→0, c₂ = sin(π·t/2) goes 0→1
+      const t = i / (NUM_FRAMES - 1);
+      const c1 = Math.cos(Math.PI * t / 2);
+      const c2 = Math.sin(Math.PI * t / 2);
+
+      // ψ(r,t) = c₁·ψ₁(r) + c₂·ψ₂(r)
+      const sampler = {
+        customSample: (x, y, z) => {
+          const psi1 = evaluateOrbital(orbital1, x, y, z);
+          const psi2 = evaluateOrbital(orbital2, x, y, z);
+          return c1 * psi1 + c2 * psi2;
+        }
+      };
+
+      const gs = gridSize;
+      const he = halfExtent;
+      const data = sampleGrid(sampler, gs, he);
+      if (!data || stale()) return;
+
+      // Build meshes — exact same pattern as VibrationController
+      const group = new THREE.Group();
+      const mats = getLayerMaterials(layers, colorMode);
+      const step = (2 * he) / (gs - 1);
+
+      const addMeshes = (sideData, thresholds, matArr) => {
+        for (let li = 0; li < layers; li++) {
+          const result = marchingCubes(sideData, gs, thresholds[li]);
+          if (result.indices.length > 0) {
+            const verts = result.vertices;
+            for (let vi = 0; vi < verts.length; vi += 3) {
+              verts[vi] = verts[vi] * step - he;
+              verts[vi + 1] = verts[vi + 1] * step - he;
+              verts[vi + 2] = verts[vi + 2] * step - he;
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+            geo.setIndex(new THREE.BufferAttribute(result.indices, 1));
+            geo.computeVertexNormals();
+            const matIdx = layers - 1 - li;
+            const mesh = new THREE.Mesh(geo, matArr[matIdx]);
+            mesh.renderOrder = li;
+            group.add(mesh);
+          }
+        }
+      };
+
+      // computeMultiThresholds(data, probability, numLayers, halfExtent, gridSize)
+      const thresholds = computeMultiThresholds(data, probability, layers, he, gs);
+      addMeshes(data, thresholds, mats.pos);
+
+      if (colorMode !== 'density') {
+        const negData = new Float32Array(data.length);
+        for (let j = 0; j < data.length; j++) negData[j] = -data[j];
+        addMeshes(negData, thresholds, mats.neg);
+      }
+
+      if (stale()) {
+        group.traverse(child => { if (child.geometry) child.geometry.dispose(); });
+        return;
+      }
+
+      scene.add(group);
+      group.visible = false;
+
+      this.frames[i] = { group, caches: [{ data, halfExtent: he, gridSize: gs }] };
+      this.framesReady = i + 1;
+
+      if (onFrameReady) onFrameReady(i + 1, NUM_FRAMES);
+
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    if (!stale()) {
+      this.state = 'ready';
+      if (onComplete) onComplete();
+    }
+  }
+
+  tick(dt) {
+    if (this.state !== 'playing' || this.frames.length < NUM_FRAMES) return false;
+
+    this.phase += this.speed * dt;
+    if (this.phase >= 2 * Math.PI) this.phase -= 2 * Math.PI;
+    if (this.phase < 0) this.phase += 2 * Math.PI;
+
+    const frameIdx = Math.floor((this.phase / (2 * Math.PI)) * NUM_FRAMES) % NUM_FRAMES;
+
+    if (frameIdx !== this.lastFrameIdx) {
+      if (this.lastFrameIdx >= 0 && this.frames[this.lastFrameIdx]) {
+        this.frames[this.lastFrameIdx].group.visible = false;
+      }
+      if (this.frames[frameIdx]) {
+        this.frames[frameIdx].group.visible = true;
+      }
+      this.lastFrameIdx = frameIdx;
+      return true;
+    }
+    return false;
+  }
+}
