@@ -264,6 +264,7 @@ export class VibrationController {
     this.mixModes = null; // [{mode, weight, phaseOffset}, ...] for random mix
     this.amplitude = 0.3;
     this.moleculeName = null;
+    this.hasFieldVis = false; // whether cached frames include field vis
   }
 
   cancel() {
@@ -355,6 +356,7 @@ export class VibrationController {
 
     this.moleculeName = moleculeName;
     this.amplitude = amplitude;
+    this.hasFieldVis = !!showFieldVis;
     if (mixModes) {
       this.mixModes = mixModes;
       this.currentMode = null;

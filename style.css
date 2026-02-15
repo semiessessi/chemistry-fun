@@ -17,15 +17,8 @@ canvas { display: block; }
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 10px;
   padding: 18px 22px;
-  min-width: 270px;
+  min-width: 320px;
   backdrop-filter: blur(8px);
-}
-#controls h2 {
-  font-size: 15px;
-  font-weight: 600;
-  margin-bottom: 14px;
-  color: #fff;
-  letter-spacing: 0.5px;
 }
 #controls label {
   display: block;
@@ -64,6 +57,15 @@ input[type=range]::-webkit-slider-thumb {
   border-radius: 50%;
   cursor: pointer;
 }
+/* Molecule row: D2 + Category side by side */
+#molecule-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+#molecule-row > * { flex: 1; min-width: 0; }
+#molecule-row label { font-size: 11px; }
+#molecule-row select { margin-bottom: 14px; }
 #prob-display {
   font-size: 13px;
   color: #6af;
@@ -138,15 +140,37 @@ input[type=range]::-webkit-slider-thumb {
   display: flex; align-items: center; gap: 6px;
   font-size: 12px; color: #aaa; cursor: pointer;
   text-transform: uppercase; letter-spacing: 0.5px;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 .checkbox-row input[type=checkbox] {
   width: 14px; height: 14px; cursor: pointer;
   accent-color: #6af;
 }
 .dropdown-hidden { display: none; }
+/* Collapsible sections */
+details.section { margin: 4px 0; }
+details.section > summary {
+  cursor: pointer; font-weight: bold; font-size: 12px;
+  color: #ccc; padding: 4px 0;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  list-style: none;
+}
+details.section > summary::before {
+  content: '\25B8 ';
+  font-size: 10px;
+}
+details.section[open] > summary::before {
+  content: '\25BE ';
+}
+details.section[open] > summary { margin-bottom: 6px; }
+/* Visualization section: toggles side by side */
+#vis-toggles {
+  display: flex;
+  gap: 12px;
+}
+#vis-toggles .checkbox-row { margin-bottom: 6px; }
 #field-options {
-  margin-bottom: 14px;
+  margin-bottom: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -157,12 +181,69 @@ input[type=range]::-webkit-slider-thumb {
 #field-options select option:disabled {
   color: #666;
 }
+#density-options label,
+#density-options select,
+#density-options input[type=range] {
+  width: 100%;
+}
 #opacity-display {
   font-size: 13px;
   color: #6af;
   margin-top: -10px;
   margin-bottom: 10px;
 }
+/* PubChem search */
+#pubchem-search-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+#pubchem-input {
+  flex: 1;
+  padding: 6px 10px;
+  background: #222;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 5px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+#pubchem-input:focus { border-color: #6af; }
+#pubchem-input::placeholder { color: #666; }
+#pubchem-btn {
+  padding: 6px 10px;
+  background: #222;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+#pubchem-btn:hover { background: #333; border-color: #666; }
+#pubchem-status {
+  font-size: 11px;
+  color: #fa5;
+  min-height: 0;
+  margin-bottom: 4px;
+}
+#pubchem-status:empty { display: none; }
+/* PubChem citation */
+#pubchem-citation {
+  font-size: 10px;
+  color: #777;
+  margin-top: 8px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+#pubchem-citation:empty { display: none; }
+#pubchem-citation a { color: #9cf; text-decoration: none; }
+#pubchem-citation a:hover { text-decoration: underline; }
+/* Variant dropdown */
+#variant-wrapper select { margin-bottom: 14px; }
 #vib-amplitude-display {
   font-size: 12px;
   color: #6af;

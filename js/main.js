@@ -699,7 +699,8 @@ function restoreStaticMeshes() {
 function hideStaticMeshes() {
   if (!vibStaticMeshesHidden) {
     for (const m of currentMeshes) m.visible = false;
-    setFieldVisVisible(false);
+    // Only hide static field vis if cached frames have their own
+    if (vibController.hasFieldVis) setFieldVisVisible(false);
     vibStaticMeshesHidden = true;
   }
 }
