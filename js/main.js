@@ -10,7 +10,7 @@ import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
          MOLECULE_LABELS, MOLECULE_CATEGORIES, getMoleculeAtoms } from './molecules/index.js';
 import { BOND_FORMING_CONFIG, clearBondFormingContext,
          setBondFormingContextVisible } from './bond-forming.js';
-import { clearFieldVis, purgeFieldCache, setFieldVisVisible, setFieldMode, setFieldSource, getFieldSource } from './electric-field.js';
+import { clearFieldVis, purgeFieldCache, setFieldMode, setFieldSource, getFieldSource } from './electric-field.js';
 import { computeElectrostaticPotential } from './electrostatic-potential.js';
 import { SIM_STATE, SIM3_STATE } from './dynamics.js';
 import { initRenderPipeline, adaptiveGrid, getHalfExtent, loadOrbital, loadOrbitalAsync,
@@ -506,14 +506,6 @@ densityFieldToggle.addEventListener('change', () => {
 
 // ---- Vector Field toggle ----
 
-function rebuildVibIfActive() {
-  if (vibController.state !== 'idle' &&
-      (vibModeSelect.value === 'random' || parseInt(vibModeSelect.value) >= 0)) {
-    cancelVibration();
-    startVibBuild();
-  }
-}
-
 fieldVisToggle.addEventListener('change', () => {
   showFieldVis = fieldVisToggle.checked;
   if (showFieldVis) {
@@ -523,7 +515,6 @@ fieldVisToggle.addEventListener('change', () => {
     fieldOptions.classList.add('dropdown-hidden');
     clearFieldVis();
   }
-  rebuildVibIfActive();
 });
 
 fieldStyleSelect.addEventListener('change', () => {
@@ -532,7 +523,6 @@ fieldStyleSelect.addEventListener('change', () => {
   if (showFieldVis && currentCaches.length > 0) {
     rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
-  rebuildVibIfActive();
 });
 
 fieldSourceSelect.addEventListener('change', () => {
@@ -540,7 +530,6 @@ fieldSourceSelect.addEventListener('change', () => {
   if (showFieldVis && currentCaches.length > 0) {
     rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
   }
-  rebuildVibIfActive();
 });
 
 // ---- Opacity slider ----
@@ -561,6 +550,7 @@ const vibController = new VibrationController();
 const vibWrapper = document.getElementById('vibration-wrapper');
 const vibModeSelect = document.getElementById('vib-mode-select');
 const vibAmplitudeSlider = document.getElementById('vib-amplitude');
+const vibAmplitudeGroup = document.getElementById('vib-amplitude-group');
 const vibAmplitudeDisplay = document.getElementById('vib-amplitude-display');
 const vibProgress = document.getElementById('vib-progress');
 const vibProgressLabel = document.getElementById('vib-progress-label');
@@ -604,10 +594,10 @@ function populateVibModes(moleculeName) {
   if (vibCurrentModes.length > 0) {
     vibModeSelect.value = 'random';
     vibAmplitudeSlider.disabled = true;
-    vibAmplitudeSlider.parentElement.style.opacity = '0.4';
+    vibAmplitudeGroup.style.opacity = '0.4';
   } else {
     vibAmplitudeSlider.disabled = false;
-    vibAmplitudeSlider.parentElement.style.opacity = '1';
+    vibAmplitudeGroup.style.opacity = '1';
   }
 }
 
@@ -619,13 +609,12 @@ function cancelVibration() {
   restoreStaticMeshes();
   resetMoleculeContextPositions();
   vibAmplitudeSlider.disabled = false;
-  vibAmplitudeSlider.parentElement.style.opacity = '1';
+  vibAmplitudeGroup.style.opacity = '1';
 }
 
 function restoreStaticMeshes() {
   if (vibStaticMeshesHidden) {
     for (const m of currentMeshes) m.visible = showDensityField;
-    if (showFieldVis) setFieldVisVisible(true);
     vibStaticMeshesHidden = false;
   }
 }
@@ -633,7 +622,7 @@ function restoreStaticMeshes() {
 function hideStaticMeshes() {
   if (!vibStaticMeshesHidden) {
     for (const m of currentMeshes) m.visible = false;
-    setFieldVisVisible(false);
+    // Keep field vis visible during vibration — it shows equilibrium field structure
     vibStaticMeshesHidden = true;
   }
 }
@@ -667,8 +656,6 @@ async function startVibBuild() {
     gridSize: gs,
     halfExtent,
     isDensity: true,
-    showFieldVis,
-    atomInfo: showFieldVis ? getCurrentAtomInfo() : null,
   };
 
   if (isRandom) {
@@ -701,7 +688,7 @@ vibModeSelect.addEventListener('change', () => {
   cancelVibration();
   const isRandom = vibModeSelect.value === 'random';
   vibAmplitudeSlider.disabled = isRandom;
-  vibAmplitudeSlider.parentElement.style.opacity = isRandom ? '0.4' : '1';
+  vibAmplitudeGroup.style.opacity = isRandom ? '0.4' : '1';
   if (isRandom || parseInt(vibModeSelect.value) >= 0) {
     startVibBuild();
   }
