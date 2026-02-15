@@ -261,6 +261,7 @@ export class VibrationController {
     this.phase = 0;
     this.speed = 1;
     this.lastFrameIdx = -1;
+    this.cachedDisplacements = [];
     this.currentMode = null;
     this.mixModes = null; // [{mode, weight, phaseOffset}, ...] for random mix
     this.amplitude = 0.3;
@@ -307,6 +308,7 @@ export class VibrationController {
     this.frames = [];
     this.framesReady = 0;
     this.lastFrameIdx = -1;
+    this.cachedDisplacements = [];
   }
 
   displacementsAtPhase(phase) {
@@ -374,9 +376,10 @@ export class VibrationController {
 
       const phase = (i / NUM_FRAMES) * 2 * Math.PI;
 
-      // Compute displaced positions (single mode or mix)
+      // Compute displaced positions (single mode or mix) and cache for interpolation
       const displacements = this.displacementsAtPhase(phase);
       if (!displacements) return;
+      this.cachedDisplacements[i] = displacements;
 
       // Build displaced density sampler
       const sampler = buildDisplacedDensitySampler(moleculeName, displacements);
@@ -492,7 +495,8 @@ export class VibrationController {
     }
   }
 
-  // Called each animation frame — swap visible groups
+  // Called each animation frame — swap visible groups.
+  // Returns true every frame when playing so atom positions update at 60fps.
   tick(dt) {
     if (this.state !== 'playing' || this.frames.length < NUM_FRAMES) return false;
 
@@ -510,8 +514,45 @@ export class VibrationController {
         this.frames[frameIdx].group.visible = true;
       }
       this.lastFrameIdx = frameIdx;
-      return true; // frame changed
     }
-    return false;
+    return true; // always true for smooth cubic atom interpolation
+  }
+
+  // Catmull-Rom interpolation of cached per-frame displacements (cyclic).
+  // Gives smooth cubic atom positions between keyframes, wrapping at ends.
+  interpolatedDisplacements() {
+    if (!this.cachedDisplacements || this.cachedDisplacements.length < NUM_FRAMES) {
+      return this.displacementsAtPhase(this.phase);
+    }
+
+    const N = NUM_FRAMES;
+    const raw = (this.phase / (2 * Math.PI)) * N;
+    const i1 = Math.floor(raw) % N;
+    const t = raw - Math.floor(raw);
+
+    // Four cyclic keyframe indices
+    const i0 = (i1 - 1 + N) % N;
+    const i2 = (i1 + 1) % N;
+    const i3 = (i1 + 2) % N;
+
+    const d0 = this.cachedDisplacements[i0];
+    const d1 = this.cachedDisplacements[i1];
+    const d2 = this.cachedDisplacements[i2];
+    const d3 = this.cachedDisplacements[i3];
+
+    const numAtoms = d1.length;
+    const result = [];
+    const t2 = t * t, t3 = t2 * t;
+    for (let a = 0; a < numAtoms; a++) {
+      const r = [0, 0, 0];
+      for (let c = 0; c < 3; c++) {
+        const p0 = d0[a][c], p1 = d1[a][c], p2 = d2[a][c], p3 = d3[a][c];
+        r[c] = 0.5 * ((2 * p1) + (-p0 + p2) * t +
+          (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+          (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+      }
+      result.push(r);
+    }
+    return result;
   }
 }
