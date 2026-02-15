@@ -6,8 +6,8 @@ addMol({
   category: 'Diatomic',
   pubchemCid: 14917,
   atoms: [
-    ['H', 0, 0, -0.89],
-    ['F', 0, 0, 0.89],
+    ['H', 0, 0, -0.87],
+    ['F', 0, 0, 0.87],
   ],
   bonds: [[0, 1]],
   he: 14,
