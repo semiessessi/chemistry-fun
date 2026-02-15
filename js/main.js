@@ -13,7 +13,7 @@ import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
 import { fetchPubChem, pubchemUrl, pubchemCitation, formatFormula } from './pubchem.js';
 import { BOND_FORMING_CONFIG, clearBondFormingContext,
          setBondFormingContextVisible } from './bond-forming.js';
-import { clearFieldVis, purgeFieldCache, setFieldVisVisible, setFieldMode, setFieldSource, getFieldSource } from './electric-field.js';
+import { clearFieldVis, purgeFieldCache, setFieldVisVisible, setFieldMode, setFieldSource, getFieldSource, tickFieldAnimation } from './electric-field.js';
 import { computeElectrostaticPotential, computeChargeDensity } from './electrostatic-potential.js';
 import { SIM_STATE, SIM3_STATE } from './dynamics.js';
 import { initRenderPipeline, adaptiveGrid, getHalfExtent, loadOrbital, loadOrbitalAsync,
@@ -1013,6 +1013,7 @@ function animate() {
   lastTime = now;
 
   tickDynamics();
+  tickFieldAnimation(dt);
   const vibFrameChanged = vibController.tick(dt * 3);
   if (vibFrameChanged && vibController.moleculeName) {
     // Hide frame if density field toggle is off

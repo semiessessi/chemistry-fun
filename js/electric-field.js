@@ -13,6 +13,7 @@ let currentMode = 'both';          // 'arrows' | 'streamlines' | 'both'
 let currentSource = 'gradient';    // 'gradient' | 'electrostatic' | 'magnetic'
 let buildGeneration = 0;
 let currentCacheKey = null;
+let streamlineMaterials = [];      // Tracked shader materials for UV animation
 
 // ---- Ring-buffer cache ----
 
@@ -53,6 +54,10 @@ function disposeEntry(entry) {
     if (m.parent) m.parent.remove(m);
     if (m.geometry) m.geometry.dispose();
     if (m.material) {
+      // Remove from tracked materials if it's a streamline shader
+      const idx = streamlineMaterials.indexOf(m.material);
+      if (idx >= 0) streamlineMaterials.splice(idx, 1);
+
       if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
       else m.material.dispose();
     }
@@ -393,7 +398,7 @@ function createStreamlineMesh(pts, parent, coneDatas, potentialGrid, gs, he) {
   const segments = Math.min(vectors.length * 2, 100);
   const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.02, 4, false);
 
-  let tubeColor = 0xffffff;
+  let tubeColor = new THREE.Color(0xffffff);
   if (potentialGrid && gs && he) {
     // Average potential along streamline path
     const potStep = (2 * he) / (gs - 1);
@@ -414,10 +419,38 @@ function createStreamlineMesh(pts, parent, coneDatas, potentialGrid, gs, he) {
     tubeColor = potentialColor(t);
   }
 
-  const mat = new THREE.MeshPhongMaterial({
-    color: tubeColor, transparent: true, opacity: 0.45,
-    depthWrite: false, shininess: 40, side: THREE.DoubleSide,
+  // Custom shader material with UV scrolling animation
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0.0 },
+      uBaseColor: { value: tubeColor },
+      uOpacity: { value: 0.45 },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform vec3 uBaseColor;
+      uniform float uOpacity;
+      varying vec2 vUv;
+      void main() {
+        float pattern = fract(vUv.x * 6.0 - uTime * 0.8);
+        float dash = smoothstep(0.0, 0.12, pattern) * (1.0 - smoothstep(0.45, 0.57, pattern));
+        float alpha = mix(0.10, uOpacity, dash);
+        gl_FragColor = vec4(uBaseColor, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
   });
+
+  streamlineMaterials.push(mat);
 
   const mesh = new THREE.Mesh(tubeGeo, mat);
   parent.add(mesh);
@@ -798,6 +831,7 @@ function detachFieldVis() {
   fieldGroup = null;
   fieldMeshes = [];
   currentCacheKey = null;
+  streamlineMaterials = [];
 }
 
 export function clearFieldVis() { detachFieldVis(); }
@@ -815,3 +849,9 @@ export function setFieldVisVisible(visible) {
 export function setFieldMode(mode) { currentMode = mode; }
 export function setFieldSource(source) { currentSource = source; }
 export function getFieldSource() { return currentSource; }
+
+export function tickFieldAnimation(dt) {
+  for (const mat of streamlineMaterials) {
+    mat.uniforms.uTime.value += dt;
+  }
+}
