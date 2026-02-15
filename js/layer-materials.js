@@ -104,48 +104,44 @@ function colorToCSS(threeColor, opacity) {
   return `rgba(${r},${g},${b},${opacity})`;
 }
 
+function buildGradientCSS(colorFn, opacityFn) {
+  const stops = 16;
+  const parts = [];
+  for (let i = 0; i <= stops; i++) {
+    const t = i / stops; // left=inner(t=0), right=outer(t=1)
+    parts.push(colorToCSS(colorFn(t), opacityFn(t)));
+  }
+  return `linear-gradient(to right, ${parts.join(', ')})`;
+}
+
 export function updateLegend(numLayers, maxProb, isDensity) {
   const container = document.getElementById('layer-key');
   if (!container) return;
   container.innerHTML = '';
   if (numLayers <= 1) return;
 
-  for (let i = numLayers - 1; i >= 0; i--) {
-    // i=numLayers-1 is innermost (highest %), i=0 is outermost (lowest %)
-    const t = numLayers === 1 ? 0 : i / (numLayers - 1);
-    const pct = ((i + 1) / numLayers * maxProb * 100).toFixed(0);
+  const W = 160; // bar width in px
 
-    const color = isDensity ? elevationColor(t) : redRamp(t);
-    const opacity = isDensity ? elevationOpacity(t) : orbitalOpacity(t);
+  const addBar = (colorFn, opacityFn) => {
+    const bar = document.createElement('div');
+    bar.style.cssText = `width:${W}px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,0.15);background:${buildGradientCSS(colorFn, opacityFn)};`;
+    container.appendChild(bar);
+  };
 
-    const row = document.createElement('div');
-    row.className = 'layer-row';
-
-    const swatch = document.createElement('div');
-    swatch.className = 'layer-swatch';
-    swatch.style.background = colorToCSS(color, opacity);
-
-    if (!isDensity) {
-      // Show both pos and neg swatches for orbital mode
-      const negColor = blueRamp(t);
-      const negSwatch = document.createElement('div');
-      negSwatch.className = 'layer-swatch';
-      negSwatch.style.background = colorToCSS(negColor, opacity);
-
-      const label = document.createElement('span');
-      label.textContent = `${pct}%`;
-
-      row.appendChild(swatch);
-      row.appendChild(negSwatch);
-      row.appendChild(label);
-    } else {
-      const label = document.createElement('span');
-      label.textContent = `${pct}%`;
-
-      row.appendChild(swatch);
-      row.appendChild(label);
-    }
-
-    container.appendChild(row);
+  if (isDensity) {
+    addBar(elevationColor, elevationOpacity);
+  } else {
+    addBar(redRamp, orbitalOpacity);
+    addBar(blueRamp, orbitalOpacity);
   }
+
+  const labels = document.createElement('div');
+  labels.style.cssText = `display:flex;justify-content:space-between;width:${W}px;font-size:10px;font-family:Consolas,Menlo,monospace;color:#aaa;padding-top:2px;`;
+  const pctMax = maxProb * 100;
+  for (const frac of [0, 0.25, 0.5, 0.75, 1]) {
+    const span = document.createElement('span');
+    span.textContent = `${(frac * pctMax).toFixed(0)}%`;
+    labels.appendChild(span);
+  }
+  container.appendChild(labels);
 }

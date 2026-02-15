@@ -307,13 +307,16 @@ function isDensityMode() {
 }
 
 function updateFieldSourceOptions() {
-  // Electrostatic option only available in electron density mode
-  const esOption = fieldSourceSelect.querySelector('option[value="electrostatic"]');
-  if (esOption) {
-    esOption.disabled = !isDensityMode();
-    if (esOption.disabled && fieldSourceSelect.value === 'electrostatic') {
-      fieldSourceSelect.value = 'gradient';
-      setFieldSource('gradient');
+  // Electrostatic and magnetic options only available in electron density mode
+  const density = isDensityMode();
+  for (const val of ['electrostatic', 'magnetic']) {
+    const opt = fieldSourceSelect.querySelector(`option[value="${val}"]`);
+    if (opt) {
+      opt.disabled = !density;
+      if (opt.disabled && fieldSourceSelect.value === val) {
+        fieldSourceSelect.value = 'gradient';
+        setFieldSource('gradient');
+      }
     }
   }
 }
@@ -366,8 +369,9 @@ async function rebuildFieldVis(targetParent) {
   if (!showFieldVis || currentCaches.length === 0) return;
   const parent = targetParent || scene;
   const source = getFieldSource();
-  const label = source === 'electrostatic' ? 'Building E-field...' : 'Building gradient...';
-  const atomInfo = source === 'electrostatic' ? getCurrentAtomInfo() : null;
+  const label = source === 'electrostatic' ? 'Building E-field...'
+    : source === 'magnetic' ? 'Building B-field...' : 'Building gradient...';
+  const atomInfo = (source === 'electrostatic' || source === 'magnetic') ? getCurrentAtomInfo() : null;
   showProgress(label, 0);
   await buildFieldVisAsync(currentCaches, null, null, parent, currentProbability,
     (frac) => showProgress(label, frac), atomInfo);

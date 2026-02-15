@@ -1,7 +1,8 @@
 // Vector field visualization: arrow glyphs (InstancedMesh) + streamline tubes with direction cones.
-// Supports two field sources:
+// Supports three field sources:
 //   - Gradient: ∇ψ or ∇ρ computed via central finite differences from the cached scalar grid
 //   - Electrostatic: Coulomb field E = Σ Zᵢ(r−Rᵢ)/|r−Rᵢ|³ from nuclear point charges
+//   - Magnetic: nuclear magnetic dipole B-field B = Σ μᵢ·dipole(r−Rᵢ)
 // Fully async with progress reporting. Ring-buffer cache (8 entries).
 
 import * as THREE from 'three';
@@ -9,7 +10,7 @@ import * as THREE from 'three';
 let fieldGroup = null;
 let fieldMeshes = [];
 let currentMode = 'both';          // 'arrows' | 'streamlines' | 'both'
-let currentSource = 'gradient';    // 'gradient' | 'electrostatic'
+let currentSource = 'gradient';    // 'gradient' | 'electrostatic' | 'magnetic'
 let buildGeneration = 0;
 let currentCacheKey = null;
 
@@ -27,7 +28,7 @@ const cache = [];
 
 function cacheFingerprint(caches, probability, atomInfo) {
   let fp = `p${probability.toFixed(3)}m${currentMode}s${currentSource}`;
-  if (currentSource === 'electrostatic' && atomInfo) {
+  if ((currentSource === 'electrostatic' || currentSource === 'magnetic') && atomInfo) {
     for (const a of atomInfo) fp += `|${a.Z}@${a.x.toFixed(2)},${a.y.toFixed(2)},${a.z.toFixed(2)}`;
   }
   for (const c of caches) {
@@ -128,6 +129,60 @@ function computeElectrostaticField(atomInfo, gridSize, halfExtent) {
   return grad;
 }
 
+// ---- Magnetic field: B from nuclear magnetic dipoles (z-aligned) ----
+// Relative nuclear magnetic moments (proportional to gyromagnetic ratio, H=1)
+const NUCLEAR_MOMENT = {
+  1: 1.000,    // H  (¹H, spin-½, γ = 267.5 Mrad/s/T)
+  2: 0.000,    // He (⁴He, spin-0)
+  6: 0.251,    // C  (¹³C)
+  7: -0.101,   // N  (¹⁴N)
+  8: -0.136,   // O  (¹⁷O)
+  9: 0.941,    // F  (¹⁹F)
+  11: 0.264,   // Na (²³Na)
+  13: 0.261,   // Al (²⁷Al)
+  15: 0.405,   // P  (³¹P)
+  16: 0.077,   // S  (³³S)
+  17: 0.098,   // Cl (³⁵Cl)
+  20: -0.067,  // Ca (⁴³Ca)
+  22: -0.056,  // Ti (⁴⁷Ti)
+  26: 0.032,   // Fe (⁵⁷Fe)
+  29: 0.266,   // Cu (⁶³Cu)
+};
+
+function computeMagneticField(atomInfo, gridSize, halfExtent) {
+  const N = gridSize, N2 = N * N;
+  const step = (2 * halfExtent) / (N - 1);
+  const field = new Float32Array(N * N * N * 3);
+  const softening2 = 0.25; // same softening as electrostatic
+
+  for (let iz = 0; iz < N; iz++) {
+    const z = -halfExtent + iz * step;
+    for (let iy = 0; iy < N; iy++) {
+      const y = -halfExtent + iy * step;
+      for (let ix = 0; ix < N; ix++) {
+        const x = -halfExtent + ix * step;
+        const oi = (iz * N2 + iy * N + ix) * 3;
+        let bx = 0, by = 0, bz = 0;
+        for (const atom of atomInfo) {
+          const mu = NUCLEAR_MOMENT[atom.Z] || 0;
+          if (mu === 0) continue;
+          const dx = x - atom.x, dy = y - atom.y, dz = z - atom.z;
+          const r2 = dx * dx + dy * dy + dz * dz + softening2;
+          const r = Math.sqrt(r2);
+          const r5 = r2 * r2 * r;
+          bx += mu * 3 * dx * dz / r5;
+          by += mu * 3 * dy * dz / r5;
+          bz += mu * (3 * dz * dz - r2) / r5;
+        }
+        field[oi] = bx;
+        field[oi + 1] = by;
+        field[oi + 2] = bz;
+      }
+    }
+  }
+  return field;
+}
+
 // ---- Filter bounds via histogram (O(n)) ----
 
 function computeFilterBounds(data, halfExtent, gridSize, probability) {
@@ -162,7 +217,7 @@ function computeFilterBounds(data, halfExtent, gridSize, probability) {
 
 // ---- Electrostatic filter: magnitude-based band ----
 
-function computeMagnitudeBounds(grad, gridSize) {
+function computeMagnitudeBounds(grad, gridSize, loFrac = 0.02, hiFrac = 0.5) {
   const N = gridSize * gridSize * gridSize;
   let maxMag = 0;
   const mags = new Float32Array(N);
@@ -173,7 +228,7 @@ function computeMagnitudeBounds(grad, gridSize) {
     if (m > maxMag) maxMag = m;
   }
   // Show arrows in mid-range magnitudes (skip near-zero and very strong near nuclei)
-  return { lo: maxMag * 0.02, hi: maxMag * 0.5, mags, maxMag };
+  return { lo: maxMag * loFrac, hi: maxMag * hiFrac, mags, maxMag };
 }
 
 // ---- Trilinear interpolation of vector field ----
@@ -482,6 +537,7 @@ export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, p
   const doArrows = currentMode === 'arrows' || currentMode === 'both';
   const doStreamlines = currentMode === 'streamlines' || currentMode === 'both';
   const isElectrostatic = currentSource === 'electrostatic';
+  const isMagnetic = currentSource === 'magnetic';
 
   const arrowWeight = doArrows ? 0.25 : 0;
   const streamWeight = doStreamlines ? 0.6 : 0;
@@ -500,9 +556,13 @@ export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, p
 
     // Phase 1: Compute vector field
     let grad, bounds = null, magBounds = null;
-    const useMagnitudeBounds = isElectrostatic;
+    const useMagnitudeBounds = isElectrostatic || isMagnetic;
 
-    if (isElectrostatic && atomInfo && atomInfo.length > 0) {
+    if (isMagnetic && atomInfo && atomInfo.length > 0) {
+      // Nuclear magnetic dipole B-field — 1/r³ falloff needs much wider band
+      grad = computeMagneticField(atomInfo, gs, he);
+      magBounds = computeMagnitudeBounds(grad, gs, 0.001, 0.15);
+    } else if (isElectrostatic && atomInfo && atomInfo.length > 0) {
       // Nuclear Coulomb field
       grad = computeElectrostaticField(atomInfo, gs, he);
       // Add electron density gradient (electrons are negative charges,
