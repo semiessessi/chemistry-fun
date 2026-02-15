@@ -7,12 +7,13 @@ import { sampleGridAsync, renderLayersAsync, cancelCompute } from './worker-pool
 import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
 import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
-import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible, MOLECULE_LABELS, MOLECULE_CATEGORIES } from './molecules.js';
+import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible, MOLECULE_LABELS, MOLECULE_CATEGORIES, getMoleculeAtoms } from './molecules/index.js';
 import { showBondFormingContext, clearBondFormingContext, morseEnergy,
          BOND_FORMING_CONFIG, generateH2Orbital, setActiveBondConfig, setContextAtomStyle,
          showBondFormingContextAtPositions, setBondCylinderOpacity,
          setContextMode, showTriatomicContext, setTriatomicBondOpacity,
          setBondFormingContextVisible } from './bond-forming.js';
+import { buildFieldVisAsync, clearFieldVis, purgeFieldCache, setFieldVisVisible, setFieldMode, setFieldSource, getFieldSource } from './electric-field.js';
 import { SIM_STATE, SIM_CONFIG, stepSimulation, resetSimulation, getAtomPositions,
          getAtomOrientations, initTrails, recordTrailPoint, clearTrails,
          SIM3_STATE, step3Simulation, reset3Simulation, get3AtomPositions,
@@ -238,6 +239,59 @@ let showBallAndStick = ballStickToggle.checked;
 const densityFieldToggle = document.getElementById('density-field-toggle');
 let showDensityField = densityFieldToggle.checked;
 
+const fieldVisToggle = document.getElementById('field-vis-toggle');
+const fieldStyleSelect = document.getElementById('field-style-select');
+const fieldSourceSelect = document.getElementById('field-source-select');
+const fieldOptions = document.getElementById('field-options');
+let showFieldVis = fieldVisToggle.checked;
+let fieldStyle = fieldStyleSelect.value;
+
+// ---- Atomic numbers for electrostatic field ----
+const ATOMIC_Z = {
+  H: 1, He: 2, C: 6, N: 7, O: 8, F: 9, Na: 11, Al: 13,
+  P: 15, S: 16, Cl: 17, Ca: 20, Ti: 22, Fe: 26, Cu: 29,
+};
+
+function getCurrentAtomInfo() {
+  // Build [{Z, x, y, z}, ...] from whatever context is active
+  const orbital = getSelectedOrbital();
+  if (!orbital) return null;
+
+  // Molecule context
+  if (orbital.molecule) {
+    const atoms = getMoleculeAtoms(orbital.molecule);
+    if (atoms) {
+      return atoms.map(a => ({
+        Z: ATOMIC_Z[a[0]] || 1,
+        x: a[1], y: a[2], z: a[3],
+      }));
+    }
+  }
+
+  // Bond-forming context (diatomic)
+  if (isBondForming && !isTriatomic && currentBondOrbital) {
+    const cfg = BOND_FORMING_CONFIG;
+    const halfR = currentR / 2;
+    return cfg.elements.map((el, i) => ({
+      Z: ATOMIC_Z[el] || 1,
+      x: 0, y: 0, z: i === 0 ? -halfR : halfR,
+    }));
+  }
+
+  // Bond-forming context (triatomic)
+  if (isBondForming && isTriatomic && currentBondOrbital) {
+    const triConfig = currentBondOrbital.bondForming.triatomic;
+    const eqPos = triatomicEquilibrium(triConfig);
+    return triConfig.atoms.map((el, i) => ({
+      Z: ATOMIC_Z[el] || 1,
+      x: eqPos[i][0], y: eqPos[i][1], z: eqPos[i][2],
+    }));
+  }
+
+  // Atomic orbital: single nucleus at origin
+  return [{ Z: 1, x: 0, y: 0, z: 0 }];
+}
+
 function applyBallStickVisibility() {
   setMoleculeContextVisible(showBallAndStick);
   setBondFormingContextVisible(showBallAndStick);
@@ -250,6 +304,18 @@ function applyDensityFieldVisibility() {
 
 function isDensityMode() {
   return d3Select.value === 'electron density';
+}
+
+function updateFieldSourceOptions() {
+  // Electrostatic option only available in electron density mode
+  const esOption = fieldSourceSelect.querySelector('option[value="electrostatic"]');
+  if (esOption) {
+    esOption.disabled = !isDensityMode();
+    if (esOption.disabled && fieldSourceSelect.value === 'electrostatic') {
+      fieldSourceSelect.value = 'gradient';
+      setFieldSource('gradient');
+    }
+  }
 }
 
 function getHalfExtent(orbital) {
@@ -293,6 +359,19 @@ function clearMeshes() {
     m.geometry.dispose();
   }
   currentMeshes = [];
+  clearFieldVis();
+}
+
+async function rebuildFieldVis(targetParent) {
+  if (!showFieldVis || currentCaches.length === 0) return;
+  const parent = targetParent || scene;
+  const source = getFieldSource();
+  const label = source === 'electrostatic' ? 'Building E-field...' : 'Building gradient...';
+  const atomInfo = source === 'electrostatic' ? getCurrentAtomInfo() : null;
+  showProgress(label, 0);
+  await buildFieldVisAsync(currentCaches, null, null, parent, currentProbability,
+    (frac) => showProgress(label, frac), atomInfo);
+  hideProgress();
 }
 
 function buildGeometry(data, halfExtent, threshold, gridSize) {
@@ -373,6 +452,7 @@ function renderFromCaches(probability, gridSize, targetParent, numLayers) {
   updateLegend(layers, probability, density);
   updateOrbitalOpacity();
   if (!showDensityField) applyDensityFieldVisibility();
+  rebuildFieldVis(parent !== scene ? parent : undefined);
 }
 
 function loadOrbital(orbital, gridSize, targetParent) {
@@ -455,6 +535,7 @@ async function renderFromCachesAsync(probability, gridSize, targetParent, numLay
   updateLegend(layers, probability, density);
   updateOrbitalOpacity();
   if (!showDensityField) applyDensityFieldVisibility();
+  rebuildFieldVis(parent !== scene ? parent : undefined);
 }
 
 async function loadOrbitalAsync(orbital, gridSize, targetParent) {
@@ -888,6 +969,7 @@ function loadSelectedOrbital() {
   const orbital = getSelectedOrbital();
   if (!orbital) return;
 
+  updateFieldSourceOptions();
   cancelCompute(); // cancel any in-flight async work
 
   // Clean up dynamics state when switching orbitals
@@ -1049,6 +1131,33 @@ ballStickToggle.addEventListener('change', () => {
 densityFieldToggle.addEventListener('change', () => {
   showDensityField = densityFieldToggle.checked;
   applyDensityFieldVisibility();
+});
+
+// ---- Vector Field toggle ----
+fieldVisToggle.addEventListener('change', () => {
+  showFieldVis = fieldVisToggle.checked;
+  if (showFieldVis) {
+    fieldOptions.classList.remove('dropdown-hidden');
+    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined);
+  } else {
+    fieldOptions.classList.add('dropdown-hidden');
+    clearFieldVis();
+  }
+});
+
+fieldStyleSelect.addEventListener('change', () => {
+  fieldStyle = fieldStyleSelect.value;
+  setFieldMode(fieldStyle);
+  if (showFieldVis && currentCaches.length > 0) {
+    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined);
+  }
+});
+
+fieldSourceSelect.addEventListener('change', () => {
+  setFieldSource(fieldSourceSelect.value);
+  if (showFieldVis && currentCaches.length > 0) {
+    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined);
+  }
 });
 
 // ---- Opacity slider ----

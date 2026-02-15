@@ -145,6 +145,18 @@ input[type=range]::-webkit-slider-thumb {
   accent-color: #6af;
 }
 .dropdown-hidden { display: none; }
+#field-options {
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#field-options select {
+  margin-bottom: 0;
+}
+#field-options select option:disabled {
+  color: #666;
+}
 #opacity-display {
   font-size: 13px;
   color: #6af;

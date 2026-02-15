@@ -35,6 +35,21 @@
     <input type="checkbox" id="density-field-toggle" checked>
     Density Field
   </label>
+  <label class="checkbox-row">
+    <input type="checkbox" id="field-vis-toggle">
+    Vector Field
+  </label>
+  <div id="field-options" class="dropdown-hidden">
+    <select id="field-source-select">
+      <option value="gradient" selected>Gradient (&nabla;&psi; / &nabla;&rho;)</option>
+      <option value="electrostatic">Electrostatic (Coulomb)</option>
+    </select>
+    <select id="field-style-select">
+      <option value="arrows">Arrows</option>
+      <option value="streamlines">Streamlines</option>
+      <option value="both" selected>Both</option>
+    </select>
+  </div>
   <label for="layer-select">Layers</label>
   <select id="layer-select">
     <option value="1">1</option>
