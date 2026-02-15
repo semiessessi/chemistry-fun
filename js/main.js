@@ -424,6 +424,7 @@ function loadSelectedOrbital() {
   updateFieldSourceOptions();
   cancelCompute();
   cancelVibration();
+  chargeCache = null;
 
   // Clean up dynamics state when switching orbitals
   if (isDynamics || SIM_STATE.running || SIM3_STATE.running) {
@@ -513,58 +514,39 @@ async function loadElectrostaticPotentialAsync(orbital) {
   }
 }
 
-// ---- Charge visualisation loader (two-step: density → charge) ----
+// ---- Charge visualisation ----
 // Renders positive (nuclear) and negative (electronic) with independent
 // thresholds so both sides get balanced isosurfaces despite very different
 // spatial distributions.
 
-async function loadChargeDensityAsync(orbital) {
-  cancelCompute();
-  const halfExtent = getHalfExtent(orbital);
-  const gs = adaptiveGrid(halfExtent, false, halfExtent < 28);
+let chargeCache = null; // { posData, negData, halfExtent, gridSize }
 
-  // Step 1: sample electron density grid
-  showProgress('Sampling density...', 0);
-  const densityData = await sampleGridAsync(orbital, gs, halfExtent,
-    (f) => showProgress('Sampling density...', f * 0.5));
-  if (!densityData) return;
+function renderChargeVisualisation() {
+  if (!chargeCache) return;
+  const { posData, negData, halfExtent, gridSize } = chargeCache;
 
-  // Step 2: compute net charge visualisation (nuclear − electronic)
-  const atomInfo = getCurrentAtomInfo();
-  const chargeData = await computeChargeDensity(atomInfo, densityData, gs, halfExtent,
-    (f) => showProgress('Computing charge visualisation...', 0.5 + f * 0.2));
-
-  // Step 3: split into positive-only and negative-only (negated) arrays
-  // so each side gets independent threshold computation
-  const N3 = chargeData.length;
-  const posData = new Float32Array(N3);
-  const negData = new Float32Array(N3); // |negative values|
-  for (let i = 0; i < N3; i++) {
-    if (chargeData[i] > 0) posData[i] = chargeData[i];
-    else if (chargeData[i] < 0) negData[i] = -chargeData[i];
+  for (const m of currentMeshes) {
+    if (m.parent) m.parent.remove(m);
+    m.geometry.dispose();
   }
 
-  // Step 4: render with independent thresholds per side
-  showProgress('Rendering...', 0.7);
-  clearMeshes();
   const meshes = [];
   const layers = currentLayers;
   const mats = getLayerMaterials(layers, 'charge');
-  const he = halfExtent;
 
   const renderSide = (data, matArr) => {
     if (layers === 1) {
-      const threshold = computeThreshold(data, currentProbability, he, gs);
-      const geo = buildGeometry(data, he, threshold, gs);
+      const threshold = computeThreshold(data, currentProbability, halfExtent, gridSize);
+      const geo = buildGeometry(data, halfExtent, threshold, gridSize);
       if (geo) {
         const mesh = new THREE.Mesh(geo, matArr[0]);
         scene.add(mesh);
         meshes.push(mesh);
       }
     } else {
-      const thresholds = computeMultiThresholds(data, currentProbability, layers, he, gs);
+      const thresholds = computeMultiThresholds(data, currentProbability, layers, halfExtent, gridSize);
       for (let i = 0; i < layers; i++) {
-        const geo = buildGeometry(data, he, thresholds[i], gs);
+        const geo = buildGeometry(data, halfExtent, thresholds[i], gridSize);
         if (geo) {
           const mesh = new THREE.Mesh(geo, matArr[layers - 1 - i]);
           mesh.renderOrder = i;
@@ -578,11 +560,41 @@ async function loadChargeDensityAsync(orbital) {
   renderSide(posData, mats.pos); // nuclear (red)
   renderSide(negData, mats.neg); // electronic (blue)
 
-  currentCaches = [{ data: chargeData, halfExtent, gridSize: gs }];
   currentMeshes = meshes;
   updateLegend(layers, currentProbability, 'charge');
   updateOrbitalOpacity();
   if (!showDensityField) applyDensityFieldVisibility();
+}
+
+async function loadChargeDensityAsync(orbital) {
+  cancelCompute();
+  const halfExtent = getHalfExtent(orbital);
+  const gs = adaptiveGrid(halfExtent, false, halfExtent < 28);
+
+  showProgress('Sampling density...', 0);
+  const densityData = await sampleGridAsync(orbital, gs, halfExtent,
+    (f) => showProgress('Sampling density...', f * 0.5));
+  if (!densityData) return;
+
+  const atomInfo = getCurrentAtomInfo();
+  const chargeData = await computeChargeDensity(atomInfo, densityData, gs, halfExtent,
+    (f) => showProgress('Computing charge visualisation...', 0.5 + f * 0.2));
+
+  // Split into positive-only and negative-only (negated) arrays
+  const N3 = chargeData.length;
+  const posData = new Float32Array(N3);
+  const negData = new Float32Array(N3);
+  for (let i = 0; i < N3; i++) {
+    if (chargeData[i] > 0) posData[i] = chargeData[i];
+    else if (chargeData[i] < 0) negData[i] = -chargeData[i];
+  }
+
+  chargeCache = { posData, negData, halfExtent, gridSize: gs };
+  currentCaches = [{ data: chargeData, halfExtent, gridSize: gs }];
+
+  showProgress('Rendering...', 0.7);
+  clearMeshes();
+  renderChargeVisualisation();
   hideProgress();
 
   if (!isDragging && !isDynamics) {
@@ -624,9 +636,13 @@ function triggerProbRebuild() {
   rebuildTimeout = setTimeout(async () => {
     if (currentCaches.length > 0) {
       cancelCompute();
-      const target = isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined;
-      await renderFromCachesAsync(currentProbability, undefined, target);
-      hideProgress();
+      if (isChargeDensityMode() && chargeCache) {
+        renderChargeVisualisation();
+      } else {
+        const target = isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined;
+        await renderFromCachesAsync(currentProbability, undefined, target);
+        hideProgress();
+      }
     }
     if (isVibActive()) { cancelVibration(); startVibBuild(); }
   }, 50);
@@ -637,9 +653,13 @@ layerSelect.addEventListener('change', async () => {
   currentLayers = parseInt(layerSelect.value);
   if (currentCaches.length > 0) {
     cancelCompute();
-    const target = isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined;
-    await renderFromCachesAsync(currentProbability, undefined, target);
-    hideProgress();
+    if (isChargeDensityMode() && chargeCache) {
+      renderChargeVisualisation();
+    } else {
+      const target = isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined;
+      await renderFromCachesAsync(currentProbability, undefined, target);
+      hideProgress();
+    }
   }
   if (isVibActive()) { cancelVibration(); startVibBuild(); }
 });
