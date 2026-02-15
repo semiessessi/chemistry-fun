@@ -5,6 +5,7 @@ addMol({
   label: 'CO (Carbon Monoxide)',
   category: 'Diatomic',
   pubchemCid: 281,
+  nistSource: true,
   atoms: [
     ['C', 0, 0, -1.07],
     ['O', 0, 0, 1.07],

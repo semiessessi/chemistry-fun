@@ -6,6 +6,7 @@ addMol({
   label: 'CH\u2084 (Methane)',
   category: 'Small Organic',
   pubchemCid: 297,
+  nistSource: true,
   atoms: [
     ['C', 0, 0, 0],
     ['H', 1.19, 1.19, 1.19],

@@ -5,6 +5,7 @@ addMol({
   label: 'H\u2082 (Hydrogen)',
   category: 'Diatomic',
   pubchemCid: 783,
+  nistSource: true,
   atoms: [['H', 0, 0, -0.7], ['H', 0, 0, 0.7]],
   bonds: [[0, 1]],
   he: 10,

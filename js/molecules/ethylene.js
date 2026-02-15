@@ -5,6 +5,7 @@ addMol({
   label: 'C₂H₄ (Ethylene)',
   category: 'Triatomic',
   pubchemCid: 6325,
+  nistSource: true,
   atoms: [
     ['C', 0, 0, -1.26],
     ['C', 0, 0, 1.26],

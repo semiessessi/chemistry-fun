@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ALL_ORBITALS, ORBITAL_MAP, ORBITAL_TREE } from './orbitals.js';
 import { sampleGridAsync, renderLayersAsync, cancelCompute } from './worker-pool.js';
 import { computeMultiThresholds, computeThreshold } from './grid.js';
-import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
+import { getLayerMaterials, updateLegend, applyOpacityScale, setChargeCurve } from './layer-materials.js';
 import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
 import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
          updateMoleculeContextPositions, resetMoleculeContextPositions,
@@ -24,6 +24,7 @@ import { initDynamicsUI, setupDynamicsEvents, tickDynamics,
          sliderToR, rToSlider, dynWrapper, sepWrapper } from './dynamics-ui.js';
 import { VibrationController, generateVibrationalModes } from './vibrations.js';
 import { TransitionController, transitionWavelength, wavelengthToRGB } from './transitions.js';
+import { renderAtomicDiagram, renderMolecularDiagram, renderDiatomicDiagram, clearDiagram } from './energy-diagram.js';
 
 // ---- Dropdown elements ----
 const d1Select = document.getElementById('d1-select');
@@ -97,6 +98,10 @@ let showBallAndStick = ballStickToggle.checked;
 
 const densityFieldToggle = document.getElementById('density-field-toggle');
 let showDensityField = densityFieldToggle.checked;
+
+const energyDiagramToggle = document.getElementById('energy-diagram-toggle');
+const energyDiagramContainer = document.getElementById('energy-diagram');
+let showEnergyDiagram = energyDiagramToggle.checked;
 
 const fieldVisToggle = document.getElementById('field-vis-toggle');
 const fieldStyleSelect = document.getElementById('field-style-select');
@@ -241,6 +246,70 @@ function updateFieldSourceOptions() {
     fieldSourceSelect.value = 'gradient';
     setFieldSource('gradient');
   }
+}
+
+// ---- Energy Level Diagram ----
+
+function updateEnergyDiagram() {
+  if (!showEnergyDiagram) {
+    energyDiagramContainer.classList.add('dropdown-hidden');
+    clearDiagram(energyDiagramContainer);
+    return;
+  }
+  energyDiagramContainer.classList.remove('dropdown-hidden');
+
+  const d1 = d1Select.value;
+  const orbital = getSelectedOrbital();
+  const selectedInfo = orbital ? { d1: orbital.d1, d2: orbital.d2, d3: orbital.d3, name: orbital.name } : null;
+
+  if (d1 === 'Atomic') {
+    renderAtomicDiagram(energyDiagramContainer, selectedInfo, onEnergyDiagramSelect);
+  } else if (d1 === 'Molecules') {
+    const molName = d2Select.value;
+    const d3Keys = Object.keys((ORBITAL_TREE[d1] || {})[molName] || {});
+    // Build MO list from d3 entries that aren't special fields
+    const moList = d3Keys
+      .filter(k => k !== 'electron density' && k !== 'electrostatic potential' && k !== 'charge visualisation')
+      .map(k => [k]);
+    renderMolecularDiagram(energyDiagramContainer, molName, moList, selectedInfo, onEnergyDiagramSelect);
+  } else if (d1 === 'Molecular') {
+    renderDiatomicDiagram(energyDiagramContainer, selectedInfo, onEnergyDiagramSelect);
+  } else {
+    clearDiagram(energyDiagramContainer);
+  }
+}
+
+function onEnergyDiagramSelect(d1Val, d2Val, d3Val, d4Val) {
+  // Switch mode if needed — manually populate without triggering full cascade
+  if (d1Val && d1Val !== d1Select.value) {
+    d1Select.value = d1Val;
+    const d1 = d1Val;
+    d2Label.textContent = D2_LABELS[d1] || 'Category';
+    d3Label.textContent = D3_LABELS[d1] || 'Subcategory';
+    d4Label.textContent = D4_LABELS[d1] || 'Orbital';
+    populateCategoryFilter(d1);
+    pubchemWrapper.classList.toggle('dropdown-hidden', d1 !== 'Molecules');
+    const labels = (d1 === 'Molecules' || d1 === 'Bond Formation') ? MOLECULE_LABELS : undefined;
+    populateSelect(d2Select, getFilteredD2Keys(d1), labels);
+  }
+  if (d2Val) {
+    d2Select.value = d2Val;
+    const d3Keys = Object.keys((ORBITAL_TREE[d1Select.value] || {})[d2Val] || {});
+    populateSelect(d3Select, d3Keys);
+  }
+  if (d3Val) {
+    d3Select.value = d3Val;
+    const orbitals = getD3Orbitals();
+    if (orbitals.length > 1) {
+      d4Wrapper.classList.remove('dropdown-hidden');
+      populateSelect(d4Select, orbitals.map(o => o.d4 || o.name));
+      if (d4Val) d4Select.value = d4Val;
+    } else {
+      d4Wrapper.classList.add('dropdown-hidden');
+    }
+  }
+  loadSelectedOrbital();
+  updateShareLink();
 }
 
 // ---- State getter/setter for sub-modules ----
@@ -389,6 +458,7 @@ function onD3Change() {
     d4Wrapper.classList.remove('dropdown-hidden');
     populateSelect(d4Select, orbitals.map(o => o.d4 || o.name));
   }
+  updateColorCurveVisibility();
   loadSelectedOrbital();
   updateShareLink();
 }
@@ -432,6 +502,7 @@ function loadSelectedOrbital() {
   cancelVibration();
   cancelTransition();
   chargeCache = null;
+  updateEnergyDiagram();
 
   // Clean up dynamics state when switching orbitals
   if (isDynamics || SIM_STATE.running || SIM3_STATE.running) {
@@ -728,6 +799,13 @@ densityFieldToggle.addEventListener('change', () => {
   updateShareLink();
 });
 
+// ---- Energy Diagram toggle ----
+energyDiagramToggle.addEventListener('change', () => {
+  showEnergyDiagram = energyDiagramToggle.checked;
+  updateEnergyDiagram();
+  updateShareLink();
+});
+
 // ---- Vector Field toggle ----
 
 function rebuildVibIfActive() {
@@ -778,6 +856,24 @@ if (opacitySlider) {
     updateShareLink();
   });
 }
+
+// ---- Color curve slider (charge visualisation) ----
+const colorCurveWrapper = document.getElementById('color-curve-wrapper');
+const colorCurveSlider = document.getElementById('color-curve-slider');
+const colorCurveDisplay = document.getElementById('color-curve-display');
+
+function updateColorCurveVisibility() {
+  const show = isChargeDensityMode();
+  colorCurveWrapper.classList.toggle('dropdown-hidden', !show);
+}
+
+colorCurveSlider.addEventListener('input', () => {
+  const power = parseInt(colorCurveSlider.value) / 10;
+  colorCurveDisplay.textContent = power === 1 ? '1.0 (linear)' : power.toFixed(1);
+  setChargeCurve(power);
+  updateLegend(currentLayers, currentProbability, 'charge');
+  updateShareLink();
+});
 
 // ---- Vibration ----
 
@@ -1232,6 +1328,7 @@ function updateShareLink() {
     p.set('vstyle', fieldStyleSelect.value);
   }
   if (!ballStickToggle.checked) p.set('atoms', '0');
+  if (parseInt(colorCurveSlider.value) !== 10) p.set('curve', colorCurveSlider.value);
   const url = window.location.origin + window.location.pathname + '?' + p.toString();
   shareLinkDiv.innerHTML = `<a href="${url}">Shareable link</a>`;
 }
@@ -1352,6 +1449,17 @@ function applyUrlParams() {
   if (p.get('atoms') === '0') {
     ballStickToggle.checked = false;
     showBallAndStick = false;
+  }
+
+  // Color curve
+  if (p.has('curve')) {
+    const cv = parseInt(p.get('curve'));
+    if (cv >= 1 && cv <= 40) {
+      colorCurveSlider.value = cv;
+      const power = cv / 10;
+      colorCurveDisplay.textContent = power === 1 ? '1.0 (linear)' : power.toFixed(1);
+      setChargeCurve(power);
+    }
   }
 
   // Update variant + pubchem link

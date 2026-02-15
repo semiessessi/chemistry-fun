@@ -1,5 +1,5 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { overflow: hidden; background: #111; font-family: 'Segoe UI', Arial, sans-serif; color: #ddd; }
+body { overflow: hidden; background: #0c0c0c; font-family: 'Segoe UI', Arial, sans-serif; color: #ddd; }
 canvas { display: block; }
 #top-bar {
   position: absolute;
@@ -263,6 +263,13 @@ details.section[open] > summary { margin-bottom: 6px; }
   appearance: none;
 }
 #custom-layers-input:focus { border-color: #6af; }
+/* Color curve slider */
+#color-curve-display {
+  font-size: 13px;
+  color: #6af;
+  margin-top: -10px;
+  margin-bottom: 10px;
+}
 /* Variant dropdown */
 #variant-wrapper select { margin-bottom: 14px; }
 #vib-amplitude-display {
@@ -407,7 +414,7 @@ details.section[open] > summary { margin-bottom: 6px; }
   display: flex;
   flex-direction: column;
   gap: 3px;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,0.85);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
   padding: 6px 10px;
@@ -415,3 +422,17 @@ details.section[open] > summary { margin-bottom: 6px; }
   align-self: flex-start;
 }
 #layer-key:empty { display: none; }
+#energy-diagram {
+  background: rgba(0,0,0,0.65);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 4px;
+  backdrop-filter: blur(8px);
+  align-self: flex-start;
+}
+#energy-diagram canvas {
+  display: block;
+  border-radius: 4px;
+  max-width: 100%;
+  height: auto;
+}

@@ -59,6 +59,10 @@
         <input type="checkbox" id="density-field-toggle" checked>
         Density Field
       </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="energy-diagram-toggle">
+        Energy Levels
+      </label>
     </div>
     <div id="field-options" class="dropdown-hidden">
       <select id="field-source-select">
@@ -92,6 +96,11 @@
       <label for="opacity-slider">Opacity</label>
       <input type="range" id="opacity-slider" min="5" max="90" value="70">
       <div id="opacity-display">70%</div>
+      <div id="color-curve-wrapper" class="dropdown-hidden">
+        <label for="color-curve-slider">Color Curve</label>
+        <input type="range" id="color-curve-slider" min="1" max="40" value="10" step="1">
+        <div id="color-curve-display">1.0 (linear)</div>
+      </div>
     </div>
   </details>
   <div id="separation-wrapper" class="dropdown-hidden">
@@ -152,6 +161,7 @@
   <div id="share-link"></div>
 </div>
 <div id="layer-key"></div>
+<div id="energy-diagram" class="dropdown-hidden"></div>
 </div>
 
 <script type="importmap">

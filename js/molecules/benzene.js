@@ -21,6 +21,7 @@ addMol({
   label: 'C\u2086H\u2086 (Benzene)',
   category: 'Aromatic',
   pubchemCid: 241,
+  nistSource: true,
   atoms: [
     ['C', 2.64, 0, 0],
     ['C', 1.32, 0, 2.29],

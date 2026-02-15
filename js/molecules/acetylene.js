@@ -5,6 +5,7 @@ addMol({
   label: 'C\u2082H\u2082 (Acetylene)',
   category: 'Small Organic',
   pubchemCid: 6326,
+  nistSource: true,
   atoms: [
     ['C', 0, 0, -1.14],
     ['C', 0, 0, 1.14],

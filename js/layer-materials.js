@@ -47,14 +47,17 @@ function elevationOpacity(t) {
 }
 
 // Charge density ramps (t: 0=inner, 1=outer)
+// Power curve applied to t: p=1 linear, p>1 colors stay vivid longer, p<1 fade faster
+let chargeCurvePower = 1.0;
+
 function chargeRedRamp(t) {
-  // deep red (inner) → white (outer)
-  return hslToHex(0, 80 * (1 - t), 40 + 60 * t);
+  const c = Math.pow(t, chargeCurvePower);
+  return hslToHex(0, 80 * (1 - c), 40 + 60 * c);
 }
 
 function chargeBlueRamp(t) {
-  // deep blue (inner) → white (outer)
-  return hslToHex(225, 75 * (1 - t), 40 + 60 * t);
+  const c = Math.pow(t, chargeCurvePower);
+  return hslToHex(225, 75 * (1 - c), 40 + 60 * c);
 }
 
 // ---- Material creation ----
@@ -95,6 +98,23 @@ export function getLayerMaterials(numLayers, colorMode) {
   return mats;
 }
 
+// ---- Charge curve update (live, no rebuild) ----
+
+export function setChargeCurve(power) {
+  chargeCurvePower = power;
+  // Update colors on all cached charge materials in-place
+  for (const key of Object.keys(cache)) {
+    if (!key.endsWith('-charge')) continue;
+    const mats = cache[key];
+    const numLayers = mats.pos.length;
+    for (let i = 0; i < numLayers; i++) {
+      const t = numLayers === 1 ? 0 : i / (numLayers - 1);
+      mats.pos[i].color.copy(chargeRedRamp(t));
+      mats.neg[i].color.copy(chargeBlueRamp(t));
+    }
+  }
+}
+
 // ---- Opacity scaling ----
 
 export function applyOpacityScale(numLayers, colorMode, scale) {
@@ -118,12 +138,12 @@ function colorToCSS(threeColor, opacity) {
   return `rgba(${r},${g},${b},${opacity})`;
 }
 
-function buildGradientCSS(colorFn, opacityFn) {
+function buildGradientCSS(colorFn) {
   const stops = 16;
   const parts = [];
   for (let i = 0; i <= stops; i++) {
     const t = i / stops; // left=inner(t=0), right=outer(t=1)
-    parts.push(colorToCSS(colorFn(t), opacityFn(t)));
+    parts.push(colorToCSS(colorFn(t), 1.0));
   }
   return `linear-gradient(to right, ${parts.join(', ')})`;
 }
@@ -136,20 +156,20 @@ export function updateLegend(numLayers, maxProb, colorMode) {
 
   const W = 160; // bar width in px
 
-  const addBar = (colorFn, opacityFn) => {
+  const addBar = (colorFn) => {
     const bar = document.createElement('div');
-    bar.style.cssText = `width:${W}px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,0.15);background:${buildGradientCSS(colorFn, opacityFn)};`;
+    bar.style.cssText = `width:${W}px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,0.15);background:${buildGradientCSS(colorFn)};`;
     container.appendChild(bar);
   };
 
   if (colorMode === 'density') {
-    addBar(elevationColor, elevationOpacity);
+    addBar(elevationColor);
   } else if (colorMode === 'charge') {
-    addBar(chargeRedRamp, orbitalOpacity);
-    addBar(chargeBlueRamp, orbitalOpacity);
+    addBar(chargeRedRamp);
+    addBar(chargeBlueRamp);
   } else {
-    addBar(redRamp, orbitalOpacity);
-    addBar(blueRamp, orbitalOpacity);
+    addBar(redRamp);
+    addBar(blueRamp);
   }
 
   const labels = document.createElement('div');

@@ -5,6 +5,7 @@ addMol({
   label: 'N\u2082 (Nitrogen)',
   category: 'Diatomic',
   pubchemCid: 947,
+  nistSource: true,
   atoms: [
     ['N', 0, 0, -1.04],
     ['N', 0, 0, 1.04],

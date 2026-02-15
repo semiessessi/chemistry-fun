@@ -5,6 +5,7 @@ addMol({
   label: 'H\u2082O (Water)',
   category: 'Triatomic',
   pubchemCid: 962,
+  nistSource: true,
   atoms: [
     ['O', 0, 0, 0],
     ['H', 1.43, 0, 1.11],

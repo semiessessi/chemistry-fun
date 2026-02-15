@@ -5,6 +5,7 @@ addMol({
   label: 'SO\u2082 (Sulfur Dioxide)',
   category: 'Triatomic',
   pubchemCid: 1119,
+  nistSource: true,
   atoms: [
     ['S', 0, 0, 0],
     ['O', 2.34, 0, 1.37],

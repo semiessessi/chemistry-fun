@@ -5,6 +5,7 @@ addMol({
   label: 'H\u2082S (Hydrogen Sulfide)',
   category: 'Triatomic',
   pubchemCid: 402,
+  nistSource: true,
   atoms: [
     ['S', 0, 0, 0],
     ['H', 1.82, 0, 1.75],

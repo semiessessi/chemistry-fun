@@ -66,6 +66,7 @@ const MOLECULE_VARIANTS = {}; // name → variants array
 
 // ---- PubChem CID tracking ----
 const MOLECULE_CIDS = {}; // name → CID number
+const MOLECULE_NIST = {}; // name → true if geometry from NIST CCCBDB
 
 // ---- Atom data access (for electrostatic field computation) ----
 export function getMoleculeAtoms(name) {
@@ -79,6 +80,10 @@ export function getMoleculeVariants(name) {
 
 export function getMoleculeCid(name) {
   return MOLECULE_CIDS[name] || null;
+}
+
+export function getMoleculeNist(name) {
+  return !!MOLECULE_NIST[name];
 }
 
 // ---- Geometry helpers ----
@@ -107,6 +112,7 @@ export function addMol(mol) {
   if (mol.category) MOLECULE_CATEGORIES[mol.name] = mol.category;
   if (mol.variants) MOLECULE_VARIANTS[mol.name] = mol.variants;
   if (mol.pubchemCid) MOLECULE_CIDS[mol.name] = mol.pubchemCid;
+  if (mol.nistSource) MOLECULE_NIST[mol.name] = true;
   const moOrbitals = [];
   for (const mo of (mol.mos || [])) {
     const moName = mo[0];

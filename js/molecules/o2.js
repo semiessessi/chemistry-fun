@@ -5,6 +5,7 @@ addMol({
   label: 'O\u2082 (Oxygen)',
   category: 'Diatomic',
   pubchemCid: 977,
+  nistSource: true,
   atoms: [
     ['O', 0, 0, -1.14],
     ['O', 0, 0, 1.14],

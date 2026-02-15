@@ -12,6 +12,7 @@ export {
   getMoleculeData,
   getMoleculeVariants,
   getMoleculeCid,
+  getMoleculeNist,
   buildDisplacedOrbital,
   buildDisplacedDensitySampler,
   addMol,

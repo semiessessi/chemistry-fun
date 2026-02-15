@@ -5,6 +5,7 @@ addMol({
   label: 'CO\u2082 (Carbon Dioxide)',
   category: 'Triatomic',
   pubchemCid: 280,
+  nistSource: true,
   atoms: [
     ['C', 0, 0, 0],
     ['O', 0, 0, -2.19],
