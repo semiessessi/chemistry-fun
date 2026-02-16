@@ -407,6 +407,18 @@ export function showMoleculeContext(orbitalName) {
           .add(perp2.clone().multiplyScalar(Math.sin(angle) * 0.14));
         addCyl(mid.clone().add(off), quat, 0.05, len);
       }
+    } else if (order >= 4) {
+      // Quadruple, quintuple, etc.: N cylinders in a ring
+      const n = Math.round(order);
+      const perp2 = new THREE.Vector3().crossVectors(dir, perp).normalize();
+      const ringR = 0.08 + n * 0.03; // ring grows with order
+      const cylR = Math.max(0.03, 0.16 / n);
+      for (let k = 0; k < n; k++) {
+        const angle = (k * 2 * Math.PI) / n;
+        const off = perp.clone().multiplyScalar(Math.cos(angle) * ringR)
+          .add(perp2.clone().multiplyScalar(Math.sin(angle) * ringR));
+        addCyl(mid.clone().add(off), quat, cylR, len);
+      }
     } else if (order === 1.5) {
       const bondKey = Math.min(i, j) + ',' + Math.max(i, j);
       if (aroRingBonds.has(bondKey)) {

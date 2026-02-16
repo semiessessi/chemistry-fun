@@ -9,7 +9,7 @@ addMol({
     ['Mo', 0, 0, -1.8],
     ['Mo', 0, 0, 1.8],
   ],
-  bonds: [[0, 1, 3]], // display as triple (closest to quadruple)
+  bonds: [[0, 1, 4]],
   he: 14,
   mos: [
     ['σ bond (dz²)', [
@@ -60,7 +60,7 @@ addMol({
       ['Cl', a, -a, d],
     ],
     bonds: [
-      [0, 1, 3],
+      [0, 1, 4],
       [0, 2], [0, 3], [0, 4], [0, 5],
       [1, 6], [1, 7], [1, 8], [1, 9],
     ],
