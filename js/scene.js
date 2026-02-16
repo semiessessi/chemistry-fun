@@ -41,52 +41,30 @@ const bottomLight = new THREE.DirectionalLight(0x8090b0, 0.15);
 bottomLight.position.set(0, -8, 2);
 scene.add(bottomLight);
 
-// ---- Grid & axes (XZ plane, labeled in Ångströms) ----
+// ---- Adaptive grid & axes (XZ plane, labeled in Ångströms) ----
 
 const BOHR_PER_ANG = 1 / 0.529177; // scene units per Å
-const GRID_MAX_ANG = 10;            // grid extends ±10 Å
-const GRID_MAX = GRID_MAX_ANG * BOHR_PER_ANG;
+const ANG_PER_BOHR = 0.529177;
 
-// Collect line segments for minor (1 Å) and major (2 Å) grid lines
-const minorPts = [];
-const majorPts = [];
-for (let a = -GRID_MAX_ANG; a <= GRID_MAX_ANG; a++) {
-  if (a === 0) continue;
-  const pos = a * BOHR_PER_ANG;
-  const arr = (a % 2 === 0) ? majorPts : minorPts;
-  arr.push(new THREE.Vector3(pos, 0, -GRID_MAX), new THREE.Vector3(pos, 0, GRID_MAX));
-  arr.push(new THREE.Vector3(-GRID_MAX, 0, pos), new THREE.Vector3(GRID_MAX, 0, pos));
-}
-
-if (minorPts.length > 0) {
-  const geo = new THREE.BufferGeometry().setFromPoints(minorPts);
-  scene.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x333333 })));
-}
-if (majorPts.length > 0) {
-  const geo = new THREE.BufferGeometry().setFromPoints(majorPts);
-  scene.add(new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x555555 })));
-}
-
-// Axes — colored, spanning full grid extent
-const axesDef = [
-  { dir: [1, 0, 0], color: 0x884444 }, // X red
-  { dir: [0, 1, 0], color: 0x448844 }, // Y green
-  { dir: [0, 0, 1], color: 0x444488 }, // Z blue
-];
-for (const { dir, color } of axesDef) {
-  const d = new THREE.Vector3(...dir);
-  const geo = new THREE.BufferGeometry().setFromPoints([
-    d.clone().multiplyScalar(-GRID_MAX),
-    d.clone().multiplyScalar(GRID_MAX),
-  ]);
-  scene.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color })));
-}
-
-// ---- Text sprite labels (fixed screen-space size) ----
-
+const LABEL_BASE_SCALE = [3.6, 1.8];
+const LABEL_REF_DIST = 45;
 const labelSprites = [];
-const LABEL_BASE_SCALE = [3.6, 1.8]; // base scale at reference distance
-const LABEL_REF_DIST = 45;            // reference camera distance
+const gridObjects = [];  // track all grid/axis/label objects for cleanup
+
+let currentGridAng = 0;  // current grid extent in Å
+
+function clearGrid() {
+  for (const obj of gridObjects) {
+    scene.remove(obj);
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (obj.material.map) obj.material.map.dispose();
+      obj.material.dispose();
+    }
+  }
+  gridObjects.length = 0;
+  labelSprites.length = 0;
+}
 
 export function makeLabel(text, position, fontSize, color) {
   const canvas = document.createElement('canvas');
@@ -106,10 +84,10 @@ export function makeLabel(text, position, fontSize, color) {
   sprite.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
   scene.add(sprite);
   labelSprites.push(sprite);
+  gridObjects.push(sprite);
   return sprite;
 }
 
-// Call each frame to keep labels at constant screen-space size
 export function updateLabelScales() {
   const camPos = camera.position;
   for (const sprite of labelSprites) {
@@ -119,22 +97,90 @@ export function updateLabelScales() {
   }
 }
 
-// Labels every 2 Å along X and Z axes
-const LABEL_STEP = 2;
-const LABEL_Y_OFF = -0.18; // slightly below grid plane
-for (let a = -GRID_MAX_ANG; a <= GRID_MAX_ANG; a += LABEL_STEP) {
-  const pos = a * BOHR_PER_ANG;
-  const txt = a === 0 ? '0' : String(a);
-  // X-axis labels (along z=0, offset below)
-  makeLabel(txt, new THREE.Vector3(pos, LABEL_Y_OFF, 0));
-  // Z-axis labels (along x=0, offset below) — skip 0 to avoid overlap
-  if (a !== 0) makeLabel(txt, new THREE.Vector3(0, LABEL_Y_OFF, pos));
+function buildGrid(maxAng) {
+  clearGrid();
+  currentGridAng = maxAng;
+  const GRID_MAX = maxAng * BOHR_PER_ANG;
+
+  // Choose label step: 1 Å for small, 2 Å for medium, 5 Å for large
+  const labelStep = maxAng <= 8 ? 1 : maxAng <= 20 ? 2 : 5;
+  // Minor lines every labelStep, major every 2*labelStep
+  const minorStep = labelStep;
+  const majorStep = labelStep * 2;
+
+  const minorPts = [];
+  const majorPts = [];
+  for (let a = -maxAng; a <= maxAng; a += minorStep) {
+    if (a === 0) continue;
+    const pos = a * BOHR_PER_ANG;
+    const arr = (a % majorStep === 0) ? majorPts : minorPts;
+    arr.push(new THREE.Vector3(pos, 0, -GRID_MAX), new THREE.Vector3(pos, 0, GRID_MAX));
+    arr.push(new THREE.Vector3(-GRID_MAX, 0, pos), new THREE.Vector3(GRID_MAX, 0, pos));
+  }
+
+  if (minorPts.length > 0) {
+    const geo = new THREE.BufferGeometry().setFromPoints(minorPts);
+    const obj = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x333333 }));
+    scene.add(obj);
+    gridObjects.push(obj);
+  }
+  if (majorPts.length > 0) {
+    const geo = new THREE.BufferGeometry().setFromPoints(majorPts);
+    const obj = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x555555 }));
+    scene.add(obj);
+    gridObjects.push(obj);
+  }
+
+  // Axes
+  const axesDef = [
+    { dir: [1, 0, 0], color: 0x884444 },
+    { dir: [0, 1, 0], color: 0x448844 },
+    { dir: [0, 0, 1], color: 0x444488 },
+  ];
+  for (const { dir, color } of axesDef) {
+    const d = new THREE.Vector3(...dir);
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      d.clone().multiplyScalar(-GRID_MAX),
+      d.clone().multiplyScalar(GRID_MAX),
+    ]);
+    const obj = new THREE.Line(geo, new THREE.LineBasicMaterial({ color }));
+    scene.add(obj);
+    gridObjects.push(obj);
+  }
+
+  // Number labels along axes
+  const LABEL_Y_OFF = -0.18;
+  for (let a = -maxAng; a <= maxAng; a += labelStep) {
+    const pos = a * BOHR_PER_ANG;
+    const txt = a === 0 ? '0' : String(a);
+    makeLabel(txt, new THREE.Vector3(pos, LABEL_Y_OFF, 0));
+    if (a !== 0) makeLabel(txt, new THREE.Vector3(0, LABEL_Y_OFF, pos));
+  }
+
+  // Axis tip labels
+  makeLabel('x (\u00C5)', new THREE.Vector3(GRID_MAX + 2, 0, 0), 22, '#aa6666');
+  makeLabel('z (\u00C5)', new THREE.Vector3(0, 0, GRID_MAX + 2), 22, '#6666aa');
+  makeLabel('y (\u00C5)', new THREE.Vector3(0, GRID_MAX + 2, 0), 22, '#66aa66');
 }
 
-// Axis tip labels with unit
-makeLabel('x (\u00C5)', new THREE.Vector3(GRID_MAX + 2, 0, 0), 22, '#aa6666');
-makeLabel('z (\u00C5)', new THREE.Vector3(0, 0, GRID_MAX + 2), 22, '#6666aa');
-makeLabel('y (\u00C5)', new THREE.Vector3(0, GRID_MAX + 2, 0), 22, '#66aa66');
+/**
+ * Update the coordinate grid to fit the given half-extent (in Bohr).
+ * Rounds up to a nice Å value. No-ops if the grid already matches.
+ */
+export function updateGridExtent(halfExtentBohr) {
+  const extentAng = halfExtentBohr * ANG_PER_BOHR;
+  // Round up to nice values: 5, 8, 10, 15, 20, 25, 30, 40, 50
+  const niceValues = [5, 8, 10, 15, 20, 25, 30, 40, 50];
+  let maxAng = niceValues[niceValues.length - 1];
+  for (const v of niceValues) {
+    if (v >= extentAng * 0.85) { maxAng = v; break; }
+  }
+  if (maxAng === currentGridAng) return;
+  buildGrid(maxAng);
+}
+
+// Build initial grid at 10 Å
+buildGrid(10);
 
 // Materials for positive (red) and negative (blue) lobes
 export const matPositive = new THREE.MeshPhongMaterial({

@@ -5,7 +5,7 @@ import { ALL_ORBITALS, ORBITAL_MAP, ORBITAL_TREE } from './orbitals.js';
 import { sampleGridAsync, renderLayersAsync, cancelCompute } from './worker-pool.js';
 import { computeMultiThresholds, computeThreshold } from './grid.js';
 import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
-import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
+import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales, updateGridExtent } from './scene.js';
 import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
          updateMoleculeContextPositions, resetMoleculeContextPositions,
          MOLECULE_LABELS, MOLECULE_CATEGORIES, getMoleculeAtoms,
@@ -596,6 +596,7 @@ function loadSelectedOrbital() {
 async function loadElectrostaticPotentialAsync(orbital) {
   cancelCompute();
   const halfExtent = getHalfExtent(orbital);
+  updateGridExtent(halfExtent);
   const gs = adaptiveGrid(halfExtent, false, halfExtent < 28);
 
   // Step 1: sample electron density grid
@@ -687,6 +688,7 @@ async function renderChargeVisualisation() {
 async function loadChargeDensityAsync(orbital) {
   cancelCompute();
   const halfExtent = getHalfExtent(orbital);
+  updateGridExtent(halfExtent);
   const gs = adaptiveGrid(halfExtent, false, halfExtent < 28);
 
   showProgress('Sampling density...', 0);
@@ -727,6 +729,7 @@ async function loadChargeDensityAsync(orbital) {
 async function loadELFAsync(orbital) {
   cancelCompute();
   const halfExtent = orbital.halfExtent || 14;
+  updateGridExtent(halfExtent);
   const gs = adaptiveGrid(halfExtent, false, halfExtent < 28);
 
   showProgress('Computing ELF: sampling MOs...', 0);

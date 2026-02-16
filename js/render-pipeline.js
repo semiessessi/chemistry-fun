@@ -6,7 +6,7 @@ import { sampleGrid, computeThreshold, computeMultiThresholds } from './grid.js'
 import { sampleGridAsync, renderLayersAsync, cancelCompute } from './worker-pool.js';
 import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
-import { scene, camera, controls, matPositive, matNegative } from './scene.js';
+import { scene, camera, controls, matPositive, matNegative, updateGridExtent } from './scene.js';
 import { buildFieldVisAsync, clearFieldVis, setFieldVisVisible, getFieldSource } from './electric-field.js';
 
 // ---- Shared state (set by main.js via init) ----
@@ -225,6 +225,7 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
 export function loadOrbital(orbital, gridSize, targetParent, isBondForming) {
   const s = getState();
   const halfExtent = getHalfExtent(orbital);
+  updateGridExtent(halfExtent);
   const gs = gridSize || adaptiveGrid(halfExtent, false, !isBondForming && halfExtent < 28);
   const caches = [];
   const parts = orbital.lobes || [orbital];
@@ -247,6 +248,7 @@ export async function loadOrbitalAsync(orbital, gridSize, targetParent, isBondFo
   cancelCompute();
   const s = getState();
   const halfExtent = getHalfExtent(orbital);
+  updateGridExtent(halfExtent);
   const gs = gridSize || adaptiveGrid(halfExtent, false, !isBondForming && halfExtent < 28);
   const caches = [];
   const parts = orbital.lobes || [orbital];
