@@ -108,7 +108,7 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
       map: texture,
       transparent: true,
       opacity: 0.08,  // Minimal punchthrough for grid numbers
-      depthTest: false,
+      depthTest: true,  // Grid numbers get occluded by orbitals too!
       depthWrite: false, // Don't write to depth buffer
       blending: THREE.NormalBlending  // Alpha blending: black darkens, white lightens
     })
