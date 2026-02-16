@@ -31,8 +31,7 @@ canvas { display: block; }
 }
 #panel-open:hover { background: rgba(40,40,40,0.85); color: #fff; }
 #top-bar.collapsed #panel-open { display: block; }
-#top-bar.collapsed #controls,
-#top-bar.collapsed #energy-diagram { display: none; }
+#top-bar.collapsed #controls { display: none; }
 #panel-close {
   position: absolute;
   top: 10px;
@@ -467,6 +466,12 @@ details.section[open] > summary { margin-bottom: 6px; }
   white-space: nowrap;
   font-family: 'Consolas', 'Menlo', monospace;
 }
+#sidebar-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: flex-start;
+}
 #layer-key {
   display: flex;
   flex-direction: column;
@@ -476,7 +481,6 @@ details.section[open] > summary { margin-bottom: 6px; }
   border-radius: 6px;
   padding: 6px 10px;
   backdrop-filter: blur(8px);
-  align-self: flex-start;
 }
 #layer-key:empty { display: none; }
 #energy-diagram {
@@ -485,8 +489,8 @@ details.section[open] > summary { margin-bottom: 6px; }
   border-radius: 6px;
   padding: 4px;
   backdrop-filter: blur(8px);
-  align-self: flex-start;
 }
+#energy-diagram:empty { display: none; }
 #energy-diagram canvas {
   display: block;
   border-radius: 4px;

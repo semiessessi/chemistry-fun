@@ -7,7 +7,7 @@ import { sampleGridAsync, renderLayersAsync, cancelCompute } from './worker-pool
 import { getLayerMaterials, updateLegend, applyOpacityScale } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
 import { scene, camera, controls, matPositive, matNegative } from './scene.js';
-import { buildFieldVisAsync, clearFieldVis, getFieldSource } from './electric-field.js';
+import { buildFieldVisAsync, clearFieldVis, setFieldVisVisible, getFieldSource } from './electric-field.js';
 
 // ---- Shared state (set by main.js via init) ----
 
@@ -82,6 +82,8 @@ export async function rebuildFieldVis(targetParent, atomInfoFn, potentialGrid) {
   await buildFieldVisAsync(s.currentCaches, null, null, parent, s.currentProbability,
     (frac) => showProgress(label, frac), atomInfo, potentialGrid || null);
   hideProgress();
+  // Re-check current state (may have changed during async build)
+  if (getState().vibStaticMeshesHidden) setFieldVisVisible(false);
 }
 
 // ---- Synchronous render from caches ----

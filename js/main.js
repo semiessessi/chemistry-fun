@@ -101,9 +101,7 @@ let showBallAndStick = ballStickToggle.checked;
 const densityFieldToggle = document.getElementById('density-field-toggle');
 let showDensityField = densityFieldToggle.checked;
 
-const energyDiagramToggle = document.getElementById('energy-diagram-toggle');
 const energyDiagramContainer = document.getElementById('energy-diagram');
-let showEnergyDiagram = energyDiagramToggle.checked;
 
 const fieldVisToggle = document.getElementById('field-vis-toggle');
 const fieldStyleSelect = document.getElementById('field-style-select');
@@ -213,11 +211,14 @@ function applyBallStickVisibility() {
 }
 
 function applyDensityFieldVisibility() {
-  for (const m of currentMeshes) m.visible = showDensityField;
-  if (dynOrbitalGroup) dynOrbitalGroup.visible = showDensityField;
+  const vibRunning = vibController.state === 'playing' || vibController.state === 'building';
+  // Only toggle static meshes if vibration isn't actively running (statics are hidden during playback)
+  if (!vibRunning) {
+    for (const m of currentMeshes) m.visible = showDensityField;
+    if (dynOrbitalGroup) dynOrbitalGroup.visible = showDensityField;
+  }
   // Toggle density sub-group visibility in vibration frames independently
-  // (field vis sub-group stays unaffected)
-  if (vibController.state === 'playing' || vibController.state === 'ready') {
+  if (vibController.state !== 'idle') {
     vibController.setDensityVisible(showDensityField);
   }
 }
@@ -249,13 +250,6 @@ function updateFieldSourceOptions() {
 // ---- Energy Level Diagram ----
 
 function updateEnergyDiagram() {
-  if (!showEnergyDiagram) {
-    energyDiagramContainer.classList.add('dropdown-hidden');
-    clearDiagram(energyDiagramContainer);
-    return;
-  }
-  energyDiagramContainer.classList.remove('dropdown-hidden');
-
   const d1 = d1Select.value;
   const orbital = getSelectedOrbital();
   const selectedInfo = orbital ? { d1: orbital.d1, d2: orbital.d2, d3: orbital.d3, name: orbital.name } : null;
@@ -319,7 +313,7 @@ function stateGetter() {
     currentR, isDragging, isDynamics, dynOrbitalGroup,
     lastSampledR, lastSampledR3, dynFinalRendered,
     lastSampledOrientations, lastSampledOrientations3,
-    showFieldVis, showDensityField, showBallAndStick,
+    showFieldVis, showDensityField, showBallAndStick, vibStaticMeshesHidden,
     isDensityMode, getColorMode, updateOrbitalOpacity, applyDensityFieldVisibility,
     getCurrentAtomInfo,
   };
@@ -837,37 +831,38 @@ densityFieldToggle.addEventListener('change', () => {
   updateShareLink();
 });
 
-// ---- Energy Diagram toggle ----
-energyDiagramToggle.addEventListener('change', () => {
-  showEnergyDiagram = energyDiagramToggle.checked;
-  updateEnergyDiagram();
-  updateShareLink();
-});
-
 // ---- Vector Field toggle ----
 
 function rebuildVibIfActive() {
-  if (isVibActive()) { cancelVibration(); startVibBuild(); }
+  if (isVibActive()) {
+    // Cancel without restoring static meshes (we're starting a new build immediately)
+    vibController.cancel();
+    vibPlayBtn.disabled = true;
+    vibPlayBtn.textContent = '\u25B6 Play';
+    vibProgress.classList.add('dropdown-hidden');
+    resetMoleculeContextPositions();
+    startVibBuild();
+  }
 }
 
 fieldVisToggle.addEventListener('change', () => {
   showFieldVis = fieldVisToggle.checked;
+  const vibPlaying = vibController.state === 'playing' || vibController.state === 'building';
   if (showFieldVis) {
     fieldOptions.classList.remove('dropdown-hidden');
-    if (isVibActive()) {
-      // During vibration, only toggle per-frame field vis (static stays hidden)
-      if (!vibController.hasFieldVis) {
-        rebuildVibIfActive();
-      } else {
-        vibController.setFieldVisVisible(true);
-      }
-    } else {
-      // Not in vibration — show/build static field vis
+    // Show/build static field vis only when vibration is NOT actively running
+    if (!vibPlaying) {
       if (hasFieldGroup()) {
         setFieldVisVisible(true);
       } else {
         rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
       }
+    }
+    // Handle vibration frame field vis
+    if (isVibActive() && !vibController.hasFieldVis) {
+      rebuildVibIfActive();
+    } else if (isVibActive()) {
+      vibController.setFieldVisVisible(true);
     }
   } else {
     fieldOptions.classList.add('dropdown-hidden');
