@@ -115,9 +115,10 @@ const shareLinkDiv = document.getElementById('share-link');
 
 let currentMeshes = [];
 let currentCaches = [];
-let currentProbability = 0.8;
-let currentLayers = 5;
-let currentOpacityTarget = 70;
+let currentProbability = 0.99;
+const isMobile = window.innerWidth < 500 || 'ontouchstart' in window;
+let currentLayers = isMobile ? 3 : 24;
+let currentOpacityTarget = 90;
 let rebuildTimeout = null;
 let isBondForming = false;
 let isTriatomic = false;
@@ -134,8 +135,8 @@ let lastSampledOrientations3 = null;
 
 let showBallAndStick = ballStickToggle.checked;
 let showDensityField = densityFieldToggle.checked;
-let showFieldVis = fieldVisToggle.checked;
-let fieldStyle = fieldStyleSelect.value;
+let showFieldVis = true;  // Enable vector field by default
+let fieldStyle = 'both';  // Both arrows and streamlines
 
 let vibStaticMeshesHidden = false;
 let chargeCache = null;
@@ -653,11 +654,29 @@ function applyUrlParams() {
 // ---- Panel persistence ----
 initPanelPersistence();
 
+// ---- Set default values ----
+d1Select.value = 'Molecules';
+probSlider.value = '99';
+probDisplay.textContent = '99%';
+layerSelect.value = String(currentLayers);
+opacitySlider.value = '90';
+opacityDisplay.textContent = '90%';
+fieldVisToggle.checked = true;
+fieldSourceSelect.value = 'magnetic';
+fieldStyleSelect.value = 'both';
+fieldOptions.classList.remove('dropdown-hidden');
+
 // ---- Initial load ----
 const hadParams = applyUrlParams();
 if (hadParams) {
   loadSelectedOrbital();
   updateShareLink();
 } else {
+  // Set molecule defaults before calling onD1Change
   onD1Change();
+  d2Select.value = 'NH₃';
+  onD2Change();
+  d3Select.value = 'charge visualisation';
+  loadSelectedOrbital();
+  updateShareLink();
 }
