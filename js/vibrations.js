@@ -8,7 +8,7 @@ import { sampleGridAsync, cancelCompute } from './worker-pool.js';
 import { computeMultiThresholds } from './grid.js';
 import { getLayerMaterials } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
-import { getMoleculeData, buildDisplacedDensitySampler, getMoleculeAtoms } from './molecules/index.js';
+import { getMoleculeData, buildDisplacedDensitySampler, buildDisplacedOrbital, getMoleculeAtoms } from './molecules/index.js';
 import { scene } from './scene.js';
 import { buildFieldVisIntoGroup } from './electric-field.js';
 import { computeChargeDensity } from './electrostatic-potential.js';
@@ -375,7 +375,7 @@ export class VibrationController {
     this.framesReady = 0;
 
     const {
-      moleculeName, mode, mixModes, amplitude, probability, layers,
+      moleculeName, moIndex, mode, mixModes, amplitude, probability, layers,
       gridSize, halfExtent, colorMode, showFieldVis, atomInfo,
     } = settings;
     const isDensityLike = colorMode === 'density';
@@ -403,8 +403,11 @@ export class VibrationController {
       if (!displacements) return;
       this.cachedDisplacements[i] = displacements;
 
-      // Build displaced density sampler
-      const sampler = buildDisplacedDensitySampler(moleculeName, displacements);
+      // Build displaced sampler: use single-MO wavefunction for orbital mode,
+      // density for electron density / charge / ESP / ELF modes
+      const sampler = (colorMode === 'orbital' && moIndex !== undefined)
+        ? buildDisplacedOrbital(moleculeName, moIndex, displacements)
+        : buildDisplacedDensitySampler(moleculeName, displacements);
       if (!sampler || stale()) return;
 
       // Sample grid (main thread chunked for customSample)

@@ -114,7 +114,9 @@ export function addMol(mol) {
   if (mol.pubchemCid) MOLECULE_CIDS[mol.name] = mol.pubchemCid;
   if (mol.nistSource) MOLECULE_NIST[mol.name] = true;
   const moOrbitals = [];
-  for (const mo of (mol.mos || [])) {
+  const mosList = mol.mos || [];
+  for (let i = 0; i < mosList.length; i++) {
+    const mo = mosList[i];
     const moName = mo[0];
     const termDefs = mo[1];
     const terms = termDefs.map(td => {
@@ -131,6 +133,7 @@ export function addMol(mol) {
       halfExtent: mol.he,
       d1: 'Molecules', d2: mol.name, d3: moName, d4: null,
       molecule: mol.name,
+      moIndex: i,
     });
     moOrbitals.push({ terms });
   }

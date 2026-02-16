@@ -27,6 +27,7 @@ import { TransitionController, transitionWavelength, wavelengthToRGB } from './t
 import { renderAtomicDiagram, renderMolecularDiagram, renderDiatomicDiagram, clearDiagram } from './energy-diagram.js';
 import { computeELF } from './elf.js';
 import { MixerController, COMPONENTS, PRESETS } from './orbital-mixer.js';
+import { ReactionController } from './reactions.js';
 
 // ---- Dropdown elements ----
 const d1Select = document.getElementById('d1-select');
@@ -52,8 +53,8 @@ const variantSelect = document.getElementById('variant-select');
 
 const densityOptions = document.getElementById('density-options');
 
-const D2_LABELS = { Atomic: 'Shell', Molecular: 'Basis', Hybrid: 'Hybridization', Molecules: 'Molecule', 'Bond Formation': 'Molecule', Transitions: 'Series' };
-const D3_LABELS = { Atomic: 'Subshell', Molecular: 'Bond Type', Hybrid: 'Lobe', Molecules: 'Orbital / Field', 'Bond Formation': 'Orbital', Transitions: 'Transition' };
+const D2_LABELS = { Atomic: 'Shell', Molecular: 'Basis', Hybrid: 'Hybridization', Molecules: 'Molecule', 'Bond Formation': 'Molecule', Transitions: 'Series', Reactions: 'Reaction' };
+const D3_LABELS = { Atomic: 'Subshell', Molecular: 'Bond Type', Hybrid: 'Lobe', Molecules: 'Orbital / Field', 'Bond Formation': 'Orbital', Transitions: 'Transition', Reactions: 'View' };
 const D4_LABELS = { Atomic: 'Orbital', Molecular: 'Orbital', Hybrid: 'Orbital', Molecules: 'Orbital', 'Bond Formation': 'Orbital' };
 
 function populateSelect(sel, options, labels) {
@@ -492,6 +493,7 @@ function loadSelectedOrbital() {
   cancelCompute();
   cancelVibration();
   cancelTransition();
+  cancelReaction();
   chargeCache = null;
   updateEnergyDiagram();
 
@@ -505,6 +507,7 @@ function loadSelectedOrbital() {
     currentBondOrbital = orbital;
     dynWrapper.classList.remove('dropdown-hidden');
     vibWrapper.classList.add('dropdown-hidden');
+    reactionWrapper.classList.add('dropdown-hidden');
     clearMoleculeContext();
     applyBondFormingDefaults();
 
@@ -533,22 +536,32 @@ function loadSelectedOrbital() {
       }
       transitionWrapper.classList.add('dropdown-hidden');
       mixerWrapper.classList.add('dropdown-hidden');
+      reactionWrapper.classList.add('dropdown-hidden');
     } else if (d1Select.value === 'Transitions') {
       clearMoleculeContext();
       vibWrapper.classList.add('dropdown-hidden');
       transitionWrapper.classList.remove('dropdown-hidden');
       mixerWrapper.classList.add('dropdown-hidden');
+      reactionWrapper.classList.add('dropdown-hidden');
     } else if (d1Select.value === 'Orbital Mixer') {
       clearMoleculeContext();
       vibWrapper.classList.add('dropdown-hidden');
       transitionWrapper.classList.add('dropdown-hidden');
       mixerWrapper.classList.remove('dropdown-hidden');
+      reactionWrapper.classList.add('dropdown-hidden');
       populateMixerSliders();
+    } else if (d1Select.value === 'Reactions') {
+      clearMoleculeContext();
+      vibWrapper.classList.add('dropdown-hidden');
+      transitionWrapper.classList.add('dropdown-hidden');
+      mixerWrapper.classList.add('dropdown-hidden');
+      reactionWrapper.classList.remove('dropdown-hidden');
     } else {
       clearMoleculeContext();
       vibWrapper.classList.add('dropdown-hidden');
       transitionWrapper.classList.add('dropdown-hidden');
       mixerWrapper.classList.add('dropdown-hidden');
+      reactionWrapper.classList.add('dropdown-hidden');
     }
     const startVibAfterLoad = () => {
       if (!vibWrapper.classList.contains('dropdown-hidden') &&
@@ -556,7 +569,9 @@ function loadSelectedOrbital() {
         startVibBuild();
       }
     };
-    if (orbital.isTransition) {
+    if (orbital.isReaction) {
+      startReactionBuild(orbital);
+    } else if (orbital.isTransition) {
       // Load initial state first, then start transition build
       loadOrbitalAsync(orbital).then(() => startTransitionBuild(orbital));
     } else if (orbital.isMixer) {
@@ -831,6 +846,7 @@ densityFieldToggle.addEventListener('change', () => {
   updateShareLink();
 });
 
+
 // ---- Vector Field toggle ----
 
 function rebuildVibIfActive() {
@@ -1028,6 +1044,7 @@ async function startVibBuild() {
   const colorMode = getColorMode();
   const settings = {
     moleculeName: orbital.molecule,
+    moIndex: orbital.moIndex,
     amplitude,
     probability: currentProbability,
     layers: currentLayers,
@@ -1237,6 +1254,23 @@ const mixerSlidersDiv = document.getElementById('mixer-sliders');
 const mixerNormalize = document.getElementById('mixer-normalize');
 let mixerRebuildTimeout = null;
 
+// ---- Reaction Pathway Scrubber ----
+
+const reactionController = new ReactionController();
+const reactionWrapper = document.getElementById('reaction-wrapper');
+const rxnScrubber = document.getElementById('rxn-scrubber');
+const rxnPlayBtn = document.getElementById('rxn-play');
+const rxnProgress = document.getElementById('rxn-progress');
+const rxnProgressLabel = document.getElementById('rxn-progress-label');
+const rxnProgressFill = document.getElementById('rxn-progress-fill');
+const rxnDescription = document.getElementById('rxn-description');
+const rxnImpactSlider = document.getElementById('rxn-impact');
+const rxnImpactDisplay = document.getElementById('rxn-impact-display');
+const rxnSpeedSlider = document.getElementById('rxn-speed');
+const rxnSpeedDisplay = document.getElementById('rxn-speed-display');
+const rxnAngleSlider = document.getElementById('rxn-angle');
+const rxnAngleDisplay = document.getElementById('rxn-angle-display');
+
 function populateMixerSliders() {
   mixerSlidersDiv.innerHTML = '';
   const active = mixer.getActiveComponents();
@@ -1296,6 +1330,150 @@ mixerPreset.addEventListener('change', () => {
 mixerNormalize.addEventListener('change', () => {
   mixer.normalize = mixerNormalize.checked;
   scheduleMixerRebuild();
+});
+
+// ---- Reaction pathway functions ----
+
+function cancelReaction() {
+  reactionController.cancel();
+  rxnPlayBtn.disabled = true;
+  rxnPlayBtn.textContent = '\u25B6 Play';
+  rxnProgress.classList.add('dropdown-hidden');
+  rxnScrubber.value = '0';
+  rxnDescription.textContent = '';
+}
+
+async function startReactionBuild(orbital, keepSliders) {
+  if (!orbital.isReaction || !orbital.reaction) return;
+
+  const rxn = orbital.reaction;
+  const halfExtent = rxn.halfExtent || 14;
+  const gs = adaptiveGrid(halfExtent, true);
+
+  rxnPlayBtn.disabled = true;
+  rxnPlayBtn.textContent = '\u25B6 Play';
+  rxnProgress.classList.remove('dropdown-hidden');
+  rxnScrubber.value = '0';
+
+  // Show initial description
+  if (rxn.descriptions && rxn.descriptions.length > 0) {
+    rxnDescription.textContent = rxn.descriptions[0];
+  }
+
+  // Set slider defaults from reaction config (only on first load)
+  if (!keepSliders) {
+    const defaultImpact = rxn.defaultImpact ?? 1.0;
+    const defaultSpeed = rxn.defaultSpeed ?? 1.0;
+    rxnImpactSlider.value = String(Math.round(defaultImpact * 10));
+    rxnImpactDisplay.textContent = `b = ${defaultImpact.toFixed(1)} a\u2080`;
+    rxnSpeedSlider.value = String(Math.round(defaultSpeed * 10));
+    rxnSpeedDisplay.textContent = `v\u2080 = ${defaultSpeed.toFixed(1)}`;
+    rxnAngleSlider.value = '0';
+    rxnAngleDisplay.textContent = '\u03B8 = 0\u00B0';
+  }
+
+  const impactParam = parseInt(rxnImpactSlider.value) / 10;
+  const speed = parseInt(rxnSpeedSlider.value) / 10;
+  const angle = parseInt(rxnAngleSlider.value);
+
+  const colorMode = getColorMode();
+  const settings = {
+    reaction: rxn,
+    probability: currentProbability,
+    layers: currentLayers,
+    gridSize: gs,
+    halfExtent,
+    colorMode,
+    impactParam,
+    speed,
+    angle,
+  };
+
+  // Clear static meshes since reaction frames include ball-and-stick
+  clearMeshes();
+  clearMoleculeContext();
+
+  await reactionController.buildFrameCache(
+    settings,
+    (ready, total) => {
+      rxnProgressLabel.textContent = `Building frame ${ready}/${total}...`;
+      rxnProgressFill.style.width = `${(ready / total) * 100}%`;
+    },
+    () => {
+      rxnProgress.classList.add('dropdown-hidden');
+      rxnPlayBtn.disabled = false;
+      // Show first frame via scrub
+      const desc = reactionController.scrubTo(0);
+      if (desc) rxnDescription.textContent = desc;
+    }
+  );
+
+  if (!isDragging && !isDynamics) {
+    const dist = halfExtent * 2.2;
+    const dir = camera.position.clone().normalize();
+    camera.position.copy(dir.multiplyScalar(dist));
+    controls.update();
+  }
+}
+
+rxnScrubber.addEventListener('input', () => {
+  const t = parseInt(rxnScrubber.value) / 100;
+  // Pause playback when scrubbing manually
+  if (reactionController.state === 'playing') {
+    reactionController.pause();
+    rxnPlayBtn.textContent = '\u25B6 Play';
+  }
+  const desc = reactionController.scrubTo(t);
+  if (desc) rxnDescription.textContent = desc;
+});
+
+rxnPlayBtn.addEventListener('click', () => {
+  if (reactionController.state === 'playing') {
+    reactionController.pause();
+    rxnPlayBtn.textContent = '\u25B6 Play';
+  } else if (reactionController.state === 'ready') {
+    reactionController.play();
+    rxnPlayBtn.textContent = '\u23F8 Pause';
+  }
+});
+
+// Impact parameter slider: update display on input, rebuild on change
+rxnImpactSlider.addEventListener('input', () => {
+  const val = parseInt(rxnImpactSlider.value) / 10;
+  rxnImpactDisplay.textContent = `b = ${val.toFixed(1)} a\u2080`;
+});
+rxnImpactSlider.addEventListener('change', () => {
+  const orbital = getSelectedOrbital();
+  if (orbital && orbital.isReaction) {
+    cancelReaction();
+    startReactionBuild(orbital, true);
+  }
+});
+
+// Approach speed slider: update display on input, rebuild on change
+rxnSpeedSlider.addEventListener('input', () => {
+  const val = parseInt(rxnSpeedSlider.value) / 10;
+  rxnSpeedDisplay.textContent = `v\u2080 = ${val.toFixed(1)}`;
+});
+rxnSpeedSlider.addEventListener('change', () => {
+  const orbital = getSelectedOrbital();
+  if (orbital && orbital.isReaction) {
+    cancelReaction();
+    startReactionBuild(orbital, true);
+  }
+});
+
+// Approach angle slider: update display on input, rebuild on change
+rxnAngleSlider.addEventListener('input', () => {
+  const val = parseInt(rxnAngleSlider.value);
+  rxnAngleDisplay.textContent = `\u03B8 = ${val}\u00B0`;
+});
+rxnAngleSlider.addEventListener('change', () => {
+  const orbital = getSelectedOrbital();
+  if (orbital && orbital.isReaction) {
+    cancelReaction();
+    startReactionBuild(orbital, true);
+  }
 });
 
 // ---- Variant select ----
@@ -1397,6 +1575,14 @@ function animate() {
   vibController.tickFieldAnimation(dt);
   const vibFrameChanged = vibController.tick(dt * 3);
   transitionController.tick(dt * 2);
+  const rxnFrameChanged = reactionController.tick(dt);
+  if (rxnFrameChanged) {
+    // Sync scrubber position and description with playback
+    const t = reactionController.phase;
+    rxnScrubber.value = String(Math.round(t * 100));
+    const frame = reactionController.frames[reactionController.lastFrameIdx];
+    if (frame) rxnDescription.textContent = frame.description;
+  }
   if (vibFrameChanged && vibController.moleculeName) {
     const disps = vibController.interpolatedDisplacements();
     if (disps) updateMoleculeContextPositions(vibController.moleculeName, disps);
