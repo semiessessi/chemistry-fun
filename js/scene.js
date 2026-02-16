@@ -66,12 +66,12 @@ function clearGrid() {
   labelSprites.length = 0;
 }
 
-export function makeLabel(text, position, fontSize, color) {
+export function makeLabel(text, position, fontSize, color, axisInfo) {
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
-  ctx.font = `bold ${fontSize || 26}px sans-serif`;
+  ctx.font = `${fontSize || 26}px sans-serif`;  // Removed bold
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -130,7 +130,8 @@ export function makeLabel(text, position, fontSize, color) {
     baseLayer,
     additiveLayer,
     position: position.clone(),
-    baseScale: [...LABEL_BASE_SCALE]
+    baseScale: [...LABEL_BASE_SCALE],
+    axisInfo  // Store axis info for smart positioning (e.g., {axis: 'x', value: 5})
   };
 
   labelSprites.push(label);
@@ -142,7 +143,12 @@ export function updateLabelScales() {
   const camPos = camera.position;
   for (const label of labelSprites) {
     if (label.baseLayer && label.additiveLayer) {
-      // New dual-layer labels
+      // Update position based on camera angle if this is an axis label
+      if (label.axisInfo) {
+        updateGridLabelPosition(label, camera);
+      }
+
+      // Update scale based on distance
       const dist = camPos.distanceTo(label.position);
       const s = dist / LABEL_REF_DIST;
       const scaleX = label.baseScale[0] * s;
@@ -156,6 +162,37 @@ export function updateLabelScales() {
       label.scale.set(LABEL_BASE_SCALE[0] * s, LABEL_BASE_SCALE[1] * s, 1);
     }
   }
+}
+
+function updateGridLabelPosition(label, camera) {
+  const { axis, value } = label.axisInfo;
+  const offset = 0.6;  // Base offset distance
+
+  // Calculate camera elevation angle (0 = horizontal, π/2 = top-down)
+  const camDist = Math.sqrt(camera.position.x ** 2 + camera.position.z ** 2);
+  const elevationAngle = Math.atan2(camera.position.y, camDist);
+
+  // Lerp factor: 0 = side view, 1 = top view
+  // Use middle 50% of range (π/4 to 3π/4 normalized) for interpolation
+  const minAngle = Math.PI / 6;  // 30 degrees
+  const maxAngle = Math.PI / 3;  // 60 degrees
+  const t = Math.max(0, Math.min(1, (elevationAngle - minAngle) / (maxAngle - minAngle)));
+
+  if (axis === 'x') {
+    // X-axis labels: below when top view, to the right when side view
+    const yOffset = -offset * t;  // Below when viewed from above
+    const zOffset = offset * (1 - t) * Math.sign(value || 1);  // Right when viewed from side
+    label.position.set(value, yOffset, zOffset);
+  } else if (axis === 'z') {
+    // Z-axis labels: below when top view, to the right when side view
+    const yOffset = -offset * t;  // Below when viewed from above
+    const xOffset = offset * (1 - t);  // Right when viewed from side
+    label.position.set(xOffset, yOffset, value);
+  }
+
+  // Update sprite positions
+  label.baseLayer.position.copy(label.position);
+  label.additiveLayer.position.copy(label.position);
 }
 
 function buildGrid(maxAng) {
@@ -209,16 +246,17 @@ function buildGrid(maxAng) {
     gridObjects.push(obj);
   }
 
-  // Number labels along axes
-  const LABEL_Y_OFF = -0.18;
+  // Number labels along axes (positioned dynamically based on camera angle)
   for (let a = -maxAng; a <= maxAng; a += labelStep) {
     const pos = a * BOHR_PER_ANG;
     const txt = a === 0 ? '0' : String(a);
-    makeLabel(txt, new THREE.Vector3(pos, LABEL_Y_OFF, 0));
-    if (a !== 0) makeLabel(txt, new THREE.Vector3(0, LABEL_Y_OFF, pos));
+    // X axis label
+    makeLabel(txt, new THREE.Vector3(pos, -0.18, 0), undefined, undefined, { axis: 'x', value: pos });
+    // Z axis label
+    if (a !== 0) makeLabel(txt, new THREE.Vector3(0, -0.18, pos), undefined, undefined, { axis: 'z', value: pos });
   }
 
-  // Axis tip labels
+  // Axis tip labels (static positions)
   makeLabel('x (\u00C5)', new THREE.Vector3(GRID_MAX + 2, 0, 0), 22, '#aa6666');
   makeLabel('z (\u00C5)', new THREE.Vector3(0, 0, GRID_MAX + 2), 22, '#6666aa');
   makeLabel('y (\u00C5)', new THREE.Vector3(0, GRID_MAX + 2, 0), 22, '#66aa66');
