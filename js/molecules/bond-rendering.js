@@ -51,13 +51,15 @@ export function makeAtomLabel(elem, x, y, z) {
   canvas.width = 256;
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  ctx.font = '88px sans-serif';  // 22 * 4, not bold
+
+  // H gets ultra bold font, others normal
+  ctx.font = elem === 'H' ? '900 88px sans-serif' : '88px sans-serif';  // 22 * 4
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   // Draw stroke (outline) for better contrast - scaled to 4x
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = elem === 'H' ? 4.0 : 6.0;  // 4x resolution, proportionally fatter
+  ctx.lineWidth = elem === 'H' ? 2.5 : 6.0;  // Subtler white stroke for H
   ctx.strokeText(elem, 128, 128);  // Center: 32 * 4
 
   // Draw fill

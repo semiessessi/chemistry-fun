@@ -107,7 +107,7 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
     new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      opacity: 0.25,  // Subtle punchthrough layer
+      opacity: 0.125,  // Very subtle punchthrough layer
       depthTest: false,
       depthWrite: false,
       blending: THREE.NormalBlending
