@@ -9,7 +9,8 @@ export const Z_TO_SYMBOL = {
   1:'H', 2:'He', 3:'Li', 4:'Be', 5:'B', 6:'C', 7:'N', 8:'O', 9:'F', 10:'Ne',
   11:'Na', 12:'Mg', 13:'Al', 14:'Si', 15:'P', 16:'S', 17:'Cl', 18:'Ar',
   19:'K', 20:'Ca', 22:'Ti', 25:'Mn', 26:'Fe', 27:'Co', 28:'Ni', 29:'Cu', 30:'Zn',
-  33:'As', 34:'Se', 35:'Br', 47:'Ag', 53:'I', 78:'Pt', 79:'Au', 80:'Hg',
+  32:'Ge', 33:'As', 34:'Se', 35:'Br', 36:'Kr', 42:'Mo', 47:'Ag', 50:'Sn', 53:'I',
+  54:'Xe', 75:'Re', 78:'Pt', 79:'Au', 80:'Hg', 82:'Pb', 83:'Bi', 92:'U',
 };
 
 // Default CPK colors + covalent radii for elements PubChem may return
@@ -47,9 +48,9 @@ const VALENCE_N = {
   Li:2, Be:2, B:2, C:2, N:2, O:2, F:2, Ne:2,
   Na:3, Mg:3, Al:3, Si:3, P:3, S:3, Cl:3, Ar:3,
   K:4, Ca:4, Ti:4, Mn:4, Fe:4, Co:4, Ni:4, Cu:4, Zn:4,
-  As:4, Se:4, Br:4,
-  Ag:5, I:5,
-  Pt:6, Au:6, Hg:6,
+  Ge:4, As:4, Se:4, Br:4, Kr:4, Mo:5,
+  Ag:5, Sn:5, I:5, Xe:5,
+  Re:6, Pt:6, Au:6, Hg:6, Pb:6, Bi:6, U:7,
 };
 
 // Typical valence (number of bonds expected)

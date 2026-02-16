@@ -317,7 +317,7 @@ function stateGetter() {
     lastSampledR, lastSampledR3, dynFinalRendered,
     lastSampledOrientations, lastSampledOrientations3,
     showFieldVis, showDensityField, showBallAndStick, vibStaticMeshesHidden,
-    isDensityMode, getColorMode, updateOrbitalOpacity, applyDensityFieldVisibility,
+    isDensityMode, isESPotentialMode, getColorMode, updateOrbitalOpacity, applyDensityFieldVisibility,
     getCurrentAtomInfo,
   };
 }
@@ -968,8 +968,9 @@ function populateVibModes(moleculeName) {
     vibModeSelect.appendChild(opt);
   }
 
-  // Pre-select Random Mix as default (build starts after main orbital load)
-  if (vibCurrentModes.length > 0) {
+  // Pre-select Random Mix as default, but None on mobile to avoid expensive builds
+  const isMobile = window.innerWidth < 500 || 'ontouchstart' in window;
+  if (vibCurrentModes.length > 0 && !isMobile) {
     vibModeSelect.value = 'random';
   }
   updateVibAmplitudeVisibility();
@@ -1009,7 +1010,8 @@ function restoreStaticMeshes() {
     vibStaticMeshesHidden = false;
     // Re-sync opacity and legend so static view matches current settings
     updateOrbitalOpacity();
-    updateLegend(currentLayers, currentProbability, getColorMode());
+    const espOpts = isESPotentialMode() ? { isESP: true, espMaxValue: currentProbability } : undefined;
+    updateLegend(currentLayers, currentProbability, getColorMode(), espOpts);
   }
 }
 

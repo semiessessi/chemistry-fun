@@ -146,7 +146,8 @@ export function renderFromCaches(probability, gridSize, targetParent, numLayers)
   }
 
   setState({ currentMeshes: meshes });
-  updateLegend(layers, probability, colorMode);
+  const espOpts = s.isESPotentialMode && s.isESPotentialMode() ? { isESP: true, espMaxValue: probability } : undefined;
+  updateLegend(layers, probability, colorMode, espOpts);
   s.updateOrbitalOpacity();
   if (!s.showDensityField) s.applyDensityFieldVisibility();
   rebuildFieldVis(parent !== scene ? parent : undefined, s.getCurrentAtomInfo);
@@ -212,7 +213,8 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
   }
 
   setState({ currentMeshes: meshes });
-  updateLegend(layers, probability, colorMode);
+  const espOpts = s.isESPotentialMode && s.isESPotentialMode() ? { isESP: true, espMaxValue: probability } : undefined;
+  updateLegend(layers, probability, colorMode, espOpts);
   s.updateOrbitalOpacity();
   if (!s.showDensityField) s.applyDensityFieldVisibility();
   rebuildFieldVis(parent !== scene ? parent : undefined, s.getCurrentAtomInfo);

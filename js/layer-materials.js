@@ -137,17 +137,15 @@ function buildGradientCSS(colorFn) {
   return `linear-gradient(to right, ${parts.join(', ')})`;
 }
 
-export function updateLegend(numLayers, maxProb, colorMode) {
+export function updateLegend(numLayers, maxProb, colorMode, opts) {
   const container = document.getElementById('layer-key');
   if (!container) return;
   container.innerHTML = '';
   if (numLayers <= 1) return;
 
-  const W = 160; // bar width in px
-
   const addBar = (colorFn) => {
     const bar = document.createElement('div');
-    bar.style.cssText = `width:${W}px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,0.15);background:${buildGradientCSS(colorFn)};`;
+    bar.style.cssText = `width:100%;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,0.15);background:${buildGradientCSS(colorFn)};`;
     container.appendChild(bar);
   };
 
@@ -162,11 +160,21 @@ export function updateLegend(numLayers, maxProb, colorMode) {
   }
 
   const labels = document.createElement('div');
-  labels.style.cssText = `display:flex;justify-content:space-between;width:${W}px;font-size:10px;font-family:Consolas,Menlo,monospace;color:#aaa;padding-top:2px;`;
+  labels.style.cssText = `display:flex;justify-content:space-between;width:100%;font-size:10px;font-family:Consolas,Menlo,monospace;color:#aaa;padding-top:2px;`;
+
+  // ESP mode: show values in Eₕ instead of percentages
+  const useEsp = opts && opts.isESP;
+  const espMax = (opts && opts.espMaxValue) || 1.0;
   const pctMax = maxProb * 100;
+
   for (const frac of [0, 0.25, 0.5, 0.75, 1]) {
     const span = document.createElement('span');
-    span.textContent = `${(frac * pctMax).toFixed(0)}%`;
+    if (useEsp) {
+      const val = frac * espMax;
+      span.textContent = val < 0.01 ? '0' : val.toFixed(2) + ' Eₕ';
+    } else {
+      span.textContent = `${(frac * pctMax).toFixed(0)}%`;
+    }
     labels.appendChild(span);
   }
   container.appendChild(labels);

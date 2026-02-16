@@ -8,14 +8,21 @@ const COLORS = {
   line: '#aaa',
   label: '#ccc',
   selected: '#6af',
+  selectedGlow: 'rgba(102,170,255,0.35)',
   electron: '#fff',
   sigma: '#f88',
   sigmaStar: '#f66',
   pi: '#8bf',
   piStar: '#66f',
+  delta: '#f8d',
+  deltaStar: '#f6b',
   nonbond: '#8d8',
   bond: '#fa5',
 };
+
+// Subshell labels and electron capacities
+const SUBSHELLS = ['s', 'p', 'd', 'f'];
+const SUBSHELL_CAPACITY = [2, 6, 10, 14];
 
 // ---- Atomic Energy Diagram ----
 
@@ -23,59 +30,98 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect) {
   clearDiagram(container);
 
   const canvas = document.createElement('canvas');
-  const W = 200, H = 260;
+  const containerWidth = container.clientWidth || container.parentElement?.clientWidth || 210;
+  const W = Math.max(160, containerWidth - 8); // fill container minus padding
+  const maxN = 7;
+  const H = 360;
   canvas.width = W;
   canvas.height = H;
   canvas.style.cursor = 'pointer';
   container.appendChild(canvas);
 
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = COLORS.bg;
+
+  // Gradient background
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, 'rgba(5,10,25,0.75)');
+  bgGrad.addColorStop(1, 'rgba(0,0,0,0.65)');
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Energy levels: E_n = -13.6 / n²
-  const levels = [];
-  const maxN = 4;
-  const margin = 30;
-  const topY = 15;
-  const botY = H - 25;
-  // Map energy to y: E_1 = -13.6 at bottom, E_∞ = 0 at top
-  const eMin = -13.6, eMax = 0;
-  const eToY = (e) => topY + (botY - topY) * (1 - (e - eMin) / (eMax - eMin));
+  // Compact mode for narrow screens
+  const compact = W < 180;
+  const fontSize = compact ? 9 : 11;
+  const labelFontSize = compact ? 8 : 10;
 
-  // Draw energy axis
-  ctx.strokeStyle = '#555';
+  // Energy levels: E_n = -13.6 / n²
+  // Use log-scale mapping for better high-n spacing
+  const levels = [];
+  const margin = compact ? 26 : 38;
+  const topY = 22;
+  const botY = H - 28;
+  const eMin = -13.6;
+  // Sqrt-scale: maps |E| via sqrt for smoother high-n spacing
+  // botY = most negative (n=1), topY = near zero (high n)
+  const sqrtMax = Math.sqrt(-eMin);
+  const eToY = (e) => {
+    if (e >= -0.01) return topY;
+    const frac = Math.sqrt(-e) / sqrtMax; // 1 at n=1, small at high n
+    return topY + (botY - topY) * frac;
+  };
+
+  // Draw energy axis with anti-aliased line
+  ctx.strokeStyle = '#444';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(margin - 10, topY);
   ctx.lineTo(margin - 10, botY);
   ctx.stroke();
 
-  ctx.fillStyle = '#777';
-  ctx.font = '10px sans-serif';
+  // Axis labels
+  ctx.fillStyle = '#666';
+  ctx.font = `${labelFontSize}px sans-serif`;
   ctx.textAlign = 'right';
   ctx.fillText('0 eV', margin - 14, topY + 4);
   ctx.fillText('-13.6', margin - 14, botY + 4);
 
-  const subshells = ['s', 'p', 'd', 'f'];
+  // Draw ionization threshold dashed line
+  ctx.setLineDash([3, 3]);
+  ctx.strokeStyle = '#333';
+  ctx.beginPath();
+  ctx.moveTo(margin, topY);
+  ctx.lineTo(W - 10, topY);
+  ctx.stroke();
+  ctx.setLineDash([]);
 
   for (let n = 1; n <= maxN; n++) {
-    const e = -13.6 / (n * n);
-    const y = eToY(e);
+    const eBase = -13.6 / (n * n);
     const maxL = n - 1;
     const numSub = Math.min(maxL + 1, 4);
-    const subWidth = (W - margin - 20) / maxN;
+    const availW = W - margin - 10;
+    const subWidth = availW / Math.max(numSub, 1);
+
+    const yBase = eToY(eBase);
 
     for (let l = 0; l <= maxL && l < 4; l++) {
-      const x1 = margin + 10 + l * subWidth;
-      const x2 = x1 + subWidth - 8;
-      const label = `${n}${subshells[l]}`;
+      // Visual offset: higher l drawn slightly higher (less negative energy)
+      // Mimics multi-electron splitting for readability
+      const y = yBase - l * 6;
+      const x1 = margin + 5 + l * subWidth;
+      const x2 = x1 + subWidth - 6;
+      const label = `${n}${SUBSHELLS[l]}`;
+      const capacityLabel = `${SUBSHELL_CAPACITY[l]}`;
 
       // Check if this is selected
       const isSelected = selectedOrbital &&
         selectedOrbital.d1 === 'Atomic' &&
         selectedOrbital.d2 === `n=${n}` &&
-        selectedOrbital.d3 === subshells[l];
+        selectedOrbital.d3 === SUBSHELLS[l];
+
+      // Glow effect on selected level
+      if (isSelected) {
+        ctx.shadowColor = COLORS.selectedGlow;
+        ctx.shadowBlur = 8;
+      }
 
       ctx.strokeStyle = isSelected ? COLORS.selected : COLORS.line;
       ctx.lineWidth = isSelected ? 2.5 : 1.5;
@@ -84,22 +130,36 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect) {
       ctx.lineTo(x2, y);
       ctx.stroke();
 
-      // Label
-      ctx.fillStyle = isSelected ? COLORS.selected : COLORS.label;
-      ctx.font = isSelected ? 'bold 11px sans-serif' : '11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(label, (x1 + x2) / 2, y - 6);
+      ctx.shadowBlur = 0;
 
-      // Store for click detection
-      levels.push({ n, l, x1, x2, y, label, subshell: subshells[l] });
+      // Label + capacity superscript
+      ctx.fillStyle = isSelected ? COLORS.selected : COLORS.label;
+      ctx.font = isSelected ? `bold ${fontSize}px sans-serif` : `${fontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      const labelX = (x1 + x2) / 2;
+      if (!compact || n <= 4) {
+        ctx.fillText(label, labelX, y - 5);
+        // Capacity superscript
+        ctx.font = `${labelFontSize - 1}px sans-serif`;
+        ctx.fillStyle = isSelected ? COLORS.selected : '#888';
+        const labelW = ctx.measureText(label).width;
+        ctx.textAlign = 'left';
+        ctx.fillText(capacityLabel, labelX + labelW / 2 + 1, y - 7);
+      }
+
+      // Energy label on hover (tooltip via title)
+      levels.push({ n, l, x1, x2, y, label, subshell: SUBSHELLS[l], energy: eBase });
     }
   }
 
-  // Title
-  ctx.fillStyle = '#999';
-  ctx.font = '11px sans-serif';
+  // Hint + title
   ctx.textAlign = 'center';
-  ctx.fillText('Hydrogen Energy Levels', W / 2, H - 6);
+  ctx.fillStyle = '#555';
+  ctx.font = `${labelFontSize}px sans-serif`;
+  ctx.fillText('click a level to view orbital', W / 2, H - 18);
+  ctx.fillStyle = '#888';
+  ctx.font = `${fontSize}px sans-serif`;
+  ctx.fillText('Hydrogen Energy Levels', W / 2, H - 5);
 
   // Click handler
   canvas.addEventListener('click', (e) => {
@@ -114,6 +174,22 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect) {
       }
     }
   });
+
+  // Hover tooltip
+  canvas.title = '';
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (W / rect.width);
+    const my = (e.clientY - rect.top) * (H / rect.height);
+    let tip = '';
+    for (const lev of levels) {
+      if (mx >= lev.x1 - 4 && mx <= lev.x2 + 4 && Math.abs(my - lev.y) < 10) {
+        tip = `${lev.label}: E = ${lev.energy.toFixed(3)} eV, capacity = ${SUBSHELL_CAPACITY[lev.l]}`;
+        break;
+      }
+    }
+    canvas.title = tip;
+  });
 }
 
 // ---- Molecular Orbital Diagram ----
@@ -124,14 +200,21 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
   if (!moList || moList.length === 0) return;
 
   const canvas = document.createElement('canvas');
-  const W = 210, H = Math.max(200, moList.length * 28 + 60);
+  const containerWidth = container.clientWidth || container.parentElement?.clientWidth || 210;
+  const W = Math.max(160, containerWidth - 8);
+  const H = Math.max(200, moList.length * 28 + 60);
   canvas.width = W;
   canvas.height = H;
   canvas.style.cursor = 'pointer';
   container.appendChild(canvas);
 
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = COLORS.bg;
+
+  // Gradient background
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, 'rgba(5,10,25,0.75)');
+  bgGrad.addColorStop(1, 'rgba(0,0,0,0.65)');
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
   // Assign relative energies from MO ordering (lowest index = lowest energy)
@@ -150,7 +233,9 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
     // Determine MO type for coloring
     let color = COLORS.line;
     const nameLower = moName.toLowerCase();
-    if (nameLower.includes('*') || nameLower.includes('anti')) {
+    if (nameLower.includes('\u03B4') || nameLower.includes('delta')) {
+      color = nameLower.includes('*') ? COLORS.deltaStar : COLORS.delta;
+    } else if (nameLower.includes('*') || nameLower.includes('anti')) {
       color = nameLower.includes('\u03C0') || nameLower.includes('pi') ? COLORS.piStar : COLORS.sigmaStar;
     } else if (nameLower.includes('\u03C0') || nameLower.includes('pi')) {
       color = COLORS.pi;
@@ -165,19 +250,25 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
     const isSelected = selectedOrbital &&
       selectedOrbital.d3 === moName;
 
+    if (isSelected) {
+      ctx.shadowColor = COLORS.selectedGlow;
+      ctx.shadowBlur = 8;
+    }
+
     ctx.strokeStyle = isSelected ? COLORS.selected : color;
     ctx.lineWidth = isSelected ? 2.5 : 1.5;
     ctx.beginPath();
     ctx.moveTo(x1, y);
     ctx.lineTo(x2, y);
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
     // Electron arrows (assume all listed MOs are occupied)
     const arrowX = x1 + lineWidth / 2;
     drawElectronArrow(ctx, arrowX - 5, y, true);
     drawElectronArrow(ctx, arrowX + 5, y, false);
 
-    // Label
+    // Label with σ/π/δ type
     ctx.fillStyle = isSelected ? COLORS.selected : '#ccc';
     ctx.font = isSelected ? 'bold 10px sans-serif' : '10px sans-serif';
     ctx.textAlign = 'right';
@@ -190,17 +281,21 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
   ctx.save();
   ctx.translate(8, H / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = '#777';
+  ctx.fillStyle = '#666';
   ctx.font = '10px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('Energy \u2192', 0, 0);
   ctx.restore();
 
   // Title
-  ctx.fillStyle = '#999';
+  ctx.fillStyle = '#888';
   ctx.font = '11px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(moleculeName, W / 2, H - 8);
+
+  ctx.fillStyle = '#555';
+  ctx.font = '8px sans-serif';
+  ctx.fillText('click a level to view orbital', W / 2, H - 20);
 
   // Click handler
   canvas.addEventListener('click', (e) => {
@@ -223,18 +318,24 @@ export function renderDiatomicDiagram(container, selectedOrbital, onSelect) {
   clearDiagram(container);
 
   const canvas = document.createElement('canvas');
-  const W = 210, H = 280;
+  const containerWidth = container.clientWidth || container.parentElement?.clientWidth || 210;
+  const W = Math.max(160, containerWidth - 8);
+  const H = 280;
   canvas.width = W;
   canvas.height = H;
   canvas.style.cursor = 'pointer';
   container.appendChild(canvas);
 
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = COLORS.bg;
+
+  // Gradient background
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, 'rgba(5,10,25,0.75)');
+  bgGrad.addColorStop(1, 'rgba(0,0,0,0.65)');
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
   // Standard diatomic MO ordering (bottom to top = low to high energy)
-  // d2/d3 map to the Molecular orbital tree registration in orbitals.js
   const moLevels = [
     { name: '\u03C3(1s)',  type: 'bond',  electrons: 2, d2: '1s', d3: '\u03C3' },
     { name: '\u03C3*(1s)', type: 'anti',  electrons: 0, d2: '1s', d3: '\u03C3*' },
@@ -260,12 +361,18 @@ export function renderDiatomicDiagram(container, selectedOrbital, onSelect) {
       selectedOrbital.d1 === 'Molecular' &&
       selectedOrbital.d3 === mo.d3;
 
+    if (isSelected) {
+      ctx.shadowColor = COLORS.selectedGlow;
+      ctx.shadowBlur = 8;
+    }
+
     ctx.strokeStyle = isSelected ? COLORS.selected : color;
     ctx.lineWidth = isSelected ? 2.5 : 1.5;
     ctx.beginPath();
     ctx.moveTo(centerX1, y);
     ctx.lineTo(centerX2, y);
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
     // Draw electrons
     if (mo.electrons >= 2) {
@@ -290,23 +397,27 @@ export function renderDiatomicDiagram(container, selectedOrbital, onSelect) {
   ctx.save();
   ctx.translate(8, H / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = '#777';
+  ctx.fillStyle = '#666';
   ctx.font = '10px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('Energy \u2192', 0, 0);
   ctx.restore();
 
   // AO labels
-  ctx.fillStyle = '#888';
+  ctx.fillStyle = '#777';
   ctx.font = '10px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('AO', leftX, topY - 8);
   ctx.fillText('MO', (centerX1 + centerX2) / 2, topY - 8);
   ctx.fillText('AO', rightX, topY - 8);
 
-  ctx.fillStyle = '#999';
+  ctx.fillStyle = '#888';
   ctx.font = '11px sans-serif';
   ctx.fillText('Diatomic MO Diagram', W / 2, H - 8);
+
+  ctx.fillStyle = '#555';
+  ctx.font = '8px sans-serif';
+  ctx.fillText('click a level to view orbital', W / 2, H - 20);
 
   // Click handler
   canvas.addEventListener('click', (e) => {

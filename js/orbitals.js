@@ -65,6 +65,30 @@ atomic('4fz(x\u00B2-y\u00B2)', 4, 3, 2, 'cos');
 atomic('4fxyz', 4, 3, 2, 'sin');
 atomic('4fx(x\u00B2-3y\u00B2)', 4, 3, 3, 'cos');
 atomic('4fy(3x\u00B2-y\u00B2)', 4, 3, 3, 'sin');
+// n=5
+atomic('5s', 5, 0, 0);
+atomic('5pz', 5, 1, 0);
+atomic('5px', 5, 1, 1, 'cos');
+atomic('5py', 5, 1, 1, 'sin');
+atomic('5dz\u00B2', 5, 2, 0);
+atomic('5dxz', 5, 2, 1, 'cos');
+atomic('5dyz', 5, 2, 1, 'sin');
+atomic('5dx\u00B2-y\u00B2', 5, 2, 2, 'cos');
+atomic('5dxy', 5, 2, 2, 'sin');
+atomic('5fz\u00B3', 5, 3, 0);
+atomic('5fxz\u00B2', 5, 3, 1, 'cos');
+atomic('5fyz\u00B2', 5, 3, 1, 'sin');
+atomic('5fz(x\u00B2-y\u00B2)', 5, 3, 2, 'cos');
+atomic('5fxyz', 5, 3, 2, 'sin');
+atomic('5fx(x\u00B2-3y\u00B2)', 5, 3, 3, 'cos');
+atomic('5fy(3x\u00B2-y\u00B2)', 5, 3, 3, 'sin');
+// n=6
+atomic('6s', 6, 0, 0);
+atomic('6pz', 6, 1, 0);
+atomic('6px', 6, 1, 1, 'cos');
+atomic('6py', 6, 1, 1, 'sin');
+// n=7
+atomic('7s', 7, 0, 0);
 
 // --- Molecular Orbitals (LCAO, 10) ---
 // Two atoms along z-axis.
@@ -130,6 +154,28 @@ molecular('\u03C0*(2py)', [
   { n: 2, l: 1, m: 1, angType: 'sin', center: [0, 0, -D_2], coeff: 1 },
   { n: 2, l: 1, m: 1, angType: 'sin', center: [0, 0, D_2], coeff: -1 }
 ], 18, '2p', '\u03C0*', '\u03C0*(2py)');
+
+// --- Delta Bonding Orbitals ---
+
+const D_D = 1.8; // half-distance for d-orbital basis
+
+// δ bond: d(xy) + d(xy) face-to-face overlap (same phase = bonding)
+molecular('\u03B4(dxy)', [
+  { n: 3, l: 2, m: 2, angType: 'sin', center: [0, 0, -D_D], coeff: 1 },
+  { n: 3, l: 2, m: 2, angType: 'sin', center: [0, 0, D_D], coeff: 1 }
+], 16, '3d', '\u03B4', null);
+
+// δ* antibonding: d(xy) - d(xy)
+molecular('\u03B4*(dxy)', [
+  { n: 3, l: 2, m: 2, angType: 'sin', center: [0, 0, -D_D], coeff: 1 },
+  { n: 3, l: 2, m: 2, angType: 'sin', center: [0, 0, D_D], coeff: -1 }
+], 16, '3d', '\u03B4*', null);
+
+// δ bond: d(x²-y²) + d(x²-y²)
+molecular('\u03B4(dx\u00B2-y\u00B2)', [
+  { n: 3, l: 2, m: 2, angType: 'cos', center: [0, 0, -D_D], coeff: 1 },
+  { n: 3, l: 2, m: 2, angType: 'cos', center: [0, 0, D_D], coeff: 1 }
+], 16, '3d', '\u03B4', '\u03B4(dx\u00B2-y\u00B2)');
 
 // --- Hybrid Orbitals (12) ---
 

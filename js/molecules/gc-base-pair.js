@@ -84,7 +84,7 @@ import { addMol, hexPos } from './core.js';
   // 3 H-bonds
   allBonds.push([9, cBase + 7, 0.5]);   // G-O6 ... H₂N-C4(C)
   allBonds.push([13, cBase + 6, 0.5]);  // G-H-N1 ... O=C2(C)
-  allBonds.push([10, cBase + 10, 0.5]); // G-NH₂ ... H-N1(C)
+  allBonds.push([10, cBase + 2, 0.5]);  // G-NH₂(C2) ... N3(C)
 
   addMol({
     name: 'G-C base pair',

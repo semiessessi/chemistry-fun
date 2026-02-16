@@ -525,6 +525,8 @@ details.section[open] > summary { margin-bottom: 6px; }
   flex-direction: column;
   gap: 6px;
   align-self: flex-start;
+  width: 210px;
+  min-width: 160px;
 }
 #layer-key {
   display: flex;
@@ -550,4 +552,10 @@ details.section[open] > summary { margin-bottom: 6px; }
   border-radius: 4px;
   max-width: 100%;
   height: auto;
+}
+/* Mobile / Phone */
+@media (max-width: 500px) {
+  #controls { min-width: unset; width: calc(100vw - 32px); padding: 12px 14px; }
+  #top-bar { top: 8px; left: 8px; }
+  #sidebar-col { display: none; }
 }

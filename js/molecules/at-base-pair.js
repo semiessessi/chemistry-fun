@@ -81,8 +81,8 @@ import { addMol, hexPos } from './core.js';
   allBonds.push([tBase + 8, tBase + 9]); allBonds.push([tBase + 8, tBase + 10]); allBonds.push([tBase + 8, tBase + 11]);
   allBonds.push([tBase + 0, tBase + 12]); allBonds.push([tBase + 2, tBase + 13]); allBonds.push([tBase + 5, tBase + 14]);
   // H-bonds (between adenine and thymine)
-  allBonds.push([9, tBase + 7, 0.5]);   // A-NH₂ ... O=C4(T)
-  allBonds.push([0, tBase + 12, 0.5]);  // A-N1 ... H-N1(T)
+  allBonds.push([9, tBase + 7, 0.5]);   // A-NH₂(N6) ... O4=C4(T)
+  allBonds.push([0, tBase + 13, 0.5]);  // A-N1 ... H-N3(T)
 
   addMol({
     name: 'A-T base pair',
