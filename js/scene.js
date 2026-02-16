@@ -119,8 +119,8 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
   baseLayer.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
   additiveLayer.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
 
-  // Render order: base EARLY (should get occluded)
-  baseLayer.renderOrder = 100;
+  // Render order: base must render BEFORE orbitals to be occluded properly
+  baseLayer.renderOrder = -100;  // Negative = renders very early
   additiveLayer.renderOrder = 2000;
 
   scene.add(baseLayer, additiveLayer);
@@ -156,9 +156,9 @@ export function updateLabelScales() {
       label.baseLayer.scale.set(scaleX, scaleY, 1);
       label.additiveLayer.scale.set(scaleX, scaleY, 1);
 
-      // Base layer renders EARLY (low renderOrder) so geometry can occlude it
+      // Base layer renders BEFORE orbitals (negative renderOrder) to be occluded
       // Additive layer renders LATE (high renderOrder) for punchthrough effect
-      label.baseLayer.renderOrder = Math.floor(100 + dist);  // Low = renders first
+      label.baseLayer.renderOrder = Math.floor(-100 + dist * 0.1);  // Negative = very early
       label.additiveLayer.renderOrder = Math.floor(2000 + dist);  // High = renders last
     } else if (label.scale) {
       // Legacy single sprite fallback
