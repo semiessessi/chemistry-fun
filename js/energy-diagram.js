@@ -482,15 +482,6 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
     ctx.textAlign = 'right';
     ctx.fillText(moName, labelColWidth, y + 3);
 
-    // RIGHT COLUMN: Energy value (relative, arbitrary units)
-    if (sizing.showEnergies) {
-      ctx.fillStyle = '#777';
-      ctx.font = '8px sans-serif';
-      ctx.textAlign = 'left';
-      const relE = normalizedE.toFixed(2);
-      ctx.fillText(relE, energyX, y + 3);
-    }
-
     levels.push({ moName, x1, x2, y });
   }
 
@@ -506,10 +497,6 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
 
   // Instruction text (removed molecule name - already in dropdown)
   ctx.fillStyle = '#555';
-  ctx.font = '8px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('click level to select', W / 2, H - 8);
-
   // Click handler
   canvas.addEventListener('click', (e) => {
     const rect = canvas.getBoundingClientRect();
