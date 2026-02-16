@@ -91,13 +91,12 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
 
-  // Dual-pass rendering: base layer + subtle top layer (doesn't fully punch through)
-  // Grid labels get +50% opacity boost for better visibility
+  // Dual-pass rendering: faint base + faintest punchthrough
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),
       transparent: true,
-      opacity: 0.75,  // Grid labels: 50% boost from 0.5
+      opacity: 0.35,  // Subtle grid labels
       depthTest: true,
       depthWrite: false, // Don't write to depth buffer (prevents square artifacts)
       blending: THREE.NormalBlending
@@ -108,7 +107,7 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
     new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      opacity: 0.375,  // Grid labels: 50% boost from 0.25
+      opacity: 0.15,  // Faint punchthrough
       depthTest: false,
       depthWrite: false, // Don't write to depth buffer
       blending: THREE.NormalBlending  // Alpha blending: black darkens, white lightens

@@ -67,12 +67,12 @@ export function makeAtomLabel(elem, x, y, z) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
 
-  // Dual-pass rendering: base layer + subtle top layer (doesn't fully punch through)
+  // Dual-pass rendering: faint base + faintest punchthrough
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),
       transparent: true,
-      opacity: 0.5,
+      opacity: 0.25,  // Very subtle base layer
       depthTest: true,   // Gets occluded by geometry
       depthWrite: false, // Don't write to depth buffer (prevents square artifacts)
       blending: THREE.NormalBlending
@@ -83,7 +83,7 @@ export function makeAtomLabel(elem, x, y, z) {
     new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      opacity: 0.25,  // Lower opacity so combined result ~60% not 100%
+      opacity: 0.1,  // Faintest punchthrough
       depthTest: false,  // Always on top
       depthWrite: false, // Don't write to depth buffer
       blending: THREE.NormalBlending  // Alpha blending: black darkens, white lightens
