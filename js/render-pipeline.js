@@ -39,11 +39,17 @@ export function hideProgress() {
 // ---- Adaptive grid ----
 
 export function adaptiveGrid(halfExtent, lowRes, hiRes) {
-  const targetStep = lowRes ? 0.7 : hiRes ? 0.34 : 0.45;
+  const targetStep = lowRes ? 0.7 : hiRes ? 0.30 : 0.45;  // hiRes: 0.34 → 0.30 for finer detail
   let gs = Math.round(2 * halfExtent / targetStep) + 1;
   if (gs % 2 === 0) gs++;
+
+  // Size-based minimums: small molecules (halfExtent < 15) get higher resolution
+  const min = lowRes ? 33 :
+              hiRes ? 65 :
+              halfExtent < 15 ? 65 :  // Small molecules like H₂, NH₃, H₂O
+              57;
+
   const max = lowRes ? 57 : hiRes ? 129 : 109;
-  const min = lowRes ? 33 : hiRes ? 65 : 57;
   return Math.max(min, Math.min(max, gs));
 }
 

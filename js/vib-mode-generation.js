@@ -21,18 +21,91 @@ const AMU_TO_ME = 1822.888;          // 1 amu in electron masses
 const NM_TO_EHBOHR2 = 1 / 1556.893; // 1 N/m in Eₕ/a₀²
 
 // Bond stretching force constants (N/m) — keys match sorted element pairs
+// Calibrated against NIST CCCBDB experimental frequencies where available
 export const BOND_FORCE_CONSTANTS = {
-  'H-H': 575,
+  // Diatomic molecules (NIST-calibrated)
+  'H-H': 575,   // H₂: 4161 cm⁻¹
+  'N-N=3': 2294, // N₂: 2330 cm⁻¹ (triple bond)
+  'O-O=2': 1177, // O₂: 1556 cm⁻¹ (double bond)
+
+  // Hydrogen halides (NIST-calibrated)
+  'F-H': 966,   // HF: 3962 cm⁻¹
+  'Cl-H': 481,  // HCl: 2886 cm⁻¹ (was 516, corrected from NIST)
+  'Br-H': 412,  // HBr: ~2649 cm⁻¹ (estimated)
+  'I-H': 314,   // HI: ~2309 cm⁻¹ (estimated)
+
+  // Other bonds
   'C-H': 516, 'C-C': 502, 'C-C=2': 962, 'C-C=3': 1612,
   'C-F': 500, 'C-N': 571, 'C-N=2': 600, 'C-N=3': 1762,
   'C-O': 571, 'C-O=2': 1857, 'C-S': 250, 'C-Cl': 350,
-  'Cl-H': 516, 'F-H': 966, 'H-N': 648, 'H-O': 780, 'H-S': 350,
-  'N-N': 300, 'N-N=2': 700, 'N-N=3': 2294,
+  'H-N': 648, 'H-O': 780, 'H-S': 350,
+  'N-N': 300, 'N-N=2': 700,
   'N-O': 300, 'N-O=2': 600,
-  'O-O': 350, 'O-O=2': 1100,
+  'O-O': 350,
   'O-S': 400, 'O-S=2': 700,
   'Al-O': 350, 'Ca-O': 250, 'Cu-O': 250,
   'Fe-O': 300, 'Na-O': 200, 'O-Ti': 400,
+};
+
+// Spectroscopic data from NIST CCCBDB (frequencies in cm⁻¹)
+// Used for validation and educational display
+export const SPECTROSCOPIC_DATA = {
+  'H₂': {
+    fundamental: 4161,     // ν₀ experimental
+    harmonic: 4401.21,     // ωₑ spectroscopic constant
+    anharmonicity: 121.33, // ωₑxₑ
+    zeroPoint: 2180,       // in cm⁻¹
+    rotational: 60.853,    // Bₑ
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=1333740'
+  },
+  'N₂': {
+    fundamental: 2330,     // ν₀ experimental
+    harmonic: 2358.57,     // ωₑ
+    anharmonicity: 14.32,  // ωₑxₑ
+    zeroPoint: 1175,
+    rotational: 1.9987,
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=7727379'
+  },
+  'O₂': {
+    fundamental: 1556,     // ν₀ experimental
+    harmonic: 1580.19,     // ωₑ
+    anharmonicity: 11.98,  // ωₑxₑ
+    zeroPoint: 788,
+    rotational: 1.4457,
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=7782447'
+  },
+  'HCl': {
+    fundamental: 2886,     // ν₀ experimental
+    harmonic: 2990.95,     // ωₑ spectroscopic constant
+    anharmonicity: 52.8,   // ωₑxₑ
+    zeroPoint: 1443,
+    rotational: 10.593,    // Bₑ
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=7647010',
+    isotope: '¹H³⁵Cl'
+  },
+  'HF': {
+    fundamental: 3962,     // ν₀ experimental
+    harmonic: 4138.32,     // ωₑ
+    anharmonicity: 89.88,  // ωₑxₑ
+    zeroPoint: 1981,
+    rotational: 20.9557,
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=7664393'
+  },
+  'CH₄': {
+    modes: {
+      'symmetric stretch': { fundamental: 2917, harmonic: 2917 },  // ν₁ (A₁)
+      'bend': { fundamental: 1534, harmonic: 1534 },               // ν₂ (E)
+      'asymmetric stretch': { fundamental: 3019, harmonic: 3019 }, // ν₃ (F₂)
+      'bend2': { fundamental: 1306, harmonic: 1306 }               // ν₄ (F₂)
+    },
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=74828'
+  }
 };
 
 const BEND_FORCE_CONSTANT = 70; // N/m, typical angle bending

@@ -13,7 +13,7 @@ import { computeChargeDensity } from './electrostatic-potential.js';
 import { BaseFrameController } from './controllers/base-frame-controller.js';
 import { buildMeshesFromData } from './utils/mesh-builder.js';
 
-export { generateVibrationalModes, ATOMIC_MASS, BOND_FORCE_CONSTANTS } from './vib-mode-generation.js';
+export { generateVibrationalModes, ATOMIC_MASS, BOND_FORCE_CONSTANTS, SPECTROSCOPIC_DATA } from './vib-mode-generation.js';
 
 const NUM_FRAMES = 24;
 

@@ -1,6 +1,6 @@
 // Vibration controls: mode selector, amplitude slider, play/pause, frame cache building.
 
-import { VibrationController, generateVibrationalModes } from '../vibrations.js';
+import { VibrationController, generateVibrationalModes, BOND_FORCE_CONSTANTS, ATOMIC_MASS, SPECTROSCOPIC_DATA } from '../vibrations.js';
 import { resetMoleculeContextPositions } from '../molecules/index.js';
 import { hasFieldGroup, setFieldVisVisible } from '../electric-field.js';
 import { updateLegend } from '../layer-materials.js';
@@ -76,6 +76,26 @@ export function updateVibWrapperVisibility() {
   if (!show) cancelVibration();
 }
 
+// Calculate vibrational frequency from mode metadata
+function calculateFrequency(mode) {
+  // Extract bond type from mode.name
+  const match = mode.name.match(/([A-Z][a-z]?)-([A-Z][a-z]?)/);
+  if (!match) return null;
+
+  const bondType = `${match[1]}-${match[2]}`;
+  const k = BOND_FORCE_CONSTANTS[bondType];
+  if (!k) return null;
+
+  // Get reduced mass from mode metadata (in amu)
+  const μ = mode.reducedMass;
+  if (!μ) return null;
+
+  // ν = (1/2πc) × √(k/μ)
+  // Constants: 1/(2π) × √(N/m / amu) × (unit conversions) = 1302.79
+  const freq = 1302.79 * Math.sqrt(k / μ);
+  return freq;
+}
+
 export function populateVibModes(moleculeName) {
   vibModeSelect.innerHTML = '';
   const noneOpt = document.createElement('option');
@@ -88,23 +108,53 @@ export function populateVibModes(moleculeName) {
   if (vibCurrentModes.length > 0) {
     const mixOpt = document.createElement('option');
     mixOpt.value = 'random';
-    mixOpt.textContent = 'Random Mix';
+    mixOpt.textContent = 'Random Mix (overtones)';
     vibModeSelect.appendChild(mixOpt);
   }
 
+  // Add mode options with frequencies
   for (let i = 0; i < vibCurrentModes.length; i++) {
+    const mode = vibCurrentModes[i];
     const opt = document.createElement('option');
     opt.value = i;
-    opt.textContent = vibCurrentModes[i].name;
+
+    // Calculate and display frequency
+    const freq = calculateFrequency(mode);
+    const freqText = freq ? ` (${Math.round(freq)} cm⁻¹)` : '';
+    opt.textContent = mode.name + freqText;
+
     vibModeSelect.appendChild(opt);
   }
 
-  // Pre-select Random Mix as default, but None on mobile to avoid expensive builds
+  // Default selection: ground state for molecules with NIST data, Random Mix otherwise
   const isMobile = window.innerWidth < 500 || 'ontouchstart' in window;
-  if (vibCurrentModes.length > 0 && !isMobile) {
-    vibModeSelect.value = 'random';
+  const hasSpectroData = SPECTROSCOPIC_DATA[moleculeName];
+
+  if (!isMobile && vibCurrentModes.length > 0) {
+    if (hasSpectroData) {
+      vibModeSelect.value = '0';  // First mode (ground state)
+    } else {
+      vibModeSelect.value = 'random';  // Random Mix for molecules without NIST data
+    }
   }
+
   updateVibAmplitudeVisibility();
+  updateVibCitation(moleculeName);
+}
+
+// Update citation display based on selected molecule
+function updateVibCitation(moleculeName) {
+  const citationDiv = document.getElementById('vib-citation');
+  if (!citationDiv) return;  // Element might not exist yet
+
+  const spectroData = SPECTROSCOPIC_DATA[moleculeName];
+  if (spectroData) {
+    citationDiv.style.display = 'block';
+    document.getElementById('vib-citation-text').textContent = spectroData.source;
+    document.getElementById('vib-citation-link').href = spectroData.url;
+  } else {
+    citationDiv.style.display = 'none';
+  }
 }
 
 function updateVibAmplitudeVisibility() {

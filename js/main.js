@@ -136,7 +136,8 @@ let lastSampledOrientations3 = null;
 let showBallAndStick = ballStickToggle.checked;
 let showDensityField = densityFieldToggle.checked;
 let showFieldVis = true;  // Enable vector field by default
-let fieldStyle = 'both';  // Both arrows and streamlines
+let fieldStyle = 'streamlines';  // Default to streamlines only
+let energyDiagramSize = 'normal';  // 'tiny' | 'normal' | 'large'
 
 let vibStaticMeshesHidden = false;
 let chargeCache = null;
@@ -278,16 +279,16 @@ function updateEnergyDiagram() {
   const selectedInfo = orbital ? { d1: orbital.d1, d2: orbital.d2, d3: orbital.d3, name: orbital.name } : null;
 
   if (d1 === 'Atomic') {
-    renderAtomicDiagram(energyDiagramContainer, selectedInfo, onEnergyDiagramSelect);
+    renderAtomicDiagram(energyDiagramContainer, selectedInfo, onEnergyDiagramSelect, energyDiagramSize);
   } else if (d1 === 'Molecules') {
     const molName = d2Select.value;
     const d3Keys = Object.keys((ORBITAL_TREE[d1] || {})[molName] || {});
     const moList = d3Keys
       .filter(k => k !== 'electron density' && k !== 'electrostatic potential' && k !== 'charge visualisation' && k !== 'ELF')
       .map(k => [k]);
-    renderMolecularDiagram(energyDiagramContainer, molName, moList, selectedInfo, onEnergyDiagramSelect);
+    renderMolecularDiagram(energyDiagramContainer, molName, moList, selectedInfo, onEnergyDiagramSelect, energyDiagramSize);
   } else if (d1 === 'Molecular') {
-    renderDiatomicDiagram(energyDiagramContainer, selectedInfo, onEnergyDiagramSelect);
+    renderDiatomicDiagram(energyDiagramContainer, selectedInfo, onEnergyDiagramSelect, energyDiagramSize);
   } else {
     clearDiagram(energyDiagramContainer);
   }
@@ -663,8 +664,31 @@ opacitySlider.value = '90';
 opacityDisplay.textContent = '90%';
 fieldVisToggle.checked = true;
 fieldSourceSelect.value = 'magnetic';
-fieldStyleSelect.value = 'both';
+fieldStyleSelect.value = 'streamlines';
 fieldOptions.classList.remove('dropdown-hidden');
+
+// ---- Energy diagram size controls ----
+document.getElementById('diagram-tiny-btn').addEventListener('click', () => {
+  energyDiagramSize = 'tiny';
+  localStorage.setItem('energyDiagramSize', 'tiny');
+  updateEnergyDiagram();
+});
+document.getElementById('diagram-normal-btn').addEventListener('click', () => {
+  energyDiagramSize = 'normal';
+  localStorage.setItem('energyDiagramSize', 'normal');
+  updateEnergyDiagram();
+});
+document.getElementById('diagram-large-btn').addEventListener('click', () => {
+  energyDiagramSize = 'large';
+  localStorage.setItem('energyDiagramSize', 'large');
+  updateEnergyDiagram();
+});
+
+// Restore energy diagram size preference
+const savedSize = localStorage.getItem('energyDiagramSize');
+if (savedSize && ['tiny', 'normal', 'large'].includes(savedSize)) {
+  energyDiagramSize = savedSize;
+}
 
 // ---- Initial load ----
 const hadParams = applyUrlParams();

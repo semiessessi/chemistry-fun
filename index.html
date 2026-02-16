@@ -145,6 +145,10 @@
     <div id="vib-buttons">
       <button id="vib-play" disabled>&#x25B6; Play</button>
     </div>
+    <div id="vib-citation" style="display:none; font-size:9px; color:#888; padding:4px; margin-top:4px;">
+      <strong>Data Source:</strong> <span id="vib-citation-text"></span>
+      <a id="vib-citation-link" href="#" target="_blank" style="color:#6af;">&#x2197;</a>
+    </div>
   </div>
   <div id="transition-wrapper" class="dropdown-hidden">
     <div id="transition-progress" class="dropdown-hidden">
@@ -190,7 +194,17 @@
 </div>
 <div id="sidebar-col">
   <div id="layer-key"></div>
-  <div id="energy-diagram"></div>
+  <div id="energy-diagram-container">
+    <div id="energy-diagram-header" style="display:flex; justify-content:space-between; padding:4px 8px; align-items:center;">
+      <span style="font-size:10px; color:#999;">Energy Levels</span>
+      <div id="diagram-size-btns" style="display:flex; gap:4px;">
+        <button id="diagram-tiny-btn" title="Tiny" style="padding:2px 6px; font-size:10px;">−</button>
+        <button id="diagram-normal-btn" title="Normal" style="padding:2px 6px; font-size:10px;">●</button>
+        <button id="diagram-large-btn" title="Large" style="padding:2px 6px; font-size:10px;">+</button>
+      </div>
+    </div>
+    <div id="energy-diagram"></div>
+  </div>
 </div>
 </div>
 

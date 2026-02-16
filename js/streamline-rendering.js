@@ -116,7 +116,9 @@ export function createStreamlineMesh(pts, parent, coneDatas, potentialGrid, gs, 
       uniform float uOpacity;
       varying vec2 vUv;
       void main() {
-        float pattern = fract(vUv.x * 6.0 - uTime * 0.3);
+        // Modulo uTime to ensure seamless looping (3.33 = one complete dash cycle)
+        float t = mod(uTime, 10.0);
+        float pattern = fract(vUv.x * 6.0 - t * 0.3);
         float dash = smoothstep(0.0, 0.12, pattern) * (1.0 - smoothstep(0.45, 0.57, pattern));
         float alpha = mix(0.05, uOpacity, dash);
         gl_FragColor = vec4(uBaseColor, alpha);

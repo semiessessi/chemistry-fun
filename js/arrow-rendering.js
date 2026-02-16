@@ -65,7 +65,8 @@ export function createArrowMeshes(arrows, maxMag, step, stride, parent, potentia
 
   for (let i = 0; i < count; i++) {
     const a = arrows[i];
-    const dir = new THREE.Vector3(a.gx, a.gy, a.gz).normalize();
+    // Negate direction to point arrows along gradient flow
+    const dir = new THREE.Vector3(-a.gx, -a.gy, -a.gz).normalize();
     const len = (a.mag * invMaxMag) * step * stride * 0.8;
 
     dummy.position.set(a.x, a.y, a.z);

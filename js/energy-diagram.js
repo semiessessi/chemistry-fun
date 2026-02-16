@@ -24,16 +24,66 @@ const COLORS = {
 const SUBSHELLS = ['s', 'p', 'd', 'f'];
 const SUBSHELL_CAPACITY = [2, 6, 10, 14];
 
+// ---- Sizing parameters for three display modes ----
+
+function getSizingParams(size, moCount = 0, containerWidth = 210) {
+  switch (size) {
+    case 'tiny':
+      return {
+        width: 120,
+        height: 60,
+        fontSize: 8,
+        labelFontSize: 7,
+        showLabels: false,  // Only show diagram, minimal text
+        showEnergies: false,
+        showCitations: false,
+        lineHeight: 6,
+        margin: 20,
+        compact: true
+      };
+
+    case 'large':
+      return {
+        width: 420,
+        height: Math.max(500, moCount * 35 + 100),
+        fontSize: 13,
+        labelFontSize: 11,
+        showLabels: true,
+        showEnergies: true,   // Show eV values on each level
+        showCitations: true,  // Show data source at bottom
+        lineHeight: 18,
+        margin: 50,
+        compact: false
+      };
+
+    default: // 'normal'
+      return {
+        width: Math.max(160, containerWidth - 8),
+        height: moCount ? Math.max(200, moCount * 28 + 60) : 320,
+        fontSize: 11,
+        labelFontSize: 10,
+        showLabels: true,
+        showEnergies: false,
+        showCitations: false,
+        lineHeight: 14,
+        margin: 38,
+        compact: containerWidth < 180
+      };
+  }
+}
+
 // ---- Atomic Energy Diagram ----
 
-export function renderAtomicDiagram(container, selectedOrbital, onSelect) {
+export function renderAtomicDiagram(container, selectedOrbital, onSelect, size = 'normal') {
   clearDiagram(container);
 
   const canvas = document.createElement('canvas');
   const containerWidth = container.clientWidth || container.parentElement?.clientWidth || 210;
-  const W = Math.max(160, containerWidth - 8); // fill container minus padding
+  const sizing = getSizingParams(size, 0, containerWidth);
+
+  const W = sizing.width;
+  const H = sizing.height;
   const maxN = 7;
-  const H = 360;
   canvas.width = W;
   canvas.height = H;
   canvas.style.cursor = 'pointer';
@@ -48,15 +98,15 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect) {
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Compact mode for narrow screens
-  const compact = W < 180;
-  const fontSize = compact ? 9 : 11;
-  const labelFontSize = compact ? 8 : 10;
+  // Use sizing params
+  const compact = sizing.compact;
+  const fontSize = sizing.fontSize;
+  const labelFontSize = sizing.labelFontSize;
 
   // Energy levels: E_n = -13.6 / n²
   // Use log-scale mapping for better high-n spacing
   const levels = [];
-  const margin = compact ? 26 : 38;
+  const margin = sizing.margin;
   const topY = 22;
   const botY = H - 28;
   const eMin = -13.6;
@@ -145,6 +195,15 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect) {
         const labelW = ctx.measureText(label).width;
         ctx.textAlign = 'left';
         ctx.fillText(capacityLabel, labelX + labelW / 2 + 1, y - 7);
+
+        // Energy value in large mode
+        if (sizing.showEnergies && l === 0) {  // Only show once per n
+          ctx.font = `${labelFontSize}px sans-serif`;
+          ctx.fillStyle = '#999';
+          ctx.textAlign = 'right';
+          const energy = eBase;
+          ctx.fillText(`${energy.toFixed(2)} eV`, W - 12, y + 3);
+        }
       }
 
       // Energy label on hover (tooltip via title)
@@ -194,15 +253,17 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect) {
 
 // ---- Molecular Orbital Diagram ----
 
-export function renderMolecularDiagram(container, moleculeName, moList, selectedOrbital, onSelect) {
+export function renderMolecularDiagram(container, moleculeName, moList, selectedOrbital, onSelect, size = 'normal') {
   clearDiagram(container);
 
   if (!moList || moList.length === 0) return;
 
   const canvas = document.createElement('canvas');
   const containerWidth = container.clientWidth || container.parentElement?.clientWidth || 210;
-  const W = Math.max(160, containerWidth - 8);
-  const H = Math.max(200, moList.length * 28 + 60);
+  const sizing = getSizingParams(size, moList.length, containerWidth);
+
+  const W = sizing.width;
+  const H = sizing.height;
   canvas.width = W;
   canvas.height = H;
   canvas.style.cursor = 'pointer';
@@ -219,7 +280,7 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
 
   // Assign relative energies from MO ordering (lowest index = lowest energy)
   const levels = [];
-  const margin = 15;
+  const margin = size === 'tiny' ? 10 : 15;
   const topY = 25;
   const botY = H - 30;
   const lineWidth = W - 2 * margin - 40;
@@ -314,13 +375,15 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
 
 // ---- Diatomic MO Correlation Diagram ----
 
-export function renderDiatomicDiagram(container, selectedOrbital, onSelect) {
+export function renderDiatomicDiagram(container, selectedOrbital, onSelect, size = 'normal') {
   clearDiagram(container);
 
   const canvas = document.createElement('canvas');
   const containerWidth = container.clientWidth || container.parentElement?.clientWidth || 210;
-  const W = Math.max(160, containerWidth - 8);
-  const H = 280;
+  const sizing = getSizingParams(size, 0, containerWidth);
+
+  const W = sizing.width;
+  const H = size === 'tiny' ? 80 : size === 'large' ? 400 : 280;
   canvas.width = W;
   canvas.height = H;
   canvas.style.cursor = 'pointer';
