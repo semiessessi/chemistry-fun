@@ -28,6 +28,7 @@ import { renderAtomicDiagram, renderMolecularDiagram, renderDiatomicDiagram, cle
 import { computeELF } from './elf.js';
 import { MixerController, COMPONENTS, PRESETS } from './orbital-mixer.js';
 import { ReactionController } from './reactions.js';
+import { initPanelPersistence } from './ui/panel-persistence.js';
 
 // ---- Dropdown elements ----
 const d1Select = document.getElementById('d1-select');
@@ -1748,22 +1749,8 @@ function applyUrlParams() {
   return true;
 }
 
-// ---- Panel toggle ----
-const topBar = document.getElementById('top-bar');
-
-document.getElementById('panel-close').addEventListener('click', () => {
-  topBar.classList.add('collapsed');
-  localStorage.setItem('panelCollapsed', 'true');
-});
-
-document.getElementById('panel-open').addEventListener('click', () => {
-  topBar.classList.remove('collapsed');
-  localStorage.setItem('panelCollapsed', 'false');
-});
-
-if (localStorage.getItem('panelCollapsed') === 'true') {
-  topBar.classList.add('collapsed');
-}
+// ---- Panel persistence ----
+initPanelPersistence();
 
 // ---- Initial load ----
 const hadParams = applyUrlParams();
