@@ -96,9 +96,9 @@ export function makeAtomLabel(elem, x, y, z) {
   baseLayer.scale.set(1.2, 1.2, 1);
   additiveLayer.scale.set(1.2, 1.2, 1);
 
-  // Render order: additive layer must render AFTER base layer
-  baseLayer.renderOrder = 1000;
-  additiveLayer.renderOrder = 2000;
+  // Render order: base EARLY (gets occluded), additive LATE (punches through)
+  baseLayer.renderOrder = 100;  // Low = renders first
+  additiveLayer.renderOrder = 2000;  // High = renders last
 
   // Return container object with both sprites and atom position
   return {

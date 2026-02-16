@@ -119,9 +119,9 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
   baseLayer.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
   additiveLayer.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
 
-  // Render order: additive layer must render AFTER base layer
-  baseLayer.renderOrder = 1000;
-  additiveLayer.renderOrder = 2000;
+  // Render order: base EARLY (gets occluded), additive LATE (punches through)
+  baseLayer.renderOrder = 100;  // Low = renders first
+  additiveLayer.renderOrder = 2000;  // High = renders last
 
   scene.add(baseLayer, additiveLayer);
 
@@ -156,10 +156,10 @@ export function updateLabelScales() {
       label.baseLayer.scale.set(scaleX, scaleY, 1);
       label.additiveLayer.scale.set(scaleX, scaleY, 1);
 
-      // Sort by distance: further objects render first (lower renderOrder)
-      const renderOrder = Math.floor(1000 + dist * 10);
-      label.baseLayer.renderOrder = renderOrder;
-      label.additiveLayer.renderOrder = renderOrder + 1000;  // Additive always after base
+      // Base layer renders EARLY (low renderOrder) so geometry can occlude it
+      // Additive layer renders LATE (high renderOrder) for punchthrough effect
+      label.baseLayer.renderOrder = Math.floor(100 + dist);  // Low = renders first
+      label.additiveLayer.renderOrder = Math.floor(2000 + dist);  // High = renders last
     } else if (label.scale) {
       // Legacy single sprite fallback
       const dist = camPos.distanceTo(label.position);
