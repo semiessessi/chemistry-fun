@@ -59,15 +59,15 @@ function getSizingParams(size, moCount = 0, containerWidth = 210) {
 
     case 'large':
       return {
-        width: 420,
-        height: Math.max(500, moCount * 35 + 100),
-        fontSize: 13,
-        labelFontSize: 11,
+        width: Math.max(200, containerWidth - 8),
+        height: moCount ? Math.max(350, moCount * 32 + 80) : 420,
+        fontSize: 12,
+        labelFontSize: 10,
         showLabels: true,
         showEnergies: true,   // Show eV values on each level
         showCitations: true,  // Show data source at bottom
-        lineHeight: 18,
-        margin: 50,
+        lineHeight: 16,
+        margin: 42,
         compact: false
       };
 

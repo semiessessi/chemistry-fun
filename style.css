@@ -545,6 +545,9 @@ details.section[open] > summary { margin-bottom: 6px; }
   border-radius: 6px;
   padding: 4px;
   backdrop-filter: blur(8px);
+  max-height: 60vh;  /* Prevent overflow into main view */
+  overflow-y: auto;  /* Scroll if too large */
+  overflow-x: hidden;
 }
 #energy-diagram:empty { display: none; }
 #energy-diagram canvas {
