@@ -16,6 +16,7 @@ let trackedBonds = [];  // [{mesh, atomI, atomJ, origPos, origQuat, origScaleY, 
 // ---- Molecule registry (for context rendering) ----
 
 const MOLECULES = {};
+export { MOLECULES };  // Export for validation and debugging tools
 
 // ---- Display labels: maps internal name → "Formula (Name)" for dropdowns ----
 export const MOLECULE_LABELS = {};
@@ -29,6 +30,9 @@ const MOLECULE_VARIANTS = {}; // name → variants array
 // ---- PubChem CID tracking ----
 const MOLECULE_CIDS = {}; // name → CID number
 const MOLECULE_NIST = {}; // name → true if geometry from NIST CCCBDB
+
+// ---- Multi-source citation tracking ----
+const MOLECULE_SOURCES = {}; // name → sources object
 
 // ---- Atom data access (for electrostatic field computation) ----
 export function getMoleculeAtoms(name) {
@@ -46,6 +50,10 @@ export function getMoleculeCid(name) {
 
 export function getMoleculeNist(name) {
   return !!MOLECULE_NIST[name];
+}
+
+export function getMoleculeSources(name) {
+  return MOLECULE_SOURCES[name] || null;
 }
 
 // ---- Geometry helpers ----
@@ -75,6 +83,31 @@ export function addMol(mol) {
   if (mol.variants) MOLECULE_VARIANTS[mol.name] = mol.variants;
   if (mol.pubchemCid) MOLECULE_CIDS[mol.name] = mol.pubchemCid;
   if (mol.nistSource) MOLECULE_NIST[mol.name] = true;
+
+  // Handle sources metadata (new multi-source citation system)
+  if (mol.sources) {
+    MOLECULE_SOURCES[mol.name] = mol.sources;
+  } else {
+    // Backward compatibility: auto-generate sources from legacy fields
+    const sources = {};
+    if (mol.pubchemCid) {
+      sources.geometry = {
+        type: 'pubchem',
+        id: mol.pubchemCid,
+        citation: `PubChem Compound Database`,
+        url: `https://pubchem.ncbi.nlm.nih.gov/compound/${mol.pubchemCid}`
+      };
+    } else if (mol.nistSource) {
+      sources.geometry = {
+        type: 'nist',
+        citation: 'NIST Computational Chemistry Comparison and Benchmark Database',
+        url: 'https://cccbdb.nist.gov/'
+      };
+    }
+    if (Object.keys(sources).length > 0) {
+      MOLECULE_SOURCES[mol.name] = sources;
+    }
+  }
   const moOrbitals = [];
   const mosList = mol.mos || [];
   for (let i = 0; i < mosList.length; i++) {
@@ -255,7 +288,15 @@ export function updateMoleculeContextPositions(moleculeName, displacements) {
   for (const { mesh, label, atomIdx, origPos, origLabelPos } of trackedAtoms) {
     const d = displacements[atomIdx];
     mesh.position.set(origPos.x + d[0], origPos.y + d[1], origPos.z + d[2]);
-    if (label) label.position.set(origLabelPos.x + d[0], origLabelPos.y + d[1], origLabelPos.z + d[2]);
+    if (label && label.sprites) {
+      // New label system: update both sprites
+      const newPos = new THREE.Vector3(origLabelPos.x + d[0], origLabelPos.y + d[1], origLabelPos.z + d[2]);
+      label.sprites.forEach(sprite => sprite.position.copy(newPos));
+      label.position.copy(newPos);
+    } else if (label) {
+      // Legacy fallback
+      label.position.set(origLabelPos.x + d[0], origLabelPos.y + d[1], origLabelPos.z + d[2]);
+    }
   }
 
   for (const bond of trackedBonds) {
@@ -293,7 +334,14 @@ export function updateMoleculeContextPositions(moleculeName, displacements) {
 export function resetMoleculeContextPositions() {
   for (const { mesh, label, origPos, origLabelPos } of trackedAtoms) {
     mesh.position.copy(origPos);
-    if (label) label.position.copy(origLabelPos);
+    if (label && label.sprites) {
+      // New label system: update both sprites
+      label.sprites.forEach(sprite => sprite.position.copy(origLabelPos));
+      label.position.copy(origLabelPos);
+    } else if (label) {
+      // Legacy fallback
+      label.position.copy(origLabelPos);
+    }
   }
   for (const { mesh, origPos, origQuat, origScaleY } of trackedBonds) {
     mesh.position.copy(origPos);

@@ -45,6 +45,31 @@ export const BOND_FORCE_CONSTANTS = {
   'O-S': 400, 'O-S=2': 700,
   'Al-O': 350, 'Ca-O': 250, 'Cu-O': 250,
   'Fe-O': 300, 'Na-O': 200, 'O-Ti': 400,
+
+  // Biological/vitamin bonds
+  'C-C(aromatic)': 720,   // Aromatic C-C (between single and double)
+  'C-N(amide)': 650,      // Peptide bonds (amide linkage)
+  'O-P': 580,             // Phosphate esters (nucleotides, ATP)
+  'O-P=2': 1200,          // P=O double bond in phosphates
+  'C-C(long)': 450,       // Long-chain alkane (slightly weaker)
+
+  // Early periodic table elements
+  'B-O': 600,             // Boron-oxygen
+  'B-F': 800,             // Boron-fluorine (very strong)
+  'B-H': 380,             // Boron-hydrogen
+  'B-Cl': 450,            // Boron-chlorine
+  'Si-O': 500,            // Silicon-oxygen
+  'Si-H': 380,            // Silicon-hydrogen
+  'Si-Cl': 400,           // Silicon-chlorine
+  'Al-Cl': 400,           // Aluminum-chlorine
+  'Al-H': 300,            // Aluminum-hydride
+  'Li-H': 300,            // Lithium hydride
+  'Na-Cl': 200,           // Ionic, weaker
+  'K-Cl': 180,            // Even more ionic
+  'Be-O': 550,            // Beryllium oxide
+  'Mg-O': 400,            // Magnesium oxide
+  'Cu-Cl': 320,           // Copper chloride
+  'Mn-O': 400,            // Manganese oxide
 };
 
 // Spectroscopic data from NIST CCCBDB (frequencies in cm⁻¹)
@@ -105,6 +130,155 @@ export const SPECTROSCOPIC_DATA = {
     },
     source: 'NIST CCCBDB',
     url: 'https://cccbdb.nist.gov/exp2x.asp?casno=74828'
+  },
+  // ---- Polyatomic molecules (Tier 1: NIST CCCBDB) ----
+  'H₂O': {
+    modes: {
+      'symmetric stretch': {
+        fundamental: 3657,
+        harmonic: 3832,
+        symmetry: 'A₁',
+        description: 'Both O-H bonds stretch in phase'
+      },
+      'bend': {
+        fundamental: 1595,
+        harmonic: 1649,
+        symmetry: 'A₁',
+        description: 'H-O-H angle bending'
+      },
+      'asymmetric stretch': {
+        fundamental: 3756,
+        harmonic: 3943,
+        symmetry: 'B₂',
+        description: 'O-H bonds stretch out of phase'
+      }
+    },
+    zeroPointEnergy: 13.26,  // kcal/mol
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=7732185'
+  },
+  'NH₃': {
+    modes: {
+      'symmetric stretch': { fundamental: 3337, harmonic: 3444, symmetry: 'A₁', description: 'All three N-H bonds stretch in phase' },
+      'symmetric bend': { fundamental: 950, harmonic: 1022, symmetry: 'A₁', description: 'Umbrella inversion mode' },
+      'asymmetric stretch': { fundamental: 3444, harmonic: 3613, symmetry: 'E', description: 'N-H bonds stretch out of phase' },
+      'asymmetric bend': { fundamental: 1627, harmonic: 1691, symmetry: 'E', description: 'Degenerate bending mode' }
+    },
+    zeroPointEnergy: 21.3,  // kcal/mol
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=7664417'
+  },
+  'CO₂': {
+    modes: {
+      'symmetric stretch': { fundamental: 1333, harmonic: 1388, symmetry: 'Σg⁺', description: 'Both C=O bonds stretch in phase (IR inactive)' },
+      'bend': { fundamental: 667, harmonic: 667, symmetry: 'Πu', degeneracy: 2, description: 'Bending in perpendicular planes' },
+      'asymmetric stretch': { fundamental: 2349, harmonic: 2396, symmetry: 'Σu⁺', description: 'C=O bonds stretch out of phase' }
+    },
+    zeroPointEnergy: 7.3,  // kcal/mol
+    source: 'HITRAN 2020',
+    url: 'https://hitran.org/docs/molec-meta/'
+  },
+  'SO₂': {
+    modes: {
+      'symmetric stretch': { fundamental: 1151, harmonic: 1151, symmetry: 'A₁' },
+      'bend': { fundamental: 518, harmonic: 518, symmetry: 'A₁' },
+      'asymmetric stretch': { fundamental: 1362, harmonic: 1362, symmetry: 'B₂' }
+    },
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=7446095'
+  },
+  'C₂H₂': {
+    modes: {
+      'C-H symmetric stretch': { fundamental: 3374, harmonic: 3374, symmetry: 'Σg⁺' },
+      'C≡C stretch': { fundamental: 1974, harmonic: 1974, symmetry: 'Σg⁺' },
+      'bend': { fundamental: 612, harmonic: 612, symmetry: 'Πg', degeneracy: 2 },
+      'C-H asymmetric stretch': { fundamental: 3289, harmonic: 3289, symmetry: 'Σu⁺' },
+      'C-H bend': { fundamental: 730, harmonic: 730, symmetry: 'Πu', degeneracy: 2 }
+    },
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=74862'
+  },
+  'C₂H₄': {
+    modes: {
+      'C-H symmetric stretch': { fundamental: 3026, harmonic: 3026, symmetry: 'Ag' },
+      'C=C stretch': { fundamental: 1623, harmonic: 1623, symmetry: 'Ag' },
+      'CH₂ scissors': { fundamental: 1444, harmonic: 1444, symmetry: 'Ag' },
+      'C-H asymmetric stretch': { fundamental: 3103, harmonic: 3103, symmetry: 'B₂u' },
+      'CH₂ wag': { fundamental: 949, harmonic: 949, symmetry: 'B₂u' }
+    },
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=74851'
+  },
+  'C₂H₆': {
+    modes: {
+      'C-H symmetric stretch': { fundamental: 2954, harmonic: 2954, symmetry: 'A₁g' },
+      'CH₃ deformation': { fundamental: 1388, harmonic: 1388, symmetry: 'A₁g' },
+      'C-C stretch': { fundamental: 995, harmonic: 995, symmetry: 'A₁g' },
+      'C-H asymmetric stretch': { fundamental: 2896, harmonic: 2896, symmetry: 'A₂u' }
+    },
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=74840'
+  },
+  // ---- Atmospheric molecules (Tier 2: HITRAN) ----
+  'O₃': {
+    modes: {
+      'symmetric stretch': { fundamental: 1103, harmonic: 1103, symmetry: 'A₁' },
+      'bend': { fundamental: 701, harmonic: 701, symmetry: 'A₁' },
+      'asymmetric stretch': { fundamental: 1042, harmonic: 1042, symmetry: 'B₂' }
+    },
+    source: 'HITRAN',
+    url: 'https://hitran.org/docs/molec-meta/'
+  },
+  'N₂O': {
+    modes: {
+      'symmetric stretch': { fundamental: 1285, harmonic: 1285, symmetry: 'Σ⁺' },
+      'bend': { fundamental: 589, harmonic: 589, symmetry: 'Π', degeneracy: 2 },
+      'asymmetric stretch': { fundamental: 2224, harmonic: 2224, symmetry: 'Σ⁺' }
+    },
+    source: 'HITRAN',
+    url: 'https://hitran.org/docs/molec-meta/'
+  },
+  // ---- Organic molecules (Tier 3: SDBS/NIST) ----
+  'C₆H₆': {
+    modes: {
+      'ring breathing': { fundamental: 992, harmonic: 992, symmetry: 'A₁g', description: 'All C atoms move radially' },
+      'C-H stretch (sym)': { fundamental: 3047, harmonic: 3062, symmetry: 'A₁g' },
+      'C=C stretch': { fundamental: 1596, harmonic: 1606, symmetry: 'E₂g' },
+      'C-H bend': { fundamental: 1010, harmonic: 1010, symmetry: 'A₂u' }
+      // Note: benzene has 30 normal modes total, showing key ones
+    },
+    source: 'SDBS Web',
+    url: 'https://sdbs.db.aist.go.jp/sdbs/cgi-bin/direct_frame_top.cgi'
+  },
+  'C₂H₅OH': {
+    modes: {
+      'O-H stretch': { fundamental: 3350, harmonic: 3350, description: 'Hydroxyl O-H stretch' },
+      'C-H stretch': { fundamental: 2980, harmonic: 2980 },
+      'C-O stretch': { fundamental: 1050, harmonic: 1050 },
+      'C-C stretch': { fundamental: 880, harmonic: 880 }
+    },
+    source: 'SDBS/NIST',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=64175'
+  },
+  'CH₃OH': {
+    modes: {
+      'O-H stretch': { fundamental: 3681, harmonic: 3681 },
+      'C-H asymmetric stretch': { fundamental: 2999, harmonic: 2999 },
+      'C-O stretch': { fundamental: 1033, harmonic: 1033 },
+      'CH₃ rock': { fundamental: 1060, harmonic: 1060 }
+    },
+    source: 'NIST CCCBDB',
+    url: 'https://cccbdb.nist.gov/exp2x.asp?casno=67561'
+  },
+  'CH₃COOH': {
+    modes: {
+      'O-H stretch': { fundamental: 3583, harmonic: 3583, description: 'Carboxylic acid O-H' },
+      'C=O stretch': { fundamental: 1788, harmonic: 1788, description: 'Carbonyl stretch' },
+      'C-O stretch': { fundamental: 1182, harmonic: 1182 },
+      'C-C stretch': { fundamental: 847, harmonic: 847 }
+    },
+    source: 'SDBS',
+    url: 'https://sdbs.db.aist.go.jp/'
   }
 };
 

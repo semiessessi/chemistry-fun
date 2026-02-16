@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Rotation Matrix Validation</title>
+  <style>
+    body {
+      font-family: 'Consolas', monospace;
+      background: #1a1a1a;
+      color: #ddd;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 { color: #6af; }
+    .valid { color: #4f4; }
+    .invalid { color: #f44; }
+    .molecule { margin: 10px 0; padding: 10px; background: #2a2a2a; border-radius: 4px; }
+    .issue { margin-left: 20px; padding: 5px; background: #3a2020; border-left: 3px solid #f44; }
+    #summary { padding: 15px; background: #2a4a2a; border-radius: 4px; margin: 20px 0; font-size: 18px; }
+  </style>
+</head>
+<body>
+  <h1>Rotation Matrix Validation Audit</h1>
+  <div id="summary">Running validation...</div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { MOLECULES } from '../js/molecules/core.js';
+
+    function validateRotationMatrix(rot) {
+      const rows = [
+        [rot[0], rot[1], rot[2]],
+        [rot[3], rot[4], rot[5]],
+        [rot[6], rot[7], rot[8]]
+      ];
+
+      // Check orthonormality (each row is unit vector)
+      for (let i = 0; i < 3; i++) {
+        const len = Math.sqrt(rows[i][0]**2 + rows[i][1]**2 + rows[i][2]**2);
+        if (Math.abs(len - 1) > 1e-6) {
+          return { valid: false, error: `Row ${i} not normalized: ${len.toFixed(6)}` };
+        }
+      }
+
+      // Check rows are orthogonal
+      for (let i = 0; i < 3; i++) {
+        for (let j = i+1; j < 3; j++) {
+          const dot = rows[i][0]*rows[j][0] + rows[i][1]*rows[j][1] + rows[i][2]*rows[j][2];
+          if (Math.abs(dot) > 1e-6) {
+            return { valid: false, error: `Rows ${i},${j} not orthogonal: dot=${dot.toFixed(6)}` };
+          }
+        }
+      }
+
+      // Check determinant = +1 (proper rotation, not reflection)
+      const det = rot[0]*(rot[4]*rot[8] - rot[5]*rot[7])
+                - rot[1]*(rot[3]*rot[8] - rot[5]*rot[6])
+                + rot[2]*(rot[3]*rot[7] - rot[4]*rot[6]);
+      if (Math.abs(det - 1) > 1e-6) {
+        return { valid: false, error: `Determinant ${det.toFixed(4)} ≠ 1 (reflection or scaling)` };
+      }
+
+      return { valid: true };
+    }
+
+    function auditMolecule(name) {
+      const mol = MOLECULES[name];
+      const issues = [];
+
+      for (const [moName, termDefs] of mol.mos) {
+        for (let i = 0; i < termDefs.length; i++) {
+          const term = termDefs[i];
+          const [atomIdx, n, l, m, angType, coeff, rot] = term;
+
+          if (!rot || l === 0) continue;  // No rotation for s orbitals
+
+          const validation = validateRotationMatrix(rot);
+          if (!validation.valid) {
+            issues.push({
+              mo: moName,
+              termIndex: i,
+              atom: atomIdx,
+              error: validation.error
+            });
+          }
+        }
+      }
+
+      return issues;
+    }
+
+    // Run audit
+    const resultsDiv = document.getElementById('results');
+    const summaryDiv = document.getElementById('summary');
+    let totalIssues = 0;
+    let totalMolecules = 0;
+    let moleculesWithIssues = 0;
+
+    for (const name of Object.keys(MOLECULES).sort()) {
+      totalMolecules++;
+      const issues = auditMolecule(name);
+
+      if (issues.length > 0) {
+        moleculesWithIssues++;
+        const molDiv = document.createElement('div');
+        molDiv.className = 'molecule invalid';
+
+        let html = `<strong>${name}:</strong><br>`;
+        issues.forEach(iss => {
+          html += `<div class="issue">MO: ${iss.mo}, term ${iss.termIndex} (atom ${iss.atom}): ${iss.error}</div>`;
+        });
+
+        molDiv.innerHTML = html;
+        resultsDiv.appendChild(molDiv);
+        totalIssues += issues.length;
+      }
+    }
+
+    // Update summary
+    if (totalIssues === 0) {
+      summaryDiv.className = 'valid';
+      summaryDiv.innerHTML = `✓ All rotation matrices valid! (${totalMolecules} molecules checked)`;
+    } else {
+      summaryDiv.className = 'invalid';
+      summaryDiv.innerHTML = `✗ Found ${totalIssues} issues in ${moleculesWithIssues} of ${totalMolecules} molecules`;
+    }
+
+    // Also log to console
+    console.log('=== Rotation Matrix Audit ===');
+    console.log(`Total molecules: ${totalMolecules}`);
+    console.log(`Molecules with issues: ${moleculesWithIssues}`);
+    console.log(`Total issues: ${totalIssues}`);
+  </script>
+</body>
+</html>

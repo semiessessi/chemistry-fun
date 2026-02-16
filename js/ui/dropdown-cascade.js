@@ -3,6 +3,7 @@
 import { ORBITAL_TREE, ALL_ORBITALS } from '../orbitals.js';
 import { MOLECULE_LABELS, MOLECULE_CATEGORIES, getMoleculeVariants, getMoleculeCid, getMoleculeNist } from '../molecules/index.js';
 import { pubchemUrl } from '../pubchem.js';
+import { updateCitationDisplay } from './citation-display.js';
 
 export const D2_LABELS = { Atomic: 'Shell', Molecular: 'Basis', Hybrid: 'Hybridization', Molecules: 'Molecule', 'Bond Formation': 'Molecule', Transitions: 'Series', Reactions: 'Reaction' };
 export const D3_LABELS = { Atomic: 'Subshell', Molecular: 'Bond Type', Hybrid: 'Lobe', Molecules: 'Orbital / Field', 'Bond Formation': 'Orbital', Transitions: 'Transition', Reactions: 'View' };
@@ -132,6 +133,7 @@ export function onD2Change() {
 
   updateVariantDropdown(d2);
   updatePubchemLink(d2);
+  updateCitationDisplay(d2);  // Update citation sources display
   onD3Change();
 }
 

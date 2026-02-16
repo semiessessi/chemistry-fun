@@ -574,6 +574,35 @@ details.section[open] > summary { margin-bottom: 6px; }
   border-color: #6af;
   color: #6af;
 }
+/* Citation display */
+.citation-block {
+  font-size: 9px;
+  color: #888;
+  margin: 6px 0;
+  padding: 4px 6px;
+  border-left: 2px solid #6af;
+  background: rgba(100, 180, 255, 0.05);
+  line-height: 1.4;
+}
+.citation-block strong {
+  color: #aaa;
+  font-weight: 600;
+}
+.citation-block a {
+  color: #6af;
+  text-decoration: none;
+  font-weight: 500;
+}
+.citation-block a:hover {
+  text-decoration: underline;
+  color: #8cf;
+}
+#citation-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 /* Mobile / Phone */
 @media (max-width: 500px) {
   #controls { min-width: unset; width: calc(100vw - 32px); padding: 12px 14px; }
