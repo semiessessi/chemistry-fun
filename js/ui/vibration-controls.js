@@ -131,11 +131,7 @@ export function populateVibModes(moleculeName) {
   const hasSpectroData = SPECTROSCOPIC_DATA[moleculeName];
 
   if (!isMobile && vibCurrentModes.length > 0) {
-    if (hasSpectroData) {
-      vibModeSelect.value = '0';  // First mode (ground state)
-    } else {
-      vibModeSelect.value = 'random';  // Random Mix for molecules without NIST data
-    }
+    vibModeSelect.value = 'random';  // Always default to Random Mix
   }
 
   updateVibAmplitudeVisibility();
