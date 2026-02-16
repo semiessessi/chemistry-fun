@@ -16,8 +16,9 @@ export {
   buildDisplacedOrbital,
   buildDisplacedDensitySampler,
   addMol,
-  ELEMENTS,
 } from './core.js';
+
+export { ELEMENTS } from './element-data.js';
 
 // Import all molecules to trigger registration
 import './h2.js';

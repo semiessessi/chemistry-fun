@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { scene, camera, controls } from './scene.js';
 import { sampleGrid } from './grid.js';
 import { sampleGridAsync, cancelCompute } from './worker-pool.js';
-import { showBondFormingContext, clearBondFormingContext, morseEnergy,
+import { showBondFormingContext, clearBondFormingContext,
          BOND_FORMING_CONFIG, setActiveBondConfig, setContextAtomStyle,
          showBondFormingContextAtPositions, setBondCylinderOpacity,
          setContextMode, showTriatomicContext, setTriatomicBondOpacity,
@@ -17,6 +17,9 @@ import { SIM_STATE, SIM_CONFIG, stepSimulation, resetSimulation, getAtomPosition
 import { adaptiveGrid, getHalfExtent, loadOrbital, loadOrbitalAsync,
          renderFromCaches, renderFromCachesAsync,
          showProgress, hideProgress } from './render-pipeline.js';
+import { sliderToR, rToSlider, updateSepDisplay, updateDynInfo, updateDyn3Info,
+         getImpactParam, getApproachSpeed, updateDynImpactDisplay, updateDynSpeedDisplay,
+         triatomicEquilibrium, dist3, getSliderParams_export } from './dynamics-display.js';
 
 // ---- State (shared with main.js via init) ----
 
@@ -41,33 +44,6 @@ const dynSpeedDisplay = document.getElementById('dyn-speed-display');
 const dynPlayBtn = document.getElementById('dyn-play');
 const dynResetBtn = document.getElementById('dyn-reset');
 const dynInfo = document.getElementById('dyn-info');
-
-// ---- Slider-to-R mapping ----
-
-const BOHR_TO_ANGSTROM = 0.529177;
-
-function getSliderParams() {
-  const { R_EQ, R_MAX } = BOND_FORMING_CONFIG;
-  return { R_EQ, R_MAX, LOG_RATIO: Math.log(R_EQ / R_MAX) };
-}
-
-export function sliderToR(sliderValue) {
-  const { R_MAX, LOG_RATIO } = getSliderParams();
-  const t = sliderValue / 100;
-  return R_MAX * Math.exp(LOG_RATIO * t);
-}
-
-export function rToSlider(R) {
-  const { R_MAX, LOG_RATIO } = getSliderParams();
-  return Math.round(100 * Math.log(R / R_MAX) / LOG_RATIO);
-}
-
-function updateSepDisplay(R) {
-  const angstrom = R * BOHR_TO_ANGSTROM;
-  const energy = morseEnergy(R);
-  const eSign = energy < 0 ? '\u2212' : '';
-  sepDisplay.textContent = `R = ${R.toFixed(3)} a\u2080 (${angstrom.toFixed(3)} \u00C5) \u00B7 E = ${eSign}${Math.abs(energy).toFixed(3)} eV`;
-}
 
 // ---- Orientation comparison ----
 
@@ -255,94 +231,34 @@ function orientTriatomicDynGroup(positions, triConfig) {
   }
 }
 
-// ---- Info displays ----
-
-function updateDynInfo() {
-  const R = SIM_STATE.R;
-  const E = SIM_STATE.energy;
-  const angstrom = R * BOHR_TO_ANGSTROM;
-  const eSign = E < 0 ? '\u2212' : '+';
-  let status = '';
-  if (SIM_STATE.settled) status = ' [settled]';
-  else if (R < 3) status = ' [bonded]';
-  else if (SIM_STATE.running) status = ' [approaching]';
-  dynInfo.textContent = `R=${R.toFixed(2)} a\u2080 (${angstrom.toFixed(2)}\u00C5) E=${eSign}${Math.abs(E).toFixed(2)}eV${status}`;
-}
-
-function updateDyn3Info() {
-  const Rs = SIM3_STATE.R;
-  const E = SIM3_STATE.energy;
-  const eSign = E < 0 ? '\u2212' : '+';
-  let status = '';
-  if (SIM3_STATE.settled) status = ' [settled]';
-  else if (Rs.every(r => r < 5)) status = ' [bonded]';
-  else if (SIM3_STATE.running) status = ' [approaching]';
-  const rStr = Rs.map((r, i) => `R${i + 1}=${r.toFixed(2)}`).join(' ');
-  dynInfo.textContent = `${rStr} E=${eSign}${Math.abs(E).toFixed(2)}eV${status}`;
-}
-
-// ---- Dynamics slider helpers ----
-
-function getImpactParam() { return parseInt(dynImpactSlider.value) / 10; }
-function getApproachSpeed() { return parseInt(dynSpeedSlider.value) / 10; }
-
-function updateDynImpactDisplay() {
-  dynImpactDisplay.textContent = `b = ${getImpactParam().toFixed(1)} a\u2080`;
-}
-
-function updateDynSpeedDisplay() {
-  dynSpeedDisplay.textContent = `v\u2080 = ${getApproachSpeed().toFixed(1)}`;
-}
-
-// ---- Equilibrium position helpers ----
-
-export function triatomicEquilibrium(triConfig) {
-  if (triConfig.geometry === 'linear') {
-    return [
-      [0, 0, -triConfig.morse[0].R_EQ],
-      [0, 0, 0],
-      [0, 0, triConfig.morse[1].R_EQ],
-    ];
-  } else {
-    const d = triConfig.morse[0].R_EQ;
-    const halfAngle = triConfig.angle.thetaEq / 2;
-    return [
-      [d * Math.sin(halfAngle), 0, d * Math.cos(halfAngle)],
-      [0, 0, 0],
-      [-d * Math.sin(halfAngle), 0, d * Math.cos(halfAngle)],
-    ];
-  }
-}
-
-function dist3(a, b) {
-  const dx = b[0]-a[0], dy = b[1]-a[1], dz = b[2]-a[2];
-  return Math.sqrt(dx*dx + dy*dy + dz*dz);
-}
-
 // ---- Setup event listeners ----
 
 export function setupDynamicsEvents() {
   dynImpactSlider.addEventListener('input', () => {
     const s = getState();
-    updateDynImpactDisplay();
+    updateDynImpactDisplay(dynImpactSlider, dynImpactDisplay);
+    const impact = getImpactParam(dynImpactSlider);
+    const speed = getApproachSpeed(dynSpeedSlider);
     if (s.isTriatomic) {
       if (!SIM3_STATE.running)
-        reset3Simulation(s.currentBondOrbital.bondForming.triatomic, getImpactParam(), getApproachSpeed());
+        reset3Simulation(s.currentBondOrbital.bondForming.triatomic, impact, speed);
     } else {
       if (!SIM_STATE.running)
-        resetSimulation(getImpactParam(), getApproachSpeed());
+        resetSimulation(impact, speed);
     }
   });
 
   dynSpeedSlider.addEventListener('input', () => {
     const s = getState();
-    updateDynSpeedDisplay();
+    updateDynSpeedDisplay(dynSpeedSlider, dynSpeedDisplay);
+    const impact = getImpactParam(dynImpactSlider);
+    const speed = getApproachSpeed(dynSpeedSlider);
     if (s.isTriatomic) {
       if (!SIM3_STATE.running)
-        reset3Simulation(s.currentBondOrbital.bondForming.triatomic, getImpactParam(), getApproachSpeed());
+        reset3Simulation(s.currentBondOrbital.bondForming.triatomic, impact, speed);
     } else {
       if (!SIM_STATE.running)
-        resetSimulation(getImpactParam(), getApproachSpeed());
+        resetSimulation(impact, speed);
     }
   });
 
@@ -371,9 +287,11 @@ export function setupDynamicsEvents() {
       })();
     } else {
       // Start / resume
+      const impact = getImpactParam(dynImpactSlider);
+      const speed = getApproachSpeed(dynSpeedSlider);
       if (s.isTriatomic) {
         if (SIM3_STATE.settled || SIM3_STATE.frameCount === 0) {
-          reset3Simulation(s.currentBondOrbital.bondForming.triatomic, getImpactParam(), getApproachSpeed());
+          reset3Simulation(s.currentBondOrbital.bondForming.triatomic, impact, speed);
           clear3Trails(scene);
           init3Trails(scene);
           setState({ lastSampledR3: null, lastSampledOrientations3: null, dynFinalRendered: false });
@@ -381,7 +299,7 @@ export function setupDynamicsEvents() {
         SIM3_STATE.running = true;
       } else {
         if (SIM_STATE.settled || SIM_STATE.frameCount === 0) {
-          resetSimulation(getImpactParam(), getApproachSpeed());
+          resetSimulation(impact, speed);
           clearTrails(scene);
           initTrails(scene);
           setState({ lastSampledR: -1, lastSampledOrientations: null, dynFinalRendered: false });
@@ -429,7 +347,7 @@ export function setupDynamicsEvents() {
       dynInfo.textContent = '';
       const currentR = sliderToR(parseInt(sepSlider.value));
       setState({ currentR });
-      updateSepDisplay(currentR);
+      updateSepDisplay(currentR, sepDisplay);
       renderBondAtRAsync(currentR);
     }
   });
@@ -441,7 +359,7 @@ export function setupDynamicsEvents() {
     setState({ isDragging: true });
     const currentR = sliderToR(parseInt(sepSlider.value));
     setState({ currentR });
-    updateSepDisplay(currentR);
+    updateSepDisplay(currentR, sepDisplay);
     renderBondAtR(currentR, true);
   });
 
@@ -458,7 +376,7 @@ export function setupDynamicsEvents() {
     if (!s.isDragging) {
       const currentR = sliderToR(parseInt(sepSlider.value));
       setState({ currentR });
-      updateSepDisplay(currentR);
+      updateSepDisplay(currentR, sepDisplay);
       renderBondAtRAsync(currentR);
     }
   });
@@ -492,7 +410,7 @@ export function tickDynamics() {
     orientTriatomicDynGroup(positions, triConfig);
     showTriatomicContext(positions, triConfig.bonds);
     setTriatomicBondOpacity(bondDists, triConfig.morse);
-    updateDyn3Info();
+    updateDyn3Info(dynInfo);
 
     if (SIM3_STATE.settled && !s.dynFinalRendered) {
       setState({ dynFinalRendered: true });
@@ -525,10 +443,10 @@ export function tickDynamics() {
     showBondFormingContextAtPositions(a, b);
     setBondCylinderOpacity(R);
 
-    updateSepDisplay(R);
-    updateDynInfo();
+    updateSepDisplay(R, sepDisplay);
+    updateDynInfo(dynInfo);
 
-    const { R_EQ: rEq, R_MAX: rMax } = getSliderParams();
+    const { R_EQ: rEq, R_MAX: rMax } = getSliderParams_export();
     const clampedR = Math.max(rEq, Math.min(rMax, R));
     sepSlider.value = rToSlider(clampedR);
 
@@ -576,14 +494,14 @@ export async function loadBondFormingOrbital(orbital) {
 
     const currentR = sliderToR(parseInt(sepSlider.value));
     setState({ currentR });
-    updateSepDisplay(currentR);
+    updateSepDisplay(currentR, sepDisplay);
 
     await renderBondAtRAsync(currentR);
   }
 
   // Common
-  updateDynImpactDisplay();
-  updateDynSpeedDisplay();
+  updateDynImpactDisplay(dynImpactSlider, dynImpactDisplay);
+  updateDynSpeedDisplay(dynSpeedSlider, dynSpeedDisplay);
 }
 
 export function cleanupDynamicsState() {
@@ -598,4 +516,4 @@ export function cleanupDynamicsState() {
   dynInfo.textContent = '';
 }
 
-export { dynWrapper, sepWrapper, clearDynGroup };
+export { dynWrapper, sepWrapper, clearDynGroup, sliderToR, rToSlider, triatomicEquilibrium };
