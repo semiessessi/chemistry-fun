@@ -397,30 +397,35 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
     return;
   }
 
-  // Assign relative energies based on MO type (realistic spacing)
+  // 3-column layout: [labels | diagram | energies]
   const levels = [];
-  const margin = size === 'tiny' ? 8 : 12;
-  const topY = 25;
-  const botY = H - 30;
-  const lineWidth = W - 2 * margin - 20;  // Use more width
+  const topY = 20;
+  const botY = H - 20;
+
+  const labelColWidth = 45;    // Left: orbital names
+  const energyColWidth = 45;   // Right: energy values
+  const diagramColWidth = W - labelColWidth - energyColWidth - 10;  // Middle: expands to fill
+
+  const labelX = 5;
+  const lineX1 = labelColWidth + 5;
+  const lineX2 = lineX1 + diagramColWidth;
+  const energyX = lineX2 + 8;
 
   // Calculate approximate energies for realistic spacing
   const moEnergies = moList.map((mo, i) => {
     const name = mo[0].toLowerCase();
-    let relativeEnergy = i; // fallback to index
+    let relativeEnergy = i;
 
-    // Rough energy heuristic based on MO type
     if (name.includes('*') || name.includes('anti')) {
-      relativeEnergy = i + moList.length * 0.5;  // Antibonding much higher
+      relativeEnergy = i + moList.length * 0.5;
     } else if (name.includes('lone') || name.includes('lp') || name.includes('non')) {
-      relativeEnergy = i + moList.length * 0.2;  // Nonbonding slightly higher
+      relativeEnergy = i + moList.length * 0.2;
     } else if (name.includes('σ') || name.includes('sigma') || name.includes('bond')) {
-      relativeEnergy = i - moList.length * 0.1;  // Bonding lower
+      relativeEnergy = i - moList.length * 0.1;
     }
     return { name: mo[0], energy: relativeEnergy };
   });
 
-  // Normalize energies to 0-1 range
   const energies = moEnergies.map(mo => mo.energy);
   const minE = Math.min(...energies);
   const maxE = Math.max(...energies);
@@ -430,8 +435,8 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
     const moName = moList[i][0];
     const normalizedE = (moEnergies[i].energy - minE) / range;
     const y = botY - normalizedE * (botY - topY);
-    const x1 = margin + 10;
-    const x2 = x1 + lineWidth;
+    const x1 = lineX1;
+    const x2 = lineX2;
 
     // Determine MO type for coloring
     let color = COLORS.line;
@@ -467,27 +472,36 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
     ctx.shadowBlur = 0;
 
     // Electron arrows (assume all listed MOs are occupied)
-    const arrowX = x1 + lineWidth / 2;
+    const arrowX = (x1 + x2) / 2;
     drawElectronArrow(ctx, arrowX - 5, y, true);
     drawElectronArrow(ctx, arrowX + 5, y, false);
 
-    // Label with σ/π/δ type
-    ctx.fillStyle = isSelected ? COLORS.selected : '#ccc';
-    ctx.font = isSelected ? 'bold 10px sans-serif' : '10px sans-serif';
+    // LEFT COLUMN: Orbital label
+    ctx.fillStyle = isSelected ? COLORS.selected : '#bbb';
+    ctx.font = isSelected ? 'bold 9px sans-serif' : '9px sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(moName, x1 - 4, y + 4);
+    ctx.fillText(moName, labelColWidth, y + 3);
+
+    // RIGHT COLUMN: Energy value (relative, arbitrary units)
+    if (sizing.showEnergies) {
+      ctx.fillStyle = '#777';
+      ctx.font = '8px sans-serif';
+      ctx.textAlign = 'left';
+      const relE = normalizedE.toFixed(2);
+      ctx.fillText(relE, energyX, y + 3);
+    }
 
     levels.push({ moName, x1, x2, y });
   }
 
-  // Energy axis label
+  // Energy axis arrow (vertical on left)
   ctx.save();
-  ctx.translate(8, H / 2);
+  ctx.translate(labelColWidth - 2, H / 2);
   ctx.rotate(-Math.PI / 2);
-  ctx.fillStyle = '#666';
-  ctx.font = '10px sans-serif';
+  ctx.fillStyle = '#555';
+  ctx.font = '8px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('Energy \u2192', 0, 0);
+  ctx.fillText('E \u2192', 0, 0);
   ctx.restore();
 
   // Instruction text (removed molecule name - already in dropdown)
