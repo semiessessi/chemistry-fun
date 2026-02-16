@@ -46,22 +46,23 @@ export function makeAtomLabel(elem, x, y, z) {
   const textColor = elem === 'H' ? '#000000' : '#ffffff';
   const strokeColor = elem === 'H' ? '#ffffff' : '#000000';
 
+  // 4x resolution for crisp labels
   const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 64;
+  canvas.width = 256;
+  canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  ctx.font = 'bold 22px sans-serif';
+  ctx.font = 'bold 88px sans-serif';  // 22 * 4
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Draw stroke (outline) for better contrast
+  // Draw stroke (outline) for better contrast - scaled to 4x
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = elem === 'H' ? 1.0 : 1.5;  // Subtler outline for H
-  ctx.strokeText(elem, 32, 32);
+  ctx.lineWidth = elem === 'H' ? 4.0 : 6.0;  // 4x resolution, proportionally fatter
+  ctx.strokeText(elem, 128, 128);  // Center: 32 * 4
 
   // Draw fill
   ctx.fillStyle = textColor;
-  ctx.fillText(elem, 32, 32);
+  ctx.fillText(elem, 128, 128);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
