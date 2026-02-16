@@ -255,13 +255,17 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect, size =
         ctx.textAlign = 'left';
         ctx.fillText(capacityLabel, labelX + labelW / 2 + 1, y - 7);
 
-        // Energy value in large mode
-        if (sizing.showEnergies && l === 0) {  // Only show once per n
+        // Energy value (only show in large mode or for selected orbital in normal mode)
+        const showThisEnergy = l === 0 && (
+          size === 'large' || (isSelected && size !== 'tiny')
+        );
+        if (sizing.showEnergies && showThisEnergy) {
           ctx.font = `${labelFontSize}px sans-serif`;
-          ctx.fillStyle = '#999';
+          ctx.fillStyle = isSelected ? COLORS.selected : '#777';
           ctx.textAlign = 'right';
           const energy = eBase;
-          ctx.fillText(`${energy.toFixed(2)} eV`, W - 12, y + 3);
+          // Position further right and slightly below to avoid overlap
+          ctx.fillText(`${energy.toFixed(2)} eV`, W - 8, y + 4);
         }
       }
 
@@ -393,17 +397,40 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
     return;
   }
 
-  // Assign relative energies from MO ordering (lowest index = lowest energy)
+  // Assign relative energies based on MO type (realistic spacing)
   const levels = [];
-  const margin = size === 'tiny' ? 10 : 15;
+  const margin = size === 'tiny' ? 8 : 12;
   const topY = 25;
   const botY = H - 30;
-  const lineWidth = W - 2 * margin - 40;
+  const lineWidth = W - 2 * margin - 20;  // Use more width
+
+  // Calculate approximate energies for realistic spacing
+  const moEnergies = moList.map((mo, i) => {
+    const name = mo[0].toLowerCase();
+    let relativeEnergy = i; // fallback to index
+
+    // Rough energy heuristic based on MO type
+    if (name.includes('*') || name.includes('anti')) {
+      relativeEnergy = i + moList.length * 0.5;  // Antibonding much higher
+    } else if (name.includes('lone') || name.includes('lp') || name.includes('non')) {
+      relativeEnergy = i + moList.length * 0.2;  // Nonbonding slightly higher
+    } else if (name.includes('σ') || name.includes('sigma') || name.includes('bond')) {
+      relativeEnergy = i - moList.length * 0.1;  // Bonding lower
+    }
+    return { name: mo[0], energy: relativeEnergy };
+  });
+
+  // Normalize energies to 0-1 range
+  const energies = moEnergies.map(mo => mo.energy);
+  const minE = Math.min(...energies);
+  const maxE = Math.max(...energies);
+  const range = maxE - minE || 1;
 
   for (let i = 0; i < moList.length; i++) {
     const moName = moList[i][0];
-    const y = botY - (i / Math.max(1, moList.length - 1)) * (botY - topY);
-    const x1 = margin + 20;
+    const normalizedE = (moEnergies[i].energy - minE) / range;
+    const y = botY - normalizedE * (botY - topY);
+    const x1 = margin + 10;
     const x2 = x1 + lineWidth;
 
     // Determine MO type for coloring
@@ -463,15 +490,11 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
   ctx.fillText('Energy \u2192', 0, 0);
   ctx.restore();
 
-  // Title
-  ctx.fillStyle = '#888';
-  ctx.font = '11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(moleculeName, W / 2, H - 8);
-
+  // Instruction text (removed molecule name - already in dropdown)
   ctx.fillStyle = '#555';
   ctx.font = '8px sans-serif';
-  ctx.fillText('click a level to view orbital', W / 2, H - 20);
+  ctx.textAlign = 'center';
+  ctx.fillText('click level to select', W / 2, H - 8);
 
   // Click handler
   canvas.addEventListener('click', (e) => {
