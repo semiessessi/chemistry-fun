@@ -91,14 +91,15 @@ export function makeLabel(text, position, fontSize, color) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
 
-  // Dual-pass rendering: 50% behind + 50% in front
+  // Dual-pass rendering: 50% behind + 50% on top with alpha blending
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),
       transparent: true,
       opacity: 0.5,
       depthTest: true,
-      depthWrite: false  // Don't write to depth buffer (prevents square artifacts)
+      depthWrite: false, // Don't write to depth buffer (prevents square artifacts)
+      blending: THREE.NormalBlending
     })
   );
 
@@ -108,7 +109,8 @@ export function makeLabel(text, position, fontSize, color) {
       transparent: true,
       opacity: 0.5,
       depthTest: false,
-      depthWrite: false  // Don't write to depth buffer
+      depthWrite: false, // Don't write to depth buffer
+      blending: THREE.NormalBlending  // Alpha blending: black darkens, white lightens
     })
   );
 

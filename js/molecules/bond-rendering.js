@@ -66,14 +66,15 @@ export function makeAtomLabel(elem, x, y, z) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
 
-  // Dual-pass rendering: 50% behind + 50% in front = 100% visible, 50% when occluded
+  // Dual-pass rendering: 50% behind + 50% on top with alpha blending
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),
       transparent: true,
       opacity: 0.5,
       depthTest: true,   // Gets occluded by geometry
-      depthWrite: false  // Don't write to depth buffer (prevents square artifacts)
+      depthWrite: false, // Don't write to depth buffer (prevents square artifacts)
+      blending: THREE.NormalBlending
     })
   );
 
@@ -83,7 +84,8 @@ export function makeAtomLabel(elem, x, y, z) {
       transparent: true,
       opacity: 0.5,
       depthTest: false,  // Always on top
-      depthWrite: false  // Don't write to depth buffer
+      depthWrite: false, // Don't write to depth buffer
+      blending: THREE.NormalBlending  // Alpha blending: black darkens, white lightens
     })
   );
 
