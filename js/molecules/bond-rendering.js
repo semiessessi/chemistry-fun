@@ -51,7 +51,7 @@ export function makeAtomLabel(elem, x, y, z) {
   canvas.width = 256;
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  ctx.font = 'bold 88px sans-serif';  // 22 * 4
+  ctx.font = '88px sans-serif';  // 22 * 4, not bold
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
