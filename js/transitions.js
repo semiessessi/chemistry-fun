@@ -9,6 +9,7 @@ import { sampleGrid, computeMultiThresholds } from './grid.js';
 import { getLayerMaterials } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
 import { scene } from './scene.js';
+import { BaseFrameController } from './controllers/base-frame-controller.js';
 
 const NUM_FRAMES = 24;
 const RYDBERG = 13.605693122994; // Rydberg constant in eV
@@ -98,7 +99,7 @@ function buildFrameMeshes(group, data, layers, colorMode, gs, he) {
   };
 
   const isDensityLike = colorMode === 'density';
-  const thresholds = computeMultiThresholds(data, layers, isDensityLike ? 0.95 : 0.9, he, gs);
+  const thresholds = computeMultiThresholds(data, isDensityLike ? 0.95 : 0.9, layers, he, gs);
   addMeshes(data, thresholds, mats.pos);
 
   if (!isDensityLike) {
@@ -110,58 +111,13 @@ function buildFrameMeshes(group, data, layers, colorMode, gs, he) {
 
 // ---- TransitionController class ----
 
-export class TransitionController {
+export class TransitionController extends BaseFrameController {
   constructor() {
-    this.state = 'idle';  // idle | building | ready | playing
-    this.generation = 0;
-    this.frames = [];
-    this.framesReady = 0;
-    this.phase = 0;
-    this.speed = 1;
-    this.lastFrameIdx = -1;
+    super();  // Call base constructor
+    // Transition-specific properties
     this.transition = null;
     this.orbital1 = null;
     this.orbital2 = null;
-  }
-
-  cancel() {
-    this.generation++;
-    if (this.state === 'playing') this.pause();
-    this.disposeCache();
-    this.state = 'idle';
-  }
-
-  pause() {
-    if (this.state === 'playing') {
-      this.state = 'ready';
-      if (this.lastFrameIdx >= 0 && this.frames[this.lastFrameIdx]) {
-        this.frames[this.lastFrameIdx].group.visible = false;
-      }
-    }
-  }
-
-  play() {
-    if (this.state === 'ready') {
-      this.state = 'playing';
-    }
-  }
-
-  disposeCache() {
-    for (const frame of this.frames) {
-      if (frame && frame.group) {
-        if (frame.group.parent) frame.group.parent.remove(frame.group);
-        frame.group.traverse(child => {
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) {
-            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-            else child.material.dispose();
-          }
-        });
-      }
-    }
-    this.frames = [];
-    this.framesReady = 0;
-    this.lastFrameIdx = -1;
   }
 
   async buildFrameCache(settings, onFrameReady, onComplete) {
@@ -262,27 +218,5 @@ export class TransitionController {
       this.state = 'ready';
       if (onComplete) onComplete();
     }
-  }
-
-  tick(dt) {
-    if (this.state !== 'playing' || this.frames.length < NUM_FRAMES) return false;
-
-    this.phase += this.speed * dt;
-    if (this.phase >= 2 * Math.PI) this.phase -= 2 * Math.PI;
-    if (this.phase < 0) this.phase += 2 * Math.PI;
-
-    const frameIdx = Math.floor((this.phase / (2 * Math.PI)) * NUM_FRAMES) % NUM_FRAMES;
-
-    if (frameIdx !== this.lastFrameIdx) {
-      if (this.lastFrameIdx >= 0 && this.frames[this.lastFrameIdx]) {
-        this.frames[this.lastFrameIdx].group.visible = false;
-      }
-      if (this.frames[frameIdx]) {
-        this.frames[frameIdx].group.visible = true;
-      }
-      this.lastFrameIdx = frameIdx;
-      return true;
-    }
-    return false;
   }
 }

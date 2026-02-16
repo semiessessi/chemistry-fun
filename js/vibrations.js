@@ -12,6 +12,7 @@ import { getMoleculeData, buildDisplacedDensitySampler, buildDisplacedOrbital, g
 import { scene } from './scene.js';
 import { buildFieldVisIntoGroup } from './electric-field.js';
 import { computeChargeDensity } from './electrostatic-potential.js';
+import { BaseFrameController } from './controllers/base-frame-controller.js';
 
 const NUM_FRAMES = 24;
 
@@ -252,44 +253,16 @@ export function generateVibrationalModes(moleculeName) {
 
 // ---- Vibration Controller ----
 
-export class VibrationController {
+export class VibrationController extends BaseFrameController {
   constructor() {
-    this.state = 'idle';  // idle | building | ready | playing
-    this.generation = 0;
-    this.frames = [];
-    this.framesReady = 0;
-    this.phase = 0;
-    this.speed = 1;
-    this.lastFrameIdx = -1;
+    super();  // Call base constructor
+    // Vibration-specific properties
     this.cachedDisplacements = [];
     this.currentMode = null;
     this.mixModes = null; // [{mode, weight, phaseOffset}, ...] for random mix
     this.amplitude = 0.3;
     this.moleculeName = null;
     this.hasFieldVis = false; // whether cached frames include field vis
-  }
-
-  cancel() {
-    this.generation++;
-    if (this.state === 'playing') this.pause();
-    this.disposeCache();
-    this.state = 'idle';
-  }
-
-  pause() {
-    if (this.state === 'playing') {
-      this.state = 'ready';
-      // Hide current frame
-      if (this.lastFrameIdx >= 0 && this.frames[this.lastFrameIdx]) {
-        this.frames[this.lastFrameIdx].group.visible = false;
-      }
-    }
-  }
-
-  play() {
-    if (this.state === 'ready') {
-      this.state = 'playing';
-    }
   }
 
   setFieldVisVisible(visible) {
@@ -315,21 +288,9 @@ export class VibrationController {
   }
 
   disposeCache() {
-    for (const frame of this.frames) {
-      if (frame && frame.group) {
-        if (frame.group.parent) frame.group.parent.remove(frame.group);
-        frame.group.traverse(child => {
-          if (child.geometry) child.geometry.dispose();
-          if (child.material) {
-            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
-            else child.material.dispose();
-          }
-        });
-      }
-    }
-    this.frames = [];
-    this.framesReady = 0;
-    this.lastFrameIdx = -1;
+    // Call base class dispose
+    super.disposeCache();
+    // Clear vibration-specific cached data
     this.cachedDisplacements = [];
   }
 
