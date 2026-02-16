@@ -13,7 +13,7 @@ import { showMoleculeContext, clearMoleculeContext, setMoleculeContextVisible,
 import { fetchPubChem, pubchemUrl, pubchemCitation, formatFormula } from './pubchem.js';
 import { BOND_FORMING_CONFIG, clearBondFormingContext,
          setBondFormingContextVisible } from './bond-forming.js';
-import { clearFieldVis, purgeFieldCache, setFieldVisVisible, setFieldMode, setFieldSource, getFieldSource, tickFieldAnimation } from './electric-field.js';
+import { clearFieldVis, purgeFieldCache, setFieldVisVisible, hasFieldGroup, setFieldMode, setFieldSource, getFieldSource, tickFieldAnimation } from './electric-field.js';
 import { computeElectrostaticPotential, computeChargeDensity } from './electrostatic-potential.js';
 import { SIM_STATE, SIM3_STATE } from './dynamics.js';
 import { initRenderPipeline, adaptiveGrid, getHalfExtent, loadOrbital, loadOrbitalAsync,
@@ -215,15 +215,10 @@ function applyBallStickVisibility() {
 function applyDensityFieldVisibility() {
   for (const m of currentMeshes) m.visible = showDensityField;
   if (dynOrbitalGroup) dynOrbitalGroup.visible = showDensityField;
-  // Also apply to vibration frames during playback
-  if (vibController.state === 'playing') {
-    for (const frame of vibController.frames) {
-      if (frame && frame.group) frame.group.visible = false;
-    }
-    if (showDensityField && vibController.lastFrameIdx >= 0 &&
-        vibController.frames[vibController.lastFrameIdx]) {
-      vibController.frames[vibController.lastFrameIdx].group.visible = true;
-    }
+  // Toggle density sub-group visibility in vibration frames independently
+  // (field vis sub-group stays unaffected)
+  if (vibController.state === 'playing' || vibController.state === 'ready') {
+    vibController.setDensityVisible(showDensityField);
   }
 }
 
@@ -859,12 +854,26 @@ fieldVisToggle.addEventListener('change', () => {
   showFieldVis = fieldVisToggle.checked;
   if (showFieldVis) {
     fieldOptions.classList.remove('dropdown-hidden');
-    rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
+    if (isVibActive()) {
+      // During vibration, only toggle per-frame field vis (static stays hidden)
+      if (!vibController.hasFieldVis) {
+        rebuildVibIfActive();
+      } else {
+        vibController.setFieldVisVisible(true);
+      }
+    } else {
+      // Not in vibration — show/build static field vis
+      if (hasFieldGroup()) {
+        setFieldVisVisible(true);
+      } else {
+        rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
+      }
+    }
   } else {
     fieldOptions.classList.add('dropdown-hidden');
-    clearFieldVis();
+    setFieldVisVisible(false);
+    vibController.setFieldVisVisible(false);
   }
-  rebuildVibIfActive();
   updateShareLink();
 });
 
@@ -977,7 +986,13 @@ function cancelVibration() {
 function restoreStaticMeshes() {
   if (vibStaticMeshesHidden) {
     for (const m of currentMeshes) m.visible = showDensityField;
-    if (showFieldVis) setFieldVisVisible(true);
+    if (showFieldVis) {
+      if (hasFieldGroup()) {
+        setFieldVisVisible(true);
+      } else {
+        rebuildFieldVis(isDynamics && dynOrbitalGroup ? dynOrbitalGroup : undefined, getCurrentAtomInfo);
+      }
+    }
     vibStaticMeshesHidden = false;
     // Re-sync opacity and legend so static view matches current settings
     updateOrbitalOpacity();
@@ -1384,14 +1399,10 @@ function animate() {
 
   tickDynamics();
   tickFieldAnimation(dt);
+  vibController.tickFieldAnimation(dt);
   const vibFrameChanged = vibController.tick(dt * 3);
   transitionController.tick(dt * 2);
   if (vibFrameChanged && vibController.moleculeName) {
-    // Hide frame if density field toggle is off
-    if (!showDensityField && vibController.lastFrameIdx >= 0 &&
-        vibController.frames[vibController.lastFrameIdx]) {
-      vibController.frames[vibController.lastFrameIdx].group.visible = false;
-    }
     const disps = vibController.interpolatedDisplacements();
     if (disps) updateMoleculeContextPositions(vibController.moleculeName, disps);
   }

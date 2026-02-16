@@ -292,6 +292,28 @@ export class VibrationController {
     }
   }
 
+  setFieldVisVisible(visible) {
+    for (const frame of this.frames) {
+      if (frame && frame.fieldGroup) frame.fieldGroup.visible = visible;
+    }
+  }
+
+  setDensityVisible(visible) {
+    for (const frame of this.frames) {
+      if (frame && frame.densityGroup) frame.densityGroup.visible = visible;
+    }
+  }
+
+  tickFieldAnimation(dt) {
+    for (const frame of this.frames) {
+      if (frame && frame.fieldMats) {
+        for (const mat of frame.fieldMats) {
+          mat.uniforms.uTime.value += dt;
+        }
+      }
+    }
+  }
+
   disposeCache() {
     for (const frame of this.frames) {
       if (frame && frame.group) {
@@ -393,6 +415,8 @@ export class VibrationController {
 
       // Build marching cubes layers
       const group = new THREE.Group();
+      const densityGroup = new THREE.Group();
+      group.add(densityGroup);
       const mats = getLayerMaterials(layers, colorMode);
       const step = (2 * he) / (gs - 1);
 
@@ -413,7 +437,7 @@ export class VibrationController {
             const matIdx = layers - 1 - li;
             const mesh = new THREE.Mesh(geo, matArr[matIdx]);
             mesh.renderOrder = li;
-            group.add(mesh);
+            densityGroup.add(mesh);
           }
         }
       };
@@ -453,8 +477,12 @@ export class VibrationController {
         }
       }
 
-      // Build field vis (arrows/streamlines) with consistent positions
+      // Build field vis (arrows/streamlines) into a separate sub-group
+      // so visibility can be toggled without rebuilding frames
+      let fieldSubGroup = null;
+      let fieldMats = [];
       if (showFieldVis) {
+        fieldSubGroup = new THREE.Group();
         let displacedAtomInfo = null;
         if (atomInfo) {
           displacedAtomInfo = atomInfo.map((a, ai) => ({
@@ -464,10 +492,14 @@ export class VibrationController {
             z: a.z + displacements[ai][2],
           }));
         }
-        const layout = buildFieldVisIntoGroup(group,
+        const result = buildFieldVisIntoGroup(fieldSubGroup,
           [{ data, halfExtent: he, gridSize: gs }],
           probability, displacedAtomInfo, fieldLayout);
-        if (!fieldLayout && layout) fieldLayout = layout; // capture from frame 0
+        if (result) {
+          if (!fieldLayout && result.layout) fieldLayout = result.layout;
+          fieldMats = result.materials || [];
+        }
+        group.add(fieldSubGroup);
       }
 
       if (stale()) {
@@ -480,7 +512,7 @@ export class VibrationController {
       scene.add(group);
       group.visible = false;
 
-      this.frames[i] = { group, caches: [{ data, halfExtent: he, gridSize: gs }] };
+      this.frames[i] = { group, densityGroup, fieldGroup: fieldSubGroup, fieldMats, caches: [{ data, halfExtent: he, gridSize: gs }] };
       this.framesReady = i + 1;
 
       if (onFrameReady) onFrameReady(i, NUM_FRAMES);

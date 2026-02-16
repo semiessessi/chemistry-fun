@@ -391,7 +391,7 @@ function createArrowMeshes(arrows, maxMag, step, stride, parent, potentialGrid, 
 
 // ---- Streamline mesh + direction cones with optional potential coloring ----
 
-function createStreamlineMesh(pts, parent, coneDatas, potentialGrid, gs, he) {
+function createStreamlineMesh(pts, parent, coneDatas, potentialGrid, gs, he, materialsOut) {
   if (pts.length < 4) return null;
   const vectors = pts.map(p => new THREE.Vector3(p[0], p[1], p[2]));
   const curve = new THREE.CatmullRomCurve3(vectors);
@@ -450,7 +450,7 @@ function createStreamlineMesh(pts, parent, coneDatas, potentialGrid, gs, he) {
     side: THREE.DoubleSide,
   });
 
-  streamlineMaterials.push(mat);
+  (materialsOut || streamlineMaterials).push(mat);
 
   const mesh = new THREE.Mesh(tubeGeo, mat);
   parent.add(mesh);
@@ -622,6 +622,7 @@ export function buildFieldVisIntoGroup(group, caches, probability, atomInfo, ref
   const isElectrostatic = currentSource === 'electrostatic';
   const isMagnetic = currentSource === 'magnetic';
   const newLayout = refLayout ? null : {};
+  const localMats = [];  // track streamline materials for this group
 
   for (const c of caches) {
     const gs = c.gridSize;
@@ -688,14 +689,14 @@ export function buildFieldVisIntoGroup(group, caches, probability, atomInfo, ref
         const bwd = integrateStreamline(grad, gs, he, step, s.x, s.y, s.z, maxSteps, dt, -1);
         bwd.reverse();
         const allPts = bwd.concat(fwd.slice(1));
-        createStreamlineMesh(allPts, group, coneDatas, null, gs, he);
+        createStreamlineMesh(allPts, group, coneDatas, null, gs, he, localMats);
       }
 
       createDirectionCones(coneDatas, group, false);
     }
   }
 
-  return newLayout;
+  return { layout: newLayout, materials: localMats };
 }
 
 // ---- Public API ----
@@ -845,6 +846,8 @@ export function purgeFieldCache() {
 export function setFieldVisVisible(visible) {
   if (fieldGroup) fieldGroup.visible = visible;
 }
+
+export function hasFieldGroup() { return fieldGroup != null; }
 
 export function setFieldMode(mode) { currentMode = mode; }
 export function setFieldSource(source) { currentSource = source; }
