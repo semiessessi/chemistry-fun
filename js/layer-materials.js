@@ -12,22 +12,22 @@ function hslToHex(h, s, l) {
 }
 
 // t^32 via repeated squaring (5 multiplies)
-function pow32(t) {
+function powerRamp(t) {
   const t2 = t * t;
   const t4 = t2 * t2;
   const t8 = t4 * t4;
   const t16 = t8 * t8;
-  return t16 * t16;
+  return t8;
 }
 
 // Orbital wavefunction ramps (t: 0=inner, 1=outer)
 function redRamp(t) {
-  const c = pow32(t);
+  const c = powerRamp(t);
   return hslToHex(0, 80 - 30 * c, 40 + 40 * c);
 }
 
 function blueRamp(t) {
-  const c = pow32(t);
+  const c = powerRamp(t);
   return hslToHex(225, 75 - 30 * c, 40 + 40 * c);
 }
 
@@ -57,12 +57,12 @@ function elevationOpacity(t) {
 
 // Charge density ramps (t: 0=inner, 1=outer)
 function chargeRedRamp(t) {
-  const c = pow32(t);
+  const c = powerRamp(t);
   return hslToHex(0, 80 * (1 - c), 40 + 60 * c);
 }
 
 function chargeBlueRamp(t) {
-  const c = pow32(t);
+  const c = powerRamp(t);
   return hslToHex(225, 75 * (1 - c), 40 + 60 * c);
 }
 
