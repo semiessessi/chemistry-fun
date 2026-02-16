@@ -19,3 +19,12 @@ node_modules/
 *.log
 .serena
 .playwright-mcp
+
+# Screenshots and temp images
+*.png
+
+# Backup files
+*-old.js
+
+# Utility scripts
+update-*.mjs
