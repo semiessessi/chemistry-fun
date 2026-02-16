@@ -28,17 +28,32 @@ const SUBSHELL_CAPACITY = [2, 6, 10, 14];
 
 function getSizingParams(size, moCount = 0, containerWidth = 210) {
   switch (size) {
+    case 'collapsed':
+      return {
+        width: Math.max(160, containerWidth - 8),
+        height: 24,  // Single horizontal bar
+        fontSize: 9,
+        labelFontSize: 8,
+        showLabels: true,
+        showEnergies: true,  // Show current orbital energy in bar
+        showCitations: false,
+        lineHeight: 8,
+        margin: 8,
+        compact: true,
+        isCollapsed: true
+      };
+
     case 'tiny':
       return {
-        width: 120,
-        height: 60,
-        fontSize: 8,
-        labelFontSize: 7,
-        showLabels: false,  // Only show diagram, minimal text
-        showEnergies: false,
+        width: Math.max(140, containerWidth - 8),
+        height: moCount ? Math.min(120, moCount * 12 + 40) : 100,
+        fontSize: 9,
+        labelFontSize: 8,
+        showLabels: true,  // Show labels in tiny mode
+        showEnergies: true,  // Show energies in tiny mode
         showCitations: false,
-        lineHeight: 6,
-        margin: 20,
+        lineHeight: 8,
+        margin: 22,
         compact: true
       };
 
@@ -63,7 +78,7 @@ function getSizingParams(size, moCount = 0, containerWidth = 210) {
         fontSize: 11,
         labelFontSize: 10,
         showLabels: true,
-        showEnergies: false,
+        showEnergies: true,  // Now show energies in normal mode too
         showCitations: false,
         lineHeight: 14,
         margin: 38,
@@ -97,6 +112,27 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect, size =
   bgGrad.addColorStop(1, 'rgba(0,0,0,0.65)');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
+
+  // Collapsed mode: single horizontal bar with selected orbital info
+  if (sizing.isCollapsed) {
+    ctx.fillStyle = COLORS.label;
+    ctx.font = `${sizing.fontSize}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const y = H / 2;
+
+    if (selectedOrbital && selectedOrbital.d1 === 'Atomic') {
+      const n = parseInt(selectedOrbital.d2.replace('n=', ''));
+      const l = selectedOrbital.d3;
+      const energy = -13.6 / (n * n);
+      const label = `${n}${l}`;
+      ctx.fillStyle = COLORS.selected;
+      ctx.fillText(`${label}: ${energy.toFixed(2)} eV`, 10, y);
+    } else {
+      ctx.fillText('Hydrogen Energy Levels', 10, y);
+    }
+    return;
+  }
 
   // Use sizing params
   const compact = sizing.compact;
@@ -278,6 +314,23 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
+  // Collapsed mode: single horizontal bar with selected MO info
+  if (sizing.isCollapsed) {
+    ctx.fillStyle = COLORS.label;
+    ctx.font = `${sizing.fontSize}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const y = H / 2;
+
+    if (selectedOrbital && selectedOrbital.d3) {
+      ctx.fillStyle = COLORS.selected;
+      ctx.fillText(`${moleculeName}: ${selectedOrbital.d3}`, 10, y);
+    } else {
+      ctx.fillText(`${moleculeName} Molecular Orbitals`, 10, y);
+    }
+    return;
+  }
+
   // Assign relative energies from MO ordering (lowest index = lowest energy)
   const levels = [];
   const margin = size === 'tiny' ? 10 : 15;
@@ -397,6 +450,24 @@ export function renderDiatomicDiagram(container, selectedOrbital, onSelect, size
   bgGrad.addColorStop(1, 'rgba(0,0,0,0.65)');
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
+
+  // Collapsed mode: single horizontal bar with selected MO info
+  if (sizing.isCollapsed) {
+    ctx.fillStyle = COLORS.label;
+    ctx.font = `${sizing.fontSize}px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const y = H / 2;
+
+    if (selectedOrbital && selectedOrbital.d3) {
+      ctx.fillStyle = COLORS.selected;
+      const label = `${selectedOrbital.d2} ${selectedOrbital.d3}`;
+      ctx.fillText(`Diatomic: ${label}`, 10, y);
+    } else {
+      ctx.fillText('Diatomic MO Diagram', 10, y);
+    }
+    return;
+  }
 
   // Standard diatomic MO ordering (bottom to top = low to high energy)
   const moLevels = [

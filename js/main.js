@@ -137,7 +137,7 @@ let showBallAndStick = ballStickToggle.checked;
 let showDensityField = densityFieldToggle.checked;
 let showFieldVis = true;  // Enable vector field by default
 let fieldStyle = 'streamlines';  // Default to streamlines only
-let energyDiagramSize = 'normal';  // 'tiny' | 'normal' | 'large'
+let energyDiagramSize = isMobile ? 'collapsed' : 'normal';  // Mobile gets collapsed, desktop gets normal
 
 let vibStaticMeshesHidden = false;
 let chargeCache = null;
@@ -668,6 +668,11 @@ fieldStyleSelect.value = 'streamlines';
 fieldOptions.classList.remove('dropdown-hidden');
 
 // ---- Energy diagram size controls ----
+document.getElementById('diagram-collapsed-btn').addEventListener('click', () => {
+  energyDiagramSize = 'collapsed';
+  localStorage.setItem('energyDiagramSize', 'collapsed');
+  updateEnergyDiagram();
+});
 document.getElementById('diagram-tiny-btn').addEventListener('click', () => {
   energyDiagramSize = 'tiny';
   localStorage.setItem('energyDiagramSize', 'tiny');
@@ -686,7 +691,7 @@ document.getElementById('diagram-large-btn').addEventListener('click', () => {
 
 // Restore energy diagram size preference
 const savedSize = localStorage.getItem('energyDiagramSize');
-if (savedSize && ['tiny', 'normal', 'large'].includes(savedSize)) {
+if (savedSize && ['collapsed', 'tiny', 'normal', 'large'].includes(savedSize)) {
   energyDiagramSize = savedSize;
 }
 
