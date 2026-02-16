@@ -91,14 +91,17 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
 
-  // Dual-pass rendering: faint base + faintest punchthrough
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+
+  // Dual-layer for grid labels - base layer should get occluded
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),
       transparent: true,
-      opacity: 0.35,  // Subtle grid labels
-      depthTest: true,
-      depthWrite: false, // Don't write to depth buffer (prevents square artifacts)
+      opacity: 0.35,  // Base layer
+      depthTest: true,  // Should get occluded by orbitals!
+      depthWrite: false,
       blending: THREE.NormalBlending
     })
   );
@@ -107,10 +110,10 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
     new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      opacity: 0.08,  // Minimal punchthrough for grid numbers
-      depthTest: true,  // Grid numbers get occluded by orbitals too!
-      depthWrite: false, // Don't write to depth buffer
-      blending: THREE.NormalBlending  // Alpha blending: black darkens, white lightens
+      opacity: 0.0,  // SET TO ZERO FOR TESTING
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.NormalBlending
     })
   );
 
@@ -119,9 +122,9 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
   baseLayer.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
   additiveLayer.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
 
-  // Render order: base EARLY (gets occluded), additive LATE (punches through)
-  baseLayer.renderOrder = 100;  // Low = renders first
-  additiveLayer.renderOrder = 2000;  // High = renders last
+  // Render order: base EARLY (should get occluded)
+  baseLayer.renderOrder = 100;
+  additiveLayer.renderOrder = 2000;
 
   scene.add(baseLayer, additiveLayer);
 
@@ -131,7 +134,7 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
     additiveLayer,
     position: position.clone(),
     baseScale: [...LABEL_BASE_SCALE],
-    axisInfo  // Store axis info for smart positioning (e.g., {axis: 'x', value: 5})
+    axisInfo
   };
 
   labelSprites.push(label);
