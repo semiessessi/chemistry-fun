@@ -56,7 +56,7 @@ export function makeAtomLabel(elem, x, y, z) {
 
   // Draw stroke (outline) for better contrast
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = elem === 'H' ? 1.0 : 1.5;  // Subtler outline for H
   ctx.strokeText(elem, 32, 32);
 
   // Draw fill

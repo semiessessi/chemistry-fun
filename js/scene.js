@@ -148,13 +148,18 @@ export function updateLabelScales() {
         updateGridLabelPosition(label, camera);
       }
 
-      // Update scale based on distance
+      // Update scale and render order based on distance
       const dist = camPos.distanceTo(label.position);
       const s = dist / LABEL_REF_DIST;
       const scaleX = label.baseScale[0] * s;
       const scaleY = label.baseScale[1] * s;
       label.baseLayer.scale.set(scaleX, scaleY, 1);
       label.additiveLayer.scale.set(scaleX, scaleY, 1);
+
+      // Sort by distance: further objects render first (lower renderOrder)
+      const renderOrder = Math.floor(1000 + dist * 10);
+      label.baseLayer.renderOrder = renderOrder;
+      label.additiveLayer.renderOrder = renderOrder + 1000;  // Additive always after base
     } else if (label.scale) {
       // Legacy single sprite fallback
       const dist = camPos.distanceTo(label.position);
