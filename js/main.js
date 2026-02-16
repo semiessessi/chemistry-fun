@@ -29,6 +29,7 @@ import { computeELF } from './elf.js';
 import { MixerController, COMPONENTS, PRESETS } from './orbital-mixer.js';
 import { ReactionController } from './reactions.js';
 import { initPanelPersistence } from './ui/panel-persistence.js';
+import { createSliderWithDisplay } from './ui/slider-helpers.js';
 
 // ---- Dropdown elements ----
 const d1Select = document.getElementById('d1-select');
@@ -1439,42 +1440,42 @@ rxnPlayBtn.addEventListener('click', () => {
 });
 
 // Impact parameter slider: update display on input, rebuild on change
-rxnImpactSlider.addEventListener('input', () => {
-  const val = parseInt(rxnImpactSlider.value) / 10;
-  rxnImpactDisplay.textContent = `b = ${val.toFixed(1)} a\u2080`;
-});
-rxnImpactSlider.addEventListener('change', () => {
-  const orbital = getSelectedOrbital();
-  if (orbital && orbital.isReaction) {
-    cancelReaction();
-    startReactionBuild(orbital, true);
-  }
+createSliderWithDisplay(rxnImpactSlider, rxnImpactDisplay, {
+  parse: (v) => parseInt(v) / 10,
+  format: (v) => `b = ${v.toFixed(1)} a\u2080`,
+  onChange: () => {
+    const orbital = getSelectedOrbital();
+    if (orbital && orbital.isReaction) {
+      cancelReaction();
+      startReactionBuild(orbital, true);
+    }
+  },
 });
 
 // Approach speed slider: update display on input, rebuild on change
-rxnSpeedSlider.addEventListener('input', () => {
-  const val = parseInt(rxnSpeedSlider.value) / 10;
-  rxnSpeedDisplay.textContent = `v\u2080 = ${val.toFixed(1)}`;
-});
-rxnSpeedSlider.addEventListener('change', () => {
-  const orbital = getSelectedOrbital();
-  if (orbital && orbital.isReaction) {
-    cancelReaction();
-    startReactionBuild(orbital, true);
-  }
+createSliderWithDisplay(rxnSpeedSlider, rxnSpeedDisplay, {
+  parse: (v) => parseInt(v) / 10,
+  format: (v) => `v\u2080 = ${v.toFixed(1)}`,
+  onChange: () => {
+    const orbital = getSelectedOrbital();
+    if (orbital && orbital.isReaction) {
+      cancelReaction();
+      startReactionBuild(orbital, true);
+    }
+  },
 });
 
 // Approach angle slider: update display on input, rebuild on change
-rxnAngleSlider.addEventListener('input', () => {
-  const val = parseInt(rxnAngleSlider.value);
-  rxnAngleDisplay.textContent = `\u03B8 = ${val}\u00B0`;
-});
-rxnAngleSlider.addEventListener('change', () => {
-  const orbital = getSelectedOrbital();
-  if (orbital && orbital.isReaction) {
-    cancelReaction();
-    startReactionBuild(orbital, true);
-  }
+createSliderWithDisplay(rxnAngleSlider, rxnAngleDisplay, {
+  parse: (v) => parseInt(v),
+  format: (v) => `\u03B8 = ${v}\u00B0`,
+  onChange: () => {
+    const orbital = getSelectedOrbital();
+    if (orbital && orbital.isReaction) {
+      cancelReaction();
+      startReactionBuild(orbital, true);
+    }
+  },
 });
 
 // ---- Variant select ----
