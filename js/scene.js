@@ -71,7 +71,7 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
   canvas.width = 128;
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
-  ctx.font = `${fontSize || 26}px sans-serif`;  // Removed bold
+  ctx.font = `300 ${fontSize || 26}px sans-serif`;  // Light weight (300)
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -252,7 +252,12 @@ function buildGrid(maxAng) {
   }
 
   // Number labels along axes (positioned dynamically based on camera angle)
+  // Only label every other line (2, 4, 6...) for cleaner appearance
+  const labelInterval = labelStep * 2;
   for (let a = -maxAng; a <= maxAng; a += labelStep) {
+    // Only create labels at even multiples (0, 2, 4, 6...)
+    if (a % labelInterval !== 0) continue;
+
     const pos = a * BOHR_PER_ANG;
     const txt = a === 0 ? '0' : String(a);
     // X axis label
