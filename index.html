@@ -160,6 +160,27 @@
       <div id="spectrum-label"></div>
     </div>
   </div>
+  <div id="reaction-wrapper" class="dropdown-hidden">
+    <label>Impact Parameter</label>
+    <input type="range" id="rxn-impact" min="0" max="50" value="10">
+    <div id="rxn-impact-display">b = 1.0 a&#x2080;</div>
+    <label>Approach Speed</label>
+    <input type="range" id="rxn-speed" min="1" max="30" value="10">
+    <div id="rxn-speed-display">v&#x2080; = 1.0</div>
+    <label>Approach Angle</label>
+    <input type="range" id="rxn-angle" min="-90" max="90" value="0" step="1">
+    <div id="rxn-angle-display">&#x3B8; = 0&#xB0;</div>
+    <div id="rxn-progress" class="dropdown-hidden">
+      <div id="rxn-progress-label">Building frame 0/24...</div>
+      <div id="rxn-progress-track"><div id="rxn-progress-fill"></div></div>
+    </div>
+    <label for="rxn-scrubber">Reaction Coordinate</label>
+    <input type="range" id="rxn-scrubber" min="0" max="100" value="0" step="1">
+    <div id="rxn-description"></div>
+    <div id="rxn-buttons">
+      <button id="rxn-play" disabled>&#x25B6; Play</button>
+    </div>
+  </div>
   <div id="computing">
     <div id="progress-label">Computing...</div>
     <div id="progress-track"><div id="progress-fill"></div></div>

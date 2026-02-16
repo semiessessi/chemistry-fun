@@ -297,6 +297,19 @@ registerTransitions('lyman', 'Lyman', TRANSITIONS.lyman);
 registerTransitions('balmer', 'Balmer', TRANSITIONS.balmer);
 registerTransitions('paschen', 'Paschen', TRANSITIONS.paschen);
 
+// --- Reactions ---
+import { REACTIONS } from './reactions.js';
+
+for (const rxn of REACTIONS) {
+  add({
+    name: rxn.name,
+    halfExtent: rxn.halfExtent,
+    d1: 'Reactions', d2: rxn.label || rxn.name, d3: 'electron density', d4: null,
+    isReaction: true,
+    reaction: rxn,
+  });
+}
+
 // --- Orbital Mixer (placeholder, dynamically replaced by MixerController) ---
 add({
   name: 'Custom Mix',
