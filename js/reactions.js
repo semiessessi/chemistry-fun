@@ -8,6 +8,7 @@ import { getLayerMaterials } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
 import { scene } from './scene.js';
 import { BaseFrameController } from './controllers/base-frame-controller.js';
+import { buildMeshesFromData } from './utils/mesh-builder.js';
 
 const NUM_FRAMES = 24;
 const DEG = Math.PI / 180;
@@ -787,38 +788,32 @@ export class ReactionController extends BaseFrameController {
       // Build meshes (same pattern as TransitionController)
       const group = new THREE.Group();
       const mats = getLayerMaterials(layers, colorMode);
-      const step = (2 * he) / (gs - 1);
 
       const isDensityLike = colorMode === 'density';
       const thresholds = computeMultiThresholds(data, isDensityLike ? 0.95 : 0.9, layers, he, gs);
 
-      const addMeshes = (sideData, thresh, matArr) => {
-        for (let li = 0; li < layers; li++) {
-          const result = marchingCubes(sideData, gs, thresh[li]);
-          if (result.indices.length > 0) {
-            const verts = result.vertices;
-            for (let vi = 0; vi < verts.length; vi += 3) {
-              verts[vi] = verts[vi] * step - he;
-              verts[vi + 1] = verts[vi + 1] * step - he;
-              verts[vi + 2] = verts[vi + 2] * step - he;
-            }
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-            geo.setIndex(new THREE.BufferAttribute(result.indices, 1));
-            geo.computeVertexNormals();
-            const matIdx = layers - 1 - li;
-            const mesh = new THREE.Mesh(geo, matArr[matIdx]);
-            mesh.renderOrder = li;
-            group.add(mesh);
-          }
-        }
-      };
+      buildMeshesFromData({
+        data: data,
+        halfExtent: he,
+        gridSize: gs,
+        thresholds: thresholds,
+        materials: mats.pos,
+        parent: group,
+        layers: layers,
+      });
 
-      addMeshes(data, thresholds, mats.pos);
       if (!isDensityLike) {
         const negData = new Float32Array(data.length);
         for (let j = 0; j < data.length; j++) negData[j] = -data[j];
-        addMeshes(negData, thresholds, mats.neg);
+        buildMeshesFromData({
+          data: negData,
+          halfExtent: he,
+          gridSize: gs,
+          thresholds: thresholds,
+          materials: mats.neg,
+          parent: group,
+          layers: layers,
+        });
       }
 
       // Add ball-and-stick model to each frame
