@@ -91,9 +91,6 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-
   // Dual-layer for grid labels - base layer should get occluded
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
