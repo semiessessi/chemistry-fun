@@ -10,7 +10,7 @@ import { detectAromaticRings, renderAtoms, renderBonds, renderAromaticRings } fr
 // ---- Context mesh tracking ----
 
 let contextMeshes = [];
-let trackedAtoms = [];  // [{mesh, label, atomIdx, origPos, origLabelPos}]
+export let trackedAtoms = [];  // [{mesh, label, atomIdx, origPos, origLabelPos}]
 let trackedBonds = [];  // [{mesh, atomI, atomJ, origPos, origQuat, origScaleY, midOffset, lengthRatio}]
 
 // ---- Molecule registry (for context rendering) ----
@@ -288,13 +288,14 @@ export function updateMoleculeContextPositions(moleculeName, displacements) {
   for (const { mesh, label, atomIdx, origPos, origLabelPos } of trackedAtoms) {
     const d = displacements[atomIdx];
     mesh.position.set(origPos.x + d[0], origPos.y + d[1], origPos.z + d[2]);
-    if (label && label.sprites) {
-      // New label system: update both sprites
+    if (label && label.baseLayer && label.additiveLayer) {
+      // New dual-layer label system: update both sprites
       const newPos = new THREE.Vector3(origLabelPos.x + d[0], origLabelPos.y + d[1], origLabelPos.z + d[2]);
-      label.sprites.forEach(sprite => sprite.position.copy(newPos));
-      label.position.copy(newPos);
+      label.baseLayer.position.copy(newPos);
+      label.additiveLayer.position.copy(newPos);
+      label.atomPos.set(origPos.x + d[0], origPos.y + d[1], origPos.z + d[2]);
     } else if (label) {
-      // Legacy fallback
+      // Legacy fallback (single sprite)
       label.position.set(origLabelPos.x + d[0], origLabelPos.y + d[1], origLabelPos.z + d[2]);
     }
   }
@@ -334,12 +335,13 @@ export function updateMoleculeContextPositions(moleculeName, displacements) {
 export function resetMoleculeContextPositions() {
   for (const { mesh, label, origPos, origLabelPos } of trackedAtoms) {
     mesh.position.copy(origPos);
-    if (label && label.sprites) {
-      // New label system: update both sprites
-      label.sprites.forEach(sprite => sprite.position.copy(origLabelPos));
-      label.position.copy(origLabelPos);
+    if (label && label.baseLayer && label.additiveLayer) {
+      // New dual-layer label system: update both sprites
+      label.baseLayer.position.copy(origLabelPos);
+      label.additiveLayer.position.copy(origLabelPos);
+      label.atomPos.copy(origPos);
     } else if (label) {
-      // Legacy fallback
+      // Legacy fallback (single sprite)
       label.position.copy(origLabelPos);
     }
   }

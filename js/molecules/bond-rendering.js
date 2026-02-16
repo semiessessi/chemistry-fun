@@ -42,22 +42,94 @@ export function detectAromaticRings(mol) {
 }
 
 export function makeAtomLabel(elem, x, y, z) {
+  // Use black text for hydrogen (white spheres), white for others
+  const textColor = elem === 'H' ? '#000000' : '#ffffff';
+  const strokeColor = elem === 'H' ? '#ffffff' : '#000000';
+
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
   ctx.font = 'bold 22px sans-serif';
-  ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+
+  // Draw stroke (outline) for better contrast
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 1.5;
+  ctx.strokeText(elem, 32, 32);
+
+  // Draw fill
+  ctx.fillStyle = textColor;
   ctx.fillText(elem, 32, 32);
+
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
-  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
-  const sprite = new THREE.Sprite(mat);
-  sprite.position.set(x, y + 0.6, z);
-  sprite.scale.set(1.2, 1.2, 1);
-  return sprite;
+
+  // Dual-pass rendering: 50% behind + 50% in front = 100% visible, 50% when occluded
+  const baseLayer = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: texture.clone(),
+      transparent: true,
+      opacity: 0.5,
+      depthTest: true,   // Gets occluded by geometry
+      depthWrite: false  // Don't write to depth buffer (prevents square artifacts)
+    })
+  );
+
+  const additiveLayer = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.5,
+      depthTest: false,  // Always on top
+      depthWrite: false  // Don't write to depth buffer
+    })
+  );
+
+  // Position in front of atom (will be updated by camera-facing logic)
+  baseLayer.position.set(x, y + 0.6, z);
+  additiveLayer.position.set(x, y + 0.6, z);
+  baseLayer.scale.set(1.2, 1.2, 1);
+  additiveLayer.scale.set(1.2, 1.2, 1);
+
+  // Render order: additive layer must render AFTER base layer
+  baseLayer.renderOrder = 1000;
+  additiveLayer.renderOrder = 2000;
+
+  // Return container object with both sprites and atom position
+  return {
+    baseLayer,
+    additiveLayer,
+    atomPos: new THREE.Vector3(x, y, z),
+    elem
+  };
+}
+
+/**
+ * Update atom label positions to face camera
+ * @param {Array} trackedAtoms - Array of tracked atom objects with {mesh, label, ...}
+ * @param {THREE.Camera} camera - Three.js camera
+ * @param {number} offset - Distance in front of atom (default 0.6)
+ */
+export function updateAtomLabelPositions(trackedAtoms, camera, offset = 0.6) {
+  const camDir = new THREE.Vector3();
+  for (const tracked of trackedAtoms) {
+    if (!tracked.label || !tracked.label.atomPos) continue;
+
+    // Get current atom position (might be displaced by vibration)
+    const atomPos = tracked.mesh.position;
+
+    // Calculate direction from atom to camera
+    camDir.subVectors(camera.position, atomPos).normalize();
+
+    // Position label in front of atom toward camera
+    const labelPos = atomPos.clone().add(camDir.multiplyScalar(offset));
+
+    // Update both sprite positions
+    tracked.label.baseLayer.position.copy(labelPos);
+    tracked.label.additiveLayer.position.copy(labelPos);
+  }
 }
 
 // ---- Atom rendering ----
@@ -72,10 +144,13 @@ export function renderAtoms(mol, meshesOut, trackedAtomsOut) {
     meshesOut.push(mesh);
 
     const label = makeAtomLabel(elem, x, y, z);
-    meshesOut.push(label);
+    // Add both label sprites to meshes
+    meshesOut.push(label.baseLayer, label.additiveLayer);
 
     trackedAtomsOut.push({
-      mesh, label, atomIdx: ai,
+      mesh,
+      label,
+      atomIdx: ai,
       origPos: new THREE.Vector3(x, y, z),
       origLabelPos: new THREE.Vector3(x, y + 0.6, z),
     });

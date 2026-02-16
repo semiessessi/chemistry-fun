@@ -72,28 +72,87 @@ export function makeLabel(text, position, fontSize, color) {
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
   ctx.font = `bold ${fontSize || 26}px sans-serif`;
-  ctx.fillStyle = color || '#777777';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+
+  const fillColor = color || '#777777';
+  // Use contrasting stroke: dark stroke for light colors, light stroke for dark colors
+  const strokeColor = (fillColor.match(/#[89a-f]/i)) ? '#000000' : '#ffffff';
+
+  // Draw stroke (outline)
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 1.5;
+  ctx.strokeText(text, 64, 32);
+
+  // Draw fill
+  ctx.fillStyle = fillColor;
   ctx.fillText(text, 64, 32);
+
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
-  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
-  const sprite = new THREE.Sprite(mat);
-  sprite.position.copy(position);
-  sprite.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
-  scene.add(sprite);
-  labelSprites.push(sprite);
-  gridObjects.push(sprite);
-  return sprite;
+
+  // Dual-pass rendering: 50% behind + 50% in front
+  const baseLayer = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: texture.clone(),
+      transparent: true,
+      opacity: 0.5,
+      depthTest: true,
+      depthWrite: false  // Don't write to depth buffer (prevents square artifacts)
+    })
+  );
+
+  const additiveLayer = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      opacity: 0.5,
+      depthTest: false,
+      depthWrite: false  // Don't write to depth buffer
+    })
+  );
+
+  baseLayer.position.copy(position);
+  additiveLayer.position.copy(position);
+  baseLayer.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
+  additiveLayer.scale.set(LABEL_BASE_SCALE[0], LABEL_BASE_SCALE[1], 1);
+
+  // Render order: additive layer must render AFTER base layer
+  baseLayer.renderOrder = 1000;
+  additiveLayer.renderOrder = 2000;
+
+  scene.add(baseLayer, additiveLayer);
+
+  // Return container with both sprites
+  const label = {
+    baseLayer,
+    additiveLayer,
+    position: position.clone(),
+    baseScale: [...LABEL_BASE_SCALE]
+  };
+
+  labelSprites.push(label);
+  gridObjects.push(baseLayer, additiveLayer);
+  return label;
 }
 
 export function updateLabelScales() {
   const camPos = camera.position;
-  for (const sprite of labelSprites) {
-    const dist = camPos.distanceTo(sprite.position);
-    const s = dist / LABEL_REF_DIST;
-    sprite.scale.set(LABEL_BASE_SCALE[0] * s, LABEL_BASE_SCALE[1] * s, 1);
+  for (const label of labelSprites) {
+    if (label.baseLayer && label.additiveLayer) {
+      // New dual-layer labels
+      const dist = camPos.distanceTo(label.position);
+      const s = dist / LABEL_REF_DIST;
+      const scaleX = label.baseScale[0] * s;
+      const scaleY = label.baseScale[1] * s;
+      label.baseLayer.scale.set(scaleX, scaleY, 1);
+      label.additiveLayer.scale.set(scaleX, scaleY, 1);
+    } else if (label.scale) {
+      // Legacy single sprite fallback
+      const dist = camPos.distanceTo(label.position);
+      const s = dist / LABEL_REF_DIST;
+      label.scale.set(LABEL_BASE_SCALE[0] * s, LABEL_BASE_SCALE[1] * s, 1);
+    }
   }
 }
 

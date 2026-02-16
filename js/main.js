@@ -5,7 +5,8 @@ import { ORBITAL_TREE, ORBITAL_MAP } from './orbitals.js';
 import { cancelCompute } from './worker-pool.js';
 import { updateLegend, applyOpacityScale } from './layer-materials.js';
 import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
-import { setMoleculeContextVisible, updateMoleculeContextPositions, MOLECULE_LABELS, getMoleculeVariants, getMoleculeCid, getMoleculeNist, getMoleculeAtoms } from './molecules/index.js';
+import { setMoleculeContextVisible, updateMoleculeContextPositions, trackedAtoms, MOLECULE_LABELS, getMoleculeVariants, getMoleculeCid, getMoleculeNist, getMoleculeAtoms } from './molecules/index.js';
+import { updateAtomLabelPositions } from './molecules/bond-rendering.js';
 import { pubchemUrl } from './pubchem.js';
 import { BOND_FORMING_CONFIG, setBondFormingContextVisible } from './bond-forming.js';
 import { setFieldVisVisible, setFieldSource, tickFieldAnimation } from './electric-field.js';
@@ -505,6 +506,7 @@ function animate() {
   }
   controls.update();
   updateLabelScales();
+  updateAtomLabelPositions(trackedAtoms, camera, 0.6);
   renderer.render(scene, camera);
 }
 

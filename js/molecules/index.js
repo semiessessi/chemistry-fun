@@ -6,6 +6,7 @@ export {
   setMoleculeContextVisible,
   updateMoleculeContextPositions,
   resetMoleculeContextPositions,
+  trackedAtoms,
   MOLECULE_LABELS,
   MOLECULE_CATEGORIES,
   getMoleculeAtoms,
