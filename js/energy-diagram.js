@@ -113,24 +113,47 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect, size =
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Collapsed mode: single horizontal bar with selected orbital info
+  // Collapsed mode: horizontal energy bars
   if (sizing.isCollapsed) {
-    ctx.fillStyle = COLORS.label;
-    ctx.font = `${sizing.fontSize}px sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    const y = H / 2;
+    const barHeight = 16;
+    const barY = 4;
+    const maxN = 4; // Show first 4 shells in collapsed mode
 
-    if (selectedOrbital && selectedOrbital.d1 === 'Atomic') {
-      const n = parseInt(selectedOrbital.d2.replace('n=', ''));
-      const l = selectedOrbital.d3;
+    // Energy range: -13.6 to 0
+    const eMin = -13.6;
+    const eMax = -0.5; // Stop before ionization for visibility
+    const barWidth = W - 60;
+
+    ctx.font = `${sizing.fontSize}px sans-serif`;
+    ctx.textBaseline = 'middle';
+
+    for (let n = 1; n <= maxN; n++) {
       const energy = -13.6 / (n * n);
-      const label = `${n}${l}`;
-      ctx.fillStyle = COLORS.selected;
-      ctx.fillText(`${label}: ${energy.toFixed(2)} eV`, 10, y);
-    } else {
-      ctx.fillText('Hydrogen Energy Levels', 10, y);
+      const x = 30 + ((energy - eMin) / (eMax - eMin)) * barWidth;
+      const isSelected = selectedOrbital?.d2 === `n=${n}`;
+
+      // Draw energy bar (vertical line)
+      ctx.strokeStyle = isSelected ? COLORS.selected : COLORS.line;
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x, barY);
+      ctx.lineTo(x, barY + barHeight);
+      ctx.stroke();
+
+      // Label
+      ctx.fillStyle = isSelected ? COLORS.selected : COLORS.label;
+      ctx.textAlign = 'center';
+      ctx.fillText(`${n}s`, x, barY - 2);
     }
+
+    // Energy scale labels
+    ctx.fillStyle = '#666';
+    ctx.font = `7px sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('0 eV', W - 25, barY + barHeight / 2);
+    ctx.textAlign = 'right';
+    ctx.fillText('-13.6', 28, barY + barHeight / 2);
+
     return;
   }
 
@@ -314,20 +337,59 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Collapsed mode: single horizontal bar with selected MO info
+  // Collapsed mode: horizontal MO energy bars
   if (sizing.isCollapsed) {
-    ctx.fillStyle = COLORS.label;
-    ctx.font = `${sizing.fontSize}px sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    const y = H / 2;
+    const barHeight = 16;
+    const barY = 4;
+    const maxMOs = Math.min(moList.length, 6); // Show up to 6 MOs
+    const barWidth = W - 40;
+    const spacing = barWidth / Math.max(maxMOs - 1, 1);
 
-    if (selectedOrbital && selectedOrbital.d3) {
-      ctx.fillStyle = COLORS.selected;
-      ctx.fillText(`${moleculeName}: ${selectedOrbital.d3}`, 10, y);
-    } else {
-      ctx.fillText(`${moleculeName} Molecular Orbitals`, 10, y);
+    ctx.font = `${sizing.fontSize}px sans-serif`;
+    ctx.textBaseline = 'middle';
+
+    for (let i = 0; i < maxMOs; i++) {
+      const moName = moList[i][0];
+      const x = 20 + i * spacing;
+      const isSelected = selectedOrbital?.d3 === moName;
+
+      // Determine MO type for coloring
+      let color = COLORS.line;
+      const nameLower = moName.toLowerCase();
+      if (nameLower.includes('*') || nameLower.includes('anti')) {
+        color = COLORS.sigmaStar;
+      } else if (nameLower.includes('lone') || nameLower.includes('lp')) {
+        color = COLORS.nonbond;
+      } else {
+        color = COLORS.sigma;
+      }
+
+      // Draw energy bar
+      ctx.strokeStyle = isSelected ? COLORS.selected : color;
+      ctx.lineWidth = isSelected ? 2 : 1.5;
+      const relativeEnergy = (maxMOs - i - 1) / (maxMOs - 1);
+      const barLen = barHeight * (0.4 + relativeEnergy * 0.6);
+      ctx.beginPath();
+      ctx.moveTo(x, barY + barHeight);
+      ctx.lineTo(x, barY + barHeight - barLen);
+      ctx.stroke();
+
+      // Shorten label for space
+      let label = moName;
+      if (label.length > 6) label = label.substring(0, 5) + '…';
+
+      ctx.fillStyle = isSelected ? COLORS.selected : '#999';
+      ctx.textAlign = 'center';
+      ctx.font = `7px sans-serif`;
+      ctx.fillText(label, x, barY - 2);
     }
+
+    // Molecule name
+    ctx.fillStyle = '#666';
+    ctx.font = `7px sans-serif`;
+    ctx.textAlign = 'right';
+    ctx.fillText(moleculeName, W - 4, barY + barHeight - 2);
+
     return;
   }
 
@@ -451,21 +513,47 @@ export function renderDiatomicDiagram(container, selectedOrbital, onSelect, size
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Collapsed mode: single horizontal bar with selected MO info
+  // Collapsed mode: horizontal MO energy bars
   if (sizing.isCollapsed) {
-    ctx.fillStyle = COLORS.label;
-    ctx.font = `${sizing.fontSize}px sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    const y = H / 2;
+    const barHeight = 16;
+    const barY = 4;
+    const displayMOs = [
+      { name: 'σ(1s)', type: 'bond', d2: '1s', d3: 'σ' },
+      { name: 'σ*(1s)', type: 'anti', d2: '1s', d3: 'σ*' },
+      { name: 'σ(2s)', type: 'bond', d2: '2s', d3: 'σ' },
+      { name: 'σ(2p)', type: 'bond', d2: '2p', d3: 'σ' },
+      { name: 'π(2p)', type: 'bond', d2: '2p', d3: 'π' },
+      { name: 'π*(2p)', type: 'anti', d2: '2p', d3: 'π*' }
+    ];
+    const barWidth = W - 40;
+    const spacing = barWidth / (displayMOs.length - 1);
 
-    if (selectedOrbital && selectedOrbital.d3) {
-      ctx.fillStyle = COLORS.selected;
-      const label = `${selectedOrbital.d2} ${selectedOrbital.d3}`;
-      ctx.fillText(`Diatomic: ${label}`, 10, y);
-    } else {
-      ctx.fillText('Diatomic MO Diagram', 10, y);
+    ctx.font = `${sizing.fontSize}px sans-serif`;
+    ctx.textBaseline = 'middle';
+
+    for (let i = 0; i < displayMOs.length; i++) {
+      const mo = displayMOs[i];
+      const x = 20 + i * spacing;
+      const isSelected = selectedOrbital?.d2 === mo.d2 && selectedOrbital?.d3 === mo.d3;
+
+      const color = mo.type === 'anti' ? COLORS.sigmaStar :
+                    mo.name.includes('π') ? COLORS.pi : COLORS.sigma;
+
+      ctx.strokeStyle = isSelected ? COLORS.selected : color;
+      ctx.lineWidth = isSelected ? 2 : 1.5;
+      const relativeEnergy = i / (displayMOs.length - 1);
+      const barLen = barHeight * (0.4 + relativeEnergy * 0.6);
+      ctx.beginPath();
+      ctx.moveTo(x, barY + barHeight);
+      ctx.lineTo(x, barY + barHeight - barLen);
+      ctx.stroke();
+
+      ctx.fillStyle = isSelected ? COLORS.selected : '#999';
+      ctx.textAlign = 'center';
+      ctx.font = `7px sans-serif`;
+      ctx.fillText(mo.name, x, barY - 2);
     }
+
     return;
   }
 
