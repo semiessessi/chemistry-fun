@@ -366,3 +366,40 @@ export function marchingCubesWasm(
   store<i32>(outCountsPtr + 4, idxCount);
   return overflow ? 1 : 0;
 }
+
+// ---- Central-difference gradient ----
+// Computes ∇f at every voxel using central differences (forward/backward at boundaries).
+// Input:  dataPtr   — float32 grid of size N³ (row-major: idx = x + y*N + z*N²)
+// Output: outPtr    — float32 array of size N³×3, layout [gx0,gy0,gz0, gx1,gy1,gz1, ...]
+// Half-step scale: the caller should multiply by 1/(2*step) if absolute gradient is needed;
+// here we return the raw central differences (divided by 2) for efficiency.
+export function computeGradientFlat(dataPtr: usize, N: i32, outPtr: usize): void {
+  const N2: i32 = N * N;
+  const N3: i32 = N2 * N;
+
+  for (let k: i32 = 0; k < N; k++) {
+    const km: i32 = k > 0 ? k - 1 : 0;
+    const kp: i32 = k < N - 1 ? k + 1 : N - 1;
+    for (let j: i32 = 0; j < N; j++) {
+      const jm: i32 = j > 0 ? j - 1 : 0;
+      const jp: i32 = j < N - 1 ? j + 1 : N - 1;
+      for (let i: i32 = 0; i < N; i++) {
+        const im: i32 = i > 0 ? i - 1 : 0;
+        const ip: i32 = i < N - 1 ? i + 1 : N - 1;
+        const base: i32 = i + j * N + k * N2;
+
+        const gx: f32 = (load<f32>(dataPtr + usize((ip + j*N + k*N2) << 2)) -
+                          load<f32>(dataPtr + usize((im + j*N + k*N2) << 2))) * 0.5;
+        const gy: f32 = (load<f32>(dataPtr + usize((i + jp*N + k*N2) << 2)) -
+                          load<f32>(dataPtr + usize((i + jm*N + k*N2) << 2))) * 0.5;
+        const gz: f32 = (load<f32>(dataPtr + usize((i + j*N + kp*N2) << 2)) -
+                          load<f32>(dataPtr + usize((i + j*N + km*N2) << 2))) * 0.5;
+
+        const outBase: usize = outPtr + usize(base * 3) * 4;
+        store<f32>(outBase,     gx);
+        store<f32>(outBase + 4, gy);
+        store<f32>(outBase + 8, gz);
+      }
+    }
+  }
+}

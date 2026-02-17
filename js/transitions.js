@@ -13,7 +13,7 @@ import { BaseFrameController } from './controllers/base-frame-controller.js';
 import { buildMeshesFromData } from './utils/mesh-builder.js';
 import { setFieldOscillation, modulateFieldOpacity } from './electric-field.js';
 
-const NUM_FRAMES = 48;
+const NUM_FRAMES = /Mobi|Android/i.test(navigator.userAgent) ? 24 : 48;
 const RYDBERG = 13.605693122994; // Rydberg constant in eV
 const HC_EV_NM = 1239.84193; // hc in eV·nm
 const HBAR_EV_S = 6.582119569e-16;  // ℏ in eV·s

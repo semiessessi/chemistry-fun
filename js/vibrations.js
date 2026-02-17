@@ -15,7 +15,7 @@ import { buildMeshesFromData } from './utils/mesh-builder.js';
 
 export { generateVibrationalModes, ATOMIC_MASS, BOND_FORCE_CONSTANTS, SPECTROSCOPIC_DATA } from './vib-mode-generation.js';
 
-const NUM_FRAMES = 24;
+const NUM_FRAMES = /Mobi|Android/i.test(navigator.userAgent) ? 12 : 24;
 
 // ---- Vibration Controller ----
 
@@ -118,150 +118,124 @@ export class VibrationController extends BaseFrameController {
       this.mixModes = null;
     }
 
-    let fieldLayout = null; // captured from frame 0 for consistent positions
+    let fieldLayout = null; // captured from frame 0 for consistent arrow/seed positions
 
+    const gs = gridSize;
+    const he = halfExtent;
+    const BATCH = 4; // frames sampled in parallel per batch
+
+    // Pre-compute all displacements and samplers (cheap, synchronous)
+    const frameInfos = [];
     for (let i = 0; i < NUM_FRAMES; i++) {
-      if (stale()) return;
-
       const phase = (i / NUM_FRAMES) * 2 * Math.PI;
-
-      // Compute displaced positions (single mode or mix) and cache for interpolation
       const displacements = this.displacementsAtPhase(phase);
       if (!displacements) return;
       this.cachedDisplacements[i] = displacements;
-
-      // Build displaced sampler: use single-MO wavefunction for orbital mode,
-      // density for electron density / charge / ESP / ELF modes
       const sampler = (colorMode === 'orbital' && moIndex !== undefined)
         ? buildDisplacedOrbital(moleculeName, moIndex, displacements)
         : buildDisplacedDensitySampler(moleculeName, displacements);
+      frameInfos.push({ phase, displacements, sampler });
+    }
+
+    // Process frames in batches: parallel sampling, then sequential mesh building
+    for (let batchStart = 0; batchStart < NUM_FRAMES; batchStart += BATCH) {
+      if (stale()) return;
+      const batchEnd = Math.min(batchStart + BATCH, NUM_FRAMES);
+
+      // Dispatch all samplings in this batch simultaneously
+      const sampledData = await Promise.all(
+        frameInfos.slice(batchStart, batchEnd).map(fi =>
+          fi.sampler ? sampleGridAsync(fi.sampler, gs, he, () => {}) : Promise.resolve(null)
+        )
+      );
       if (stale()) return;
 
-      const gs = gridSize;
-      const he = halfExtent;
+      // Build meshes for each frame in the batch (main thread, sequential)
+      for (let bi = 0; bi < batchEnd - batchStart; bi++) {
+        const i = batchStart + bi;
+        if (stale()) return;
 
-      // Build marching cubes layers
-      const group = new THREE.Group();
-      const densityGroup = new THREE.Group();
-      group.add(densityGroup);
+        const { displacements } = frameInfos[i];
+        const data = sampledData[bi];
 
-      let data = null;
-      if (sampler) {
-        // Sample grid (main thread chunked for customSample)
-        data = await sampleGridAsync(sampler, gs, he, () => {});
-        if (!data || stale()) return;
+        const group = new THREE.Group();
+        const densityGroup = new THREE.Group();
+        group.add(densityGroup);
 
-        const mats = getLayerMaterials(layers, colorMode);
+        if (data) {
+          const mats = getLayerMaterials(layers, colorMode);
 
-        if (colorMode === 'charge') {
-          // Compute charge density with displaced atom positions
-          const displacedAtomInfo = atomInfo.map((a, ai) => ({
-            Z: a.Z,
-            x: a.x + displacements[ai][0],
-            y: a.y + displacements[ai][1],
-            z: a.z + displacements[ai][2],
-          }));
-          const chargeData = await computeChargeDensity(displacedAtomInfo, data, gs, he, null);
-          if (stale()) return;
+          if (colorMode === 'charge') {
+            const displacedAtomInfo = atomInfo.map((a, ai) => ({
+              Z: a.Z,
+              x: a.x + displacements[ai][0],
+              y: a.y + displacements[ai][1],
+              z: a.z + displacements[ai][2],
+            }));
+            const chargeData = await computeChargeDensity(displacedAtomInfo, data, gs, he, null);
+            if (stale()) return;
 
-          // Split positive/negative with independent thresholds
-          const N3 = chargeData.length;
-          const posData = new Float32Array(N3);
-          const negCharge = new Float32Array(N3);
-          for (let j = 0; j < N3; j++) {
-            if (chargeData[j] > 0) posData[j] = chargeData[j];
-            else if (chargeData[j] < 0) negCharge[j] = -chargeData[j];
-          }
-          const posThresholds = computeMultiThresholds(posData, probability, layers, he, gs);
-          const negThresholds = computeMultiThresholds(negCharge, probability, layers, he, gs);
-          buildMeshesFromData({
-            data: posData,
-            halfExtent: he,
-            gridSize: gs,
-            thresholds: posThresholds,
-            materials: mats.pos,
-            parent: densityGroup,
-            layers: layers,
-          });
-          buildMeshesFromData({
-            data: negCharge,
-            halfExtent: he,
-            gridSize: gs,
-            thresholds: negThresholds,
-            materials: mats.neg,
-            parent: densityGroup,
-            layers: layers,
-          });
-        } else {
-          const thresholds = computeMultiThresholds(data, probability, layers, he, gs);
-          buildMeshesFromData({
-            data: data,
-            halfExtent: he,
-            gridSize: gs,
-            thresholds: thresholds,
-            materials: mats.pos,
-            parent: densityGroup,
-            layers: layers,
-          });
+            const N3 = chargeData.length;
+            const posData = new Float32Array(N3);
+            const negCharge = new Float32Array(N3);
+            for (let j = 0; j < N3; j++) {
+              if (chargeData[j] > 0) posData[j] = chargeData[j];
+              else if (chargeData[j] < 0) negCharge[j] = -chargeData[j];
+            }
+            buildMeshesFromData({ data: posData, halfExtent: he, gridSize: gs,
+              thresholds: computeMultiThresholds(posData, probability, layers, he, gs), materials: mats.pos, parent: densityGroup, layers });
+            buildMeshesFromData({ data: negCharge, halfExtent: he, gridSize: gs,
+              thresholds: computeMultiThresholds(negCharge, probability, layers, he, gs), materials: mats.neg, parent: densityGroup, layers });
+          } else {
+            const thresholds = computeMultiThresholds(data, probability, layers, he, gs);
+            buildMeshesFromData({ data, halfExtent: he, gridSize: gs, thresholds, materials: mats.pos, parent: densityGroup, layers });
 
-          // Render negative side for orbital mode (density/ESP is always positive)
-          if (!isDensityLike) {
-            const negData = new Float32Array(data.length);
-            for (let j = 0; j < data.length; j++) negData[j] = -data[j];
-            buildMeshesFromData({
-              data: negData,
-              halfExtent: he,
-              gridSize: gs,
-              thresholds: thresholds,
-              materials: mats.neg,
-              parent: densityGroup,
-              layers: layers,
-            });
+            if (!isDensityLike) {
+              const negData = new Float32Array(data.length);
+              for (let j = 0; j < data.length; j++) negData[j] = -data[j];
+              buildMeshesFromData({ data: negData, halfExtent: he, gridSize: gs, thresholds, materials: mats.neg, parent: densityGroup, layers });
+            }
           }
         }
-      }
 
-      // Build field vis (arrows/streamlines) into a separate sub-group
-      // so visibility can be toggled without rebuilding frames
-      let fieldSubGroup = null;
-      let fieldMats = [];
-      if (showFieldVis && data) {
-        fieldSubGroup = new THREE.Group();
-        let displacedAtomInfo = null;
-        if (atomInfo) {
-          displacedAtomInfo = atomInfo.map((a, ai) => ({
-            Z: a.Z,
-            x: a.x + displacements[ai][0],
-            y: a.y + displacements[ai][1],
-            z: a.z + displacements[ai][2],
-          }));
+        // Field vis (synchronous, uses fieldLayout from frame 0)
+        let fieldSubGroup = null;
+        let fieldMats = [];
+        if (showFieldVis && data) {
+          fieldSubGroup = new THREE.Group();
+          let displacedAtomInfo = null;
+          if (atomInfo) {
+            displacedAtomInfo = atomInfo.map((a, ai) => ({
+              Z: a.Z,
+              x: a.x + displacements[ai][0],
+              y: a.y + displacements[ai][1],
+              z: a.z + displacements[ai][2],
+            }));
+          }
+          const result = buildFieldVisIntoGroup(fieldSubGroup,
+            [{ data, halfExtent: he, gridSize: gs }],
+            probability, displacedAtomInfo, fieldLayout);
+          if (result) {
+            if (!fieldLayout && result.layout) fieldLayout = result.layout;
+            fieldMats = result.materials || [];
+          }
+          group.add(fieldSubGroup);
         }
-        const result = buildFieldVisIntoGroup(fieldSubGroup,
-          [{ data, halfExtent: he, gridSize: gs }],
-          probability, displacedAtomInfo, fieldLayout);
-        if (result) {
-          if (!fieldLayout && result.layout) fieldLayout = result.layout;
-          fieldMats = result.materials || [];
+
+        if (stale()) {
+          group.traverse(child => { if (child.geometry) child.geometry.dispose(); });
+          return;
         }
-        group.add(fieldSubGroup);
+
+        scene.add(group);
+        group.visible = false;
+
+        this.frames[i] = { group, densityGroup, fieldGroup: fieldSubGroup, fieldMats, caches: data ? [{ data, halfExtent: he, gridSize: gs }] : [] };
+        this.framesReady = i + 1;
+        if (onFrameReady) onFrameReady(i, NUM_FRAMES);
       }
 
-      if (stale()) {
-        group.traverse(child => {
-          if (child.geometry) child.geometry.dispose();
-        });
-        return;
-      }
-
-      scene.add(group);
-      group.visible = false;
-
-      this.frames[i] = { group, densityGroup, fieldGroup: fieldSubGroup, fieldMats, caches: data ? [{ data, halfExtent: he, gridSize: gs }] : [] };
-      this.framesReady = i + 1;
-
-      if (onFrameReady) onFrameReady(i, NUM_FRAMES);
-
-      // Yield to main thread
+      // Yield to main thread between batches
       await new Promise(r => setTimeout(r, 0));
     }
 

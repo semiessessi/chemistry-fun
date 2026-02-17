@@ -69,7 +69,12 @@ export function buildGeometry(data, halfExtent, threshold, gridSize) {
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-  geo.setIndex(new THREE.BufferAttribute(result.indices, 1));
+  // Use Uint16 indices when vertex count fits — halves GPU index buffer size
+  const nVerts = verts.length / 3;
+  const idxBuf = nVerts < 65536
+    ? new Uint16Array(result.indices)
+    : result.indices;
+  geo.setIndex(new THREE.BufferAttribute(idxBuf, 1));
   geo.computeVertexNormals();
   return geo;
 }
@@ -90,6 +95,16 @@ export async function rebuildFieldVis(targetParent, atomInfoFn, potentialGrid) {
   hideProgress();
   // Re-check current state (may have changed during async build)
   if (getState().vibStaticMeshesHidden) setFieldVisVisible(false);
+}
+
+// ---- negData pool (avoid per-render allocation) ----
+let _negDataPool = null;
+
+function getNegData(src) {
+  if (!_negDataPool || _negDataPool.length < src.length) _negDataPool = new Float32Array(src.length);
+  const neg = _negDataPool.subarray(0, src.length);
+  for (let j = 0; j < src.length; j++) neg[j] = -src[j];
+  return neg;
 }
 
 // ---- Synchronous render from caches ----
@@ -117,8 +132,7 @@ export function renderFromCaches(probability, gridSize, targetParent, numLayers)
         meshes.push(mesh);
       }
 
-      const negData = new Float32Array(cache.data.length);
-      for (let j = 0; j < cache.data.length; j++) negData[j] = -cache.data[j];
+      const negData = getNegData(cache.data);
       const negGeo = buildGeometry(negData, cache.halfExtent, threshold, gs);
       if (negGeo) {
         const mesh = new THREE.Mesh(negGeo, mats1 ? mats1.neg[0] : matNegative);
@@ -127,8 +141,7 @@ export function renderFromCaches(probability, gridSize, targetParent, numLayers)
       }
     } else {
       const thresholds = computeMultiThresholds(cache.data, probability, layers, cache.halfExtent, gs);
-      const negData = new Float32Array(cache.data.length);
-      for (let j = 0; j < cache.data.length; j++) negData[j] = -cache.data[j];
+      const negData = getNegData(cache.data);
       const mats = getLayerMaterials(layers, colorMode);
 
       for (let i = 0; i < layers; i++) {
@@ -202,7 +215,9 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
       }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-      geo.setIndex(new THREE.BufferAttribute(r.indices, 1));
+      const nV = verts.length / 3;
+      const idxArr = nV < 65536 ? new Uint16Array(r.indices) : r.indices;
+      geo.setIndex(new THREE.BufferAttribute(idxArr, 1));
       geo.computeVertexNormals();
 
       let mat;

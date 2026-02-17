@@ -73,7 +73,7 @@ function makeMat(color, opacity) {
     color,
     transparent: true,
     opacity,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,  // Isosurfaces are closed manifolds — FrontSide halves fragment cost
     shininess: 40,
     depthWrite: false
   });
@@ -148,7 +148,7 @@ export function createOscillatingMaterial(baseColor, baseOpacity, isTransition) 
       color: baseColor,
       transparent: true,
       opacity: baseOpacity,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       shininess: 40,
       depthWrite: false
     });
@@ -208,7 +208,7 @@ export function createOscillatingMaterial(baseColor, baseOpacity, isTransition) 
       }
     `,
     transparent: true,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     depthWrite: false,
   });
 

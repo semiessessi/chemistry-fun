@@ -231,7 +231,21 @@ self.onmessage = async function(e) {
 
   else if (type === 'computeGradient') {
     const { data, gridSize, halfExtent } = e.data;
-    const grad = computeGradient(data, gridSize, halfExtent);
+    const N = gridSize;
+    const N3 = N * N * N;
+    const wasm = await wasmReady;
+    let grad;
+    if (wasm && wasm.computeGradientFlat) {
+      const base    = wasm.heapBase();
+      const dataPtr = base;
+      const outPtr  = dataPtr + N3 * 4 + 32;
+      ensureMemory(wasm, outPtr + N3 * 3 * 4 + 32);
+      new Float32Array(wasm.memory.buffer, dataPtr, N3).set(data);
+      wasm.computeGradientFlat(dataPtr, N, outPtr);
+      grad = new Float32Array(wasm.memory.buffer.slice(outPtr, outPtr + N3 * 3 * 4));
+    } else {
+      grad = computeGradient(data, gridSize, halfExtent);
+    }
     self.postMessage({ type, id, grad }, [grad.buffer]);
   }
 };
