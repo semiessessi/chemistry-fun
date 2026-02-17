@@ -51,9 +51,11 @@ export function makeAtomLabel(elem, x, y, z) {
   const usesBlackText = luminance > 0.5;
 
   // Per-element text colour overrides; all others get plain white or black
-  const TEXT_TINT = { C: '#aaaaaa', O: '#ffcc44' };
-  const textColor   = TEXT_TINT[elem] ?? (usesBlackText ? '#000000' : '#ffffff');
-  const strokeColor = usesBlackText ? '#ffffff' : '#000000';
+  const TEXT_TINT   = { C: '#aaaaaa', O: '#ffe800' };
+  // Stroke matches the text hue so antialiased edges stay saturated, not dulled by black
+  const STROKE_TINT = { C: '#333333', O: '#aa6600' };
+  const textColor   = TEXT_TINT[elem]   ?? (usesBlackText ? '#000000' : '#ffffff');
+  const strokeColor = STROKE_TINT[elem] ?? (usesBlackText ? '#ffffff' : '#000000');
 
   // 8x resolution for ultra-crisp antialiased labels
   const canvas = document.createElement('canvas');
