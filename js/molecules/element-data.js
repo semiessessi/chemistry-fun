@@ -37,7 +37,7 @@ export const ELEMENTS = {
   H:  { color: 0xdcdcdc, radius: 0.3, matOptions: { shininess: 113, specular: 0xaaaaaa, reflectivity: 0.15 } },  // Shiny white — 25% more gloss
   C:  { color: 0x020202, radius: 0.4, matOptions: { shininess: 256, specular: 0x4d4d4d, reflectivity: 0.03, emissiveIntensity: 0 } },  // Snooker black — pinpoint highlight, no env bleed
   N:  { color: 0x0c20cc, radius: 0.4 },  // Darker, more saturated blue
-  O:  { color: 0xdd5500, radius: 0.4 },  // Red-orange with clear yellow warmth
+  O:  { color: 0xcc0000, radius: 0.4 },  // Snooker red
   B:  { color: 0xffb5b5, radius: 0.38 },
   F:  { color: 0x60a818, radius: 0.35 },  // Darker yellow-green
   Na: { color: 0x8030e0, radius: 0.55 },  // Darker purple

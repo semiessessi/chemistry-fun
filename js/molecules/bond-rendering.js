@@ -51,9 +51,9 @@ export function makeAtomLabel(elem, x, y, z) {
   const usesBlackText = luminance > 0.5;
 
   // Per-element text colour overrides; all others get plain white or black
-  const TEXT_TINT   = { C: '#dddddd', O: '#ffe800' };
+  const TEXT_TINT   = { C: '#dddddd', O: '#ffe800', U: '#00ee44' };
   // Stroke matches the text hue so antialiased edges stay saturated, not dulled by black
-  const STROKE_TINT = { C: '#333333', O: '#aa6600' };
+  const STROKE_TINT = { C: '#333333', O: '#aa6600', U: '#004422' };
   const textColor   = TEXT_TINT[elem]   ?? (usesBlackText ? '#000000' : '#ffffff');
   const strokeColor = STROKE_TINT[elem] ?? (usesBlackText ? '#ffffff' : '#000000');
 
@@ -67,8 +67,10 @@ export function makeAtomLabel(elem, x, y, z) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  // Bold font for light-background elements (black text), regular for dark
-  ctx.font = usesBlackText ? '900 176px sans-serif' : '176px sans-serif';  // 22 * 8
+  // Bold font for light-background elements (black text), regular for dark; per-element weight overrides
+  const FONT_WEIGHT = { U: '900' };
+  const fontWeight = FONT_WEIGHT[elem] ?? (usesBlackText ? '900' : '400');
+  ctx.font = `${fontWeight} 176px sans-serif`;  // 22 * 8
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -118,7 +120,7 @@ export function makeAtomLabel(elem, x, y, z) {
 
   // Scale label with atom radius, plus per-element fine-tuning
   const baseScale = 1.2 * (ELEMENTS[elem]?.radius ?? 0.4) / 0.4;
-  const LABEL_BOOST = { S: 1.4, C: 1.05, N: 1.1, O: 1.1 };
+  const LABEL_BOOST = { S: 1.4, C: 1.05, N: 1.1, O: 1.1, F: 1.2, U: 1.3 };
   const labelScale = baseScale * (LABEL_BOOST[elem] ?? 1.0);
 
   // Position in front of atom (will be updated by camera-facing logic)
