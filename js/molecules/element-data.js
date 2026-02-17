@@ -35,7 +35,7 @@ const envMap = createSimpleEnvMap();
 
 export const ELEMENTS = {
   H:  { color: 0xdcdcdc, radius: 0.3 },  // Soft white — shows specular shine
-  C:  { color: 0x080808, radius: 0.4, matOptions: { shininess: 160, specular: 0xffffff, reflectivity: 0.4, emissiveIntensity: 0 } },  // Glossy black — eight ball
+  C:  { color: 0x080808, radius: 0.4, matOptions: { shininess: 120, specular: 0x999999, reflectivity: 0.18, emissiveIntensity: 0 } },  // Lacquered black — eight ball
   N:  { color: 0x0c20cc, radius: 0.4 },  // Darker, more saturated blue
   O:  { color: 0xdd5500, radius: 0.4 },  // Red-orange with clear yellow warmth
   B:  { color: 0xffb5b5, radius: 0.38 },
@@ -82,10 +82,10 @@ export function getElementMaterial(elem) {
     baseColor.setHSL(hsl.h, Math.min(1, hsl.s * 1.3), hsl.l);
     materialCache[elem] = new THREE.MeshPhongMaterial({
       color: baseColor.clone(),
-      shininess: 70,
-      specular: 0x553322,
+      shininess: 90,
+      specular: 0x886644,
       envMap: envMap,
-      reflectivity: 0.08,
+      reflectivity: 0.12,
       combine: THREE.MixOperation,
       emissive: baseColor.clone(),
       emissiveIntensity: 0.12,
@@ -101,7 +101,7 @@ const ghostCache = {};
 export function getGhostMaterial(elem) {
   if (!ghostCache[elem]) {
     const el = ELEMENTS[elem] || { color: 0xcccccc };
-    ghostCache[elem] = new THREE.MeshPhongMaterial({
+    ghostCache[elem] = new THREE.MeshBasicMaterial({
       color: el.color,
       transparent: true,
       opacity: 0.20,
