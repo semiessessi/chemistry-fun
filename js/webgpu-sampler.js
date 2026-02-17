@@ -124,6 +124,21 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 let device   = null;
 let pipeline = null;
 
+// ---- Buffer pool (avoids alloc/destroy on every sample call) ----
+const gpuPool = { output: null, readback: null, size: 0 };
+
+function getPooledBuffers(N3) {
+  const needed = N3 * 4;
+  if (!gpuPool.output || gpuPool.size < needed) {
+    gpuPool.output?.destroy();
+    gpuPool.readback?.destroy();
+    gpuPool.output   = device.createBuffer({ size: needed, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+    gpuPool.readback = device.createBuffer({ size: needed, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    gpuPool.size = needed;
+  }
+  return gpuPool;
+}
+
 // ---- Initialisation ----
 
 export async function initWebGPU() {
@@ -132,7 +147,10 @@ export async function initWebGPU() {
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) return false;
     device = await adapter.requestDevice();
-    device.lost.then(() => { device = null; pipeline = null; });
+    device.lost.then(() => {
+      device = null; pipeline = null;
+      gpuPool.output = null; gpuPool.readback = null; gpuPool.size = 0;
+    });
 
     const shaderModule = device.createShaderModule({ code: SHADER_SRC });
     pipeline = device.createComputePipeline({
@@ -202,15 +220,8 @@ export async function sampleGridGPU(terms, N, halfExtent) {
     });
     if (termsBuf.byteLength) device.queue.writeBuffer(termsGPU, 0, termsBuf);
 
-    // Output storage + readback
-    const outputGPU = device.createBuffer({
-      size: N3 * 4,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-    });
-    const readbackGPU = device.createBuffer({
-      size: N3 * 4,
-      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-    });
+    // Output storage + readback (pooled — reused if same or smaller size)
+    const { output: outputGPU, readback: readbackGPU } = getPooledBuffers(N3);
 
     // Bind group + dispatch
     const bindGroup = device.createBindGroup({
@@ -237,11 +248,9 @@ export async function sampleGridGPU(terms, N, halfExtent) {
     const result = new Float32Array(readbackGPU.getMappedRange().slice(0));
     readbackGPU.unmap();
 
-    // Destroy transient buffers
+    // Destroy only the small transient buffers (output/readback are pooled)
     paramsGPU.destroy();
     termsGPU.destroy();
-    outputGPU.destroy();
-    readbackGPU.destroy();
 
     return result;
   } catch (e) {
@@ -395,8 +404,8 @@ export async function sampleDensityGridGPU(moList, N, halfExtent) {
     const termsGPU = device.createBuffer({ size: Math.max(termsBuf.byteLength, 16), usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(termsGPU, 0, termsBuf);
 
-    const outputGPU   = device.createBuffer({ size: N3 * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
-    const readbackGPU = device.createBuffer({ size: N3 * 4, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+    // Output/readback pooled — reused if same or smaller size
+    const { output: outputGPU, readback: readbackGPU } = getPooledBuffers(N3);
 
     const bindGroup = device.createBindGroup({
       layout: pipe.getBindGroupLayout(0),
@@ -422,10 +431,153 @@ export async function sampleDensityGridGPU(moList, N, halfExtent) {
     const result = new Float32Array(readbackGPU.getMappedRange().slice(0));
     readbackGPU.unmap();
 
-    paramsGPU.destroy(); hdrGPU.destroy(); termsGPU.destroy(); outputGPU.destroy(); readbackGPU.destroy();
+    paramsGPU.destroy(); hdrGPU.destroy(); termsGPU.destroy();
     return result;
   } catch (e) {
     console.warn('sampleDensityGridGPU failed:', e.message ?? e);
+    return null;
+  }
+}
+
+// ---- GPU Poisson SOR for electrostatic potential ----
+
+const SOR_SHADER_SRC = /* wgsl */`
+struct SorParams {
+  N:       i32,
+  h2_4pi:  f32,
+  omega:   f32,
+  parity:  i32,
+}
+
+@group(0) @binding(0) var<uniform>            params : SorParams;
+@group(0) @binding(1) var<storage, read>      rho    : array<f32>;
+@group(0) @binding(2) var<storage, read_write> Vel   : array<f32>;
+
+@compute @workgroup_size(8, 8, 4)
+fn sor_pass(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let ix = i32(gid.x) + 1;
+  let iy = i32(gid.y) + 1;
+  let iz = i32(gid.z) + 1;
+  let N  = params.N;
+  if (ix >= N - 1 || iy >= N - 1 || iz >= N - 1) { return; }
+  if ((ix + iy + iz) % 2 != params.parity)        { return; }
+  let N2  = N * N;
+  let idx = iz * N2 + iy * N + ix;
+  let nbrs = Vel[idx-1] + Vel[idx+1] + Vel[idx-N] + Vel[idx+N]
+           + Vel[idx-N2] + Vel[idx+N2];
+  let newVal = (nbrs - params.h2_4pi * rho[idx]) / 6.0;
+  Vel[idx] = Vel[idx] + params.omega * (newVal - Vel[idx]);
+}
+`;
+
+let sorPipeline = null;
+
+async function getSorPipeline() {
+  if (sorPipeline) return sorPipeline;
+  if (!device) return null;
+  const mod = device.createShaderModule({ code: SOR_SHADER_SRC });
+  sorPipeline = device.createComputePipeline({
+    layout: 'auto',
+    compute: { module: mod, entryPoint: 'sor_pass' },
+  });
+  return sorPipeline;
+}
+
+// Solves ∇²Vel = 4π·rho on an N³ grid via red-black SOR on the GPU.
+// Returns Float32Array (N³) or null if GPU unavailable.
+export async function solvePoissonGPU(rho, N, step, numIter) {
+  if (!device) return null;
+  const pipe = await getSorPipeline();
+  if (!pipe) return null;
+  try {
+    const N3   = N * N * N;
+    const h2pi = 4 * Math.PI * step * step;
+
+    // Rho buffer (read-only)
+    const rhoGPU = device.createBuffer({
+      size: N3 * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(rhoGPU, 0, rho);
+
+    // Vel buffer (read-write, zero-initialised)
+    const VelGPU = device.createBuffer({
+      size: N3 * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+    });
+
+    // Two params uniforms: parity 0 (red) and parity 1 (black)
+    function makeParamsBuffer(parity) {
+      const buf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const arr = new ArrayBuffer(16);
+      const dv  = new DataView(arr);
+      dv.setInt32  (0,  N,      true);
+      dv.setFloat32(4,  h2pi,   true);
+      dv.setFloat32(8,  1.85,   true);
+      dv.setInt32  (12, parity, true);
+      device.queue.writeBuffer(buf, 0, arr);
+      return buf;
+    }
+    const paramsRed   = makeParamsBuffer(0);
+    const paramsBlack = makeParamsBuffer(1);
+
+    const bgLayout = pipe.getBindGroupLayout(0);
+    function makeBG(paramsBuf) {
+      return device.createBindGroup({
+        layout: bgLayout,
+        entries: [
+          { binding: 0, resource: { buffer: paramsBuf } },
+          { binding: 1, resource: { buffer: rhoGPU    } },
+          { binding: 2, resource: { buffer: VelGPU    } },
+        ],
+      });
+    }
+    const bgRed   = makeBG(paramsRed);
+    const bgBlack = makeBG(paramsBlack);
+
+    const wgX = Math.ceil((N - 2) / 8);
+    const wgY = Math.ceil((N - 2) / 8);
+    const wgZ = Math.ceil((N - 2) / 4);
+
+    // All SOR passes in one encoder — WebGPU guarantees sequential execution
+    // within a command encoder, so each pass sees writes from the previous pass.
+    const encoder = device.createCommandEncoder();
+    for (let i = 0; i < numIter; i++) {
+      const passR = encoder.beginComputePass();
+      passR.setPipeline(pipe);
+      passR.setBindGroup(0, bgRed);
+      passR.dispatchWorkgroups(wgX, wgY, wgZ);
+      passR.end();
+
+      const passB = encoder.beginComputePass();
+      passB.setPipeline(pipe);
+      passB.setBindGroup(0, bgBlack);
+      passB.dispatchWorkgroups(wgX, wgY, wgZ);
+      passB.end();
+    }
+
+    // Readback
+    const readback = device.createBuffer({
+      size: N3 * 4,
+      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    });
+    encoder.copyBufferToBuffer(VelGPU, 0, readback, 0, N3 * 4);
+    device.queue.submit([encoder.finish()]);
+
+    await readback.mapAsync(GPUMapMode.READ);
+    const result = new Float32Array(readback.getMappedRange().slice(0));
+    readback.unmap();
+
+    // Cleanup transient buffers
+    rhoGPU.destroy();
+    VelGPU.destroy();
+    paramsRed.destroy();
+    paramsBlack.destroy();
+    readback.destroy();
+
+    return result;
+  } catch (e) {
+    console.warn('solvePoissonGPU failed:', e.message ?? e);
     return null;
   }
 }

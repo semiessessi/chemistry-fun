@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { marchingCubes } from './marching-cubes.js';
+import { solvePoissonGPU } from './webgpu-sampler.js';
 
 // ---- Atomic numbers ----
 
@@ -63,28 +64,34 @@ export async function computeElectrostaticPotential(atomInfo, densityData, gridS
   // Step 2: Solve Poisson equation for electron potential via SOR
   // ∇²V_el = 4πρ  (electrons are negative charges → V_el converges to negative values)
   // Boundary: V_el = 0 at grid edges (valid since ρ → 0 at boundaries)
-  const Vel = new Float32Array(N3);
-  const h2 = step * step;
-  const fourPiH2 = 4 * Math.PI * h2;
-  const omega = 1.85;
   const numIter = 80;
+  if (onProgress) onProgress(0.15);
 
-  for (let iter = 0; iter < numIter; iter++) {
-    for (let iz = 1; iz < N - 1; iz++) {
-      for (let iy = 1; iy < N - 1; iy++) {
-        for (let ix = 1; ix < N - 1; ix++) {
-          const idx = iz * N2 + iy * N + ix;
-          const neighbors = Vel[idx - 1] + Vel[idx + 1] +
-                            Vel[idx - N] + Vel[idx + N] +
-                            Vel[idx - N2] + Vel[idx + N2];
-          const newVal = (neighbors - fourPiH2 * rho[idx]) / 6;
-          Vel[idx] += omega * (newVal - Vel[idx]);
+  let Vel = await solvePoissonGPU(rho, N, step, numIter);
+
+  if (!Vel) {
+    // JS fallback
+    Vel = new Float32Array(N3);
+    const h2 = step * step;
+    const fourPiH2 = 4 * Math.PI * h2;
+    const omega = 1.85;
+    for (let iter = 0; iter < numIter; iter++) {
+      for (let iz = 1; iz < N - 1; iz++) {
+        for (let iy = 1; iy < N - 1; iy++) {
+          for (let ix = 1; ix < N - 1; ix++) {
+            const idx = iz * N2 + iy * N + ix;
+            const neighbors = Vel[idx - 1] + Vel[idx + 1] +
+                              Vel[idx - N] + Vel[idx + N] +
+                              Vel[idx - N2] + Vel[idx + N2];
+            const newVal = (neighbors - fourPiH2 * rho[idx]) / 6;
+            Vel[idx] += omega * (newVal - Vel[idx]);
+          }
         }
       }
-    }
-    if (iter % 8 === 0) {
-      if (onProgress) onProgress(iter / numIter);
-      await new Promise(r => setTimeout(r, 0));
+      if (iter % 8 === 0) {
+        if (onProgress) onProgress(0.15 + 0.7 * iter / numIter);
+        await new Promise(r => setTimeout(r, 0));
+      }
     }
   }
 
