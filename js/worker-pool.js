@@ -91,7 +91,11 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
   // GPU fast path for density
   if (orbital.moList && gpuReady) {
     const gpuResult = await sampleDensityGridGPU(orbital.moList, N, halfExtent);
-    if (gpuResult) { console.log(`[perf] sample ${N}³ density GPU: ${(performance.now()-_t0).toFixed(0)}ms`); return gpuResult; }
+    if (gpuResult) {
+      if (isStale(gen)) return null;
+      console.log(`[perf] sample ${N}³ density GPU: ${(performance.now()-_t0).toFixed(0)}ms`);
+      return gpuResult;
+    }
   }
 
   // Worker path for density: dispatch moList to workers
@@ -174,7 +178,11 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
   // GPU fast path: bypass workers entirely when WebGPU is available
   if (gpuReady && orbital.terms) {
     const gpuResult = await sampleGridGPU(orbital.terms, N, halfExtent);
-    if (gpuResult) { console.log(`[perf] sample ${N}³ GPU: ${(performance.now()-_t0).toFixed(0)}ms`); return gpuResult; }
+    if (gpuResult) {
+      if (isStale(gen)) return null;
+      console.log(`[perf] sample ${N}³ GPU: ${(performance.now()-_t0).toFixed(0)}ms`);
+      return gpuResult;
+    }
   }
 
   // Worker path: split Z-slices across workers (finer chunks for better load-balancing)
