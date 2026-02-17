@@ -119,7 +119,7 @@ export function getGhostMaterial(elem) {
     ghostCache[elem] = new THREE.MeshBasicMaterial({
       color: el.color,
       transparent: true,
-      opacity: 0.20,
+      opacity: elem === 'H' ? 0.10 : 0.20,
       depthTest: false,
       depthWrite: false,
       side: THREE.FrontSide,
