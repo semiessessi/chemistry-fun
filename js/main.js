@@ -539,8 +539,8 @@ function updateShareLink() {
   p.set('prob', probSlider.value);
   p.set('opacity', opacitySlider.value);
   if (!densityFieldToggle.checked) p.set('density', '0');
+  p.set('vector', fieldVisToggle.checked ? '1' : '0');
   if (fieldVisToggle.checked) {
-    p.set('vector', '1');
     p.set('vsrc', fieldSourceSelect.value);
     p.set('vstyle', fieldStyleSelect.value);
   }
@@ -641,6 +641,11 @@ function applyUrlParams() {
     showDensityField = false;
     densityOptions.style.display = 'none';
   }
+
+  // Default vector field OFF when loading from URL params; only enable if explicitly requested
+  fieldVisToggle.checked = false;
+  showFieldVis = false;
+  fieldOptions.classList.add('dropdown-hidden');
 
   if (p.get('vector') === '1') {
     fieldVisToggle.checked = true;
