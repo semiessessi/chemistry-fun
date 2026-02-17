@@ -253,6 +253,23 @@ export function loadOrbital(orbital, gridSize, targetParent, isBondForming) {
 export async function loadOrbitalAsync(orbital, gridSize, targetParent, isBondForming) {
   cancelCompute();
   const s = getState();
+
+  // Structure-only placeholder (molecules without MO data): clear old surfaces, position camera.
+  if (orbital.noDensity) {
+    clearCurrentMeshes(s);
+    clearFieldVis();
+    setState({ currentCaches: [] });
+    const halfExtent = getHalfExtent(orbital);
+    updateGridExtent(halfExtent);
+    if (!s.isDragging && !s.isDynamics) {
+      const dist = halfExtent * 1.8;
+      const dir = camera.position.clone().normalize();
+      camera.position.copy(dir.multiplyScalar(dist));
+      controls.update();
+    }
+    return;
+  }
+
   const halfExtent = getHalfExtent(orbital);
   updateGridExtent(halfExtent);
   const gs = gridSize || adaptiveGrid(halfExtent, false, !isBondForming && halfExtent < 28);

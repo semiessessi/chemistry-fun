@@ -133,54 +133,63 @@ export function addMol(mol) {
     moOrbitals.push({ terms });
   }
 
-  // Electron density: sum of 2|ψᵢ|² over all listed MOs
-  const densitySampler = (x, y, z) => {
-    let rho = 0;
-    for (const mo of moOrbitals) {
-      const psi = evaluateOrbital(mo, x, y, z);
-      rho += 2 * psi * psi;
-    }
-    return Math.sqrt(rho);
-  };
-  add({
-    name: mol.name + ' electron density',
-    customSample: densitySampler,
-    halfExtent: mol.he,
-    d1: 'Molecules', d2: mol.name, d3: 'electron density', d4: null,
-    molecule: mol.name,
-  });
+  if (mosList.length > 0) {
+    // Electron density: sum of 2|ψᵢ|² over all listed MOs
+    const densitySampler = (x, y, z) => {
+      let rho = 0;
+      for (const mo of moOrbitals) {
+        const psi = evaluateOrbital(mo, x, y, z);
+        rho += 2 * psi * psi;
+      }
+      return Math.sqrt(rho);
+    };
+    add({
+      name: mol.name + ' electron density',
+      customSample: densitySampler,
+      halfExtent: mol.he,
+      d1: 'Molecules', d2: mol.name, d3: 'electron density', d4: null,
+      molecule: mol.name,
+    });
 
-  // Electrostatic potential: V(r) = V_nuc(r) + V_el(r)
-  // Uses density sampler for initial grid, then transforms to potential in the load pathway
-  add({
-    name: mol.name + ' electrostatic potential',
-    customSample: densitySampler,
-    halfExtent: mol.he,
-    d1: 'Molecules', d2: mol.name, d3: 'electrostatic potential', d4: null,
-    molecule: mol.name,
-    isElectrostaticPotential: true,
-  });
+    // Electrostatic potential: V(r) = V_nuc(r) + V_el(r)
+    add({
+      name: mol.name + ' electrostatic potential',
+      customSample: densitySampler,
+      halfExtent: mol.he,
+      d1: 'Molecules', d2: mol.name, d3: 'electrostatic potential', d4: null,
+      molecule: mol.name,
+      isElectrostaticPotential: true,
+    });
 
-  // Charge density: ρ_nuclear(Gaussian-smeared) − ρ_electronic
-  // Positive near nuclei, negative in electron cloud; rendered as red/blue lobes
-  add({
-    name: mol.name + ' charge visualisation',
-    customSample: densitySampler,
-    halfExtent: mol.he,
-    d1: 'Molecules', d2: mol.name, d3: 'charge visualisation', d4: null,
-    molecule: mol.name,
-    isChargeDensity: true,
-  });
+    // Charge density: ρ_nuclear(Gaussian-smeared) − ρ_electronic
+    add({
+      name: mol.name + ' charge visualisation',
+      customSample: densitySampler,
+      halfExtent: mol.he,
+      d1: 'Molecules', d2: mol.name, d3: 'charge visualisation', d4: null,
+      molecule: mol.name,
+      isChargeDensity: true,
+    });
 
-  // Electron Localization Function (ELF)
-  // Computed from per-MO grids in a separate loading pathway
-  add({
-    name: mol.name + ' ELF',
-    halfExtent: mol.he,
-    d1: 'Molecules', d2: mol.name, d3: 'ELF', d4: null,
-    molecule: mol.name,
-    isELF: true,
-  });
+    // Electron Localization Function (ELF)
+    add({
+      name: mol.name + ' ELF',
+      halfExtent: mol.he,
+      d1: 'Molecules', d2: mol.name, d3: 'ELF', d4: null,
+      molecule: mol.name,
+      isELF: true,
+    });
+  } else {
+    // No MO data: register a structure-only placeholder so the molecule still appears
+    // in the dropdown and ball-and-stick is shown without attempting to sample a density grid.
+    add({
+      name: mol.name + ' structure',
+      halfExtent: mol.he,
+      d1: 'Molecules', d2: mol.name, d3: 'structure', d4: null,
+      molecule: mol.name,
+      noDensity: true,
+    });
+  }
 }
 
 // ---- Displacement mechanism for vibrations ----
