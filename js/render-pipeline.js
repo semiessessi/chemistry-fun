@@ -176,8 +176,8 @@ export function renderFromCaches(probability, gridSize, targetParent, numLayers)
 
 export async function renderFromCachesAsync(probability, gridSize, targetParent, numLayers) {
   const s = getState();
-  clearCurrentMeshes(s);
-  clearFieldVis();
+  // Don't clear old meshes yet — keep them visible during the async compute gap
+  // to prevent a flash where the scene is empty for ~500ms.
   const parent = targetParent || scene;
   const layers = numLayers || s.currentLayers;
   const colorMode = s.getColorMode();
@@ -237,6 +237,9 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
     cacheIdx++;
   }
 
+  // Now swap: clear old meshes and field vis, then register the new ones.
+  clearCurrentMeshes(s);
+  clearFieldVis();
   setState({ currentMeshes: meshes });
   const espOpts = s.isESPotentialMode && s.isESPotentialMode() ? { isESP: true, espMaxValue: probability } : undefined;
   updateLegend(layers, probability, colorMode, espOpts);
