@@ -73,8 +73,10 @@ export function makeAtomLabel(elem, x, y, z) {
   ctx.textBaseline = 'middle';
 
   // Draw stroke (outline) for better contrast - scaled to 8x
+  // Per-element stroke width overrides (C needs extra contrast, O half as much)
+  const STROKE_WIDTH = { C: 20.0, O: 16.0 };
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = usesBlackText ? 5.0 : 12.0;
+  ctx.lineWidth = STROKE_WIDTH[elem] ?? (usesBlackText ? 5.0 : 12.0);
   ctx.strokeText(elem, 256, 256);  // Center: 32 * 8
 
   // Draw fill
@@ -107,7 +109,7 @@ export function makeAtomLabel(elem, x, y, z) {
     new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      opacity: (usesBlackText ? 0.1 : 0.06) * brightness,
+      opacity: (usesBlackText ? 0.1 : 0.06) * brightness * ({ C: 1.1, O: 1.1 }[elem] ?? 1.0),
       depthTest: false,
       depthWrite: false,
       blending: THREE.NormalBlending
