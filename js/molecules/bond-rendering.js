@@ -47,28 +47,35 @@ export function makeAtomLabel(elem, x, y, z) {
   const textColor = usesBlackText ? '#000000' : '#ffffff';
   const strokeColor = usesBlackText ? '#ffffff' : '#000000';
 
-  // 4x resolution for crisp labels
+  // 8x resolution for ultra-crisp antialiased labels
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: false });
+
+  // Enable high-quality antialiasing
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   // H, C, S get ultra bold font, others normal
-  ctx.font = usesBlackText ? '900 88px sans-serif' : '88px sans-serif';  // 22 * 4
+  ctx.font = usesBlackText ? '900 176px sans-serif' : '176px sans-serif';  // 22 * 8
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Draw stroke (outline) for better contrast - scaled to 4x
+  // Draw stroke (outline) for better contrast - scaled to 8x
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = usesBlackText ? 2.5 : 6.0;  // Subtler white stroke for H/C/S
-  ctx.strokeText(elem, 128, 128);  // Center: 32 * 4
+  ctx.lineWidth = usesBlackText ? 5.0 : 12.0;  // Subtler white stroke for H/C/S
+  ctx.strokeText(elem, 256, 256);  // Center: 32 * 8
 
   // Draw fill
   ctx.fillStyle = textColor;
-  ctx.fillText(elem, 128, 128);
+  ctx.fillText(elem, 256, 256);
 
   const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = 16;  // Maximum anisotropic filtering
 
   // Dual-pass rendering: faint base + faintest punchthrough
   // Black text (H, C, S) gets higher opacity base layer for clarity

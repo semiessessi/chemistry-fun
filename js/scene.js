@@ -67,11 +67,17 @@ function clearGrid() {
 }
 
 export function makeLabel(text, position, fontSize, color, axisInfo) {
+  // 4x resolution for crisp antialiased grid labels
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  ctx.font = `300 ${fontSize || 26}px sans-serif`;  // Light weight (300)
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: false });
+
+  // Enable high-quality antialiasing
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  ctx.font = `300 ${(fontSize || 26) * 4}px sans-serif`;  // Light weight (300), 4x scale
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -79,17 +85,20 @@ export function makeLabel(text, position, fontSize, color, axisInfo) {
   // Use contrasting stroke: dark stroke for light colors, light stroke for dark colors
   const strokeColor = (fillColor.match(/#[89a-f]/i)) ? '#000000' : '#ffffff';
 
-  // Draw stroke (outline)
+  // Draw stroke (outline) - scaled to 4x
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 1.5;
-  ctx.strokeText(text, 64, 32);
+  ctx.lineWidth = 6.0;
+  ctx.strokeText(text, 256, 128);
 
   // Draw fill
   ctx.fillStyle = fillColor;
-  ctx.fillText(text, 64, 32);
+  ctx.fillText(text, 256, 128);
 
   const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  texture.anisotropy = 16;  // Maximum anisotropic filtering
 
   // Dual-layer for grid labels - base layer should get occluded
   const baseLayer = new THREE.Sprite(
