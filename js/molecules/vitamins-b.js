@@ -405,7 +405,7 @@ addMol({
 // Vitamin B5 - 
 addMol({
   name: 'Vitamin B5',
-  label: ' (Vitamin B5)' ,
+  label: 'C₉H₁₇NO₅ (Vitamin B5)' ,
   category: 'Vitamin B',
   pubchemCid: 6613,
   atoms: [

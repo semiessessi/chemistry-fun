@@ -3,7 +3,7 @@ import { addMol } from './core.js';
 // Nicotine - 
 addMol({
   name: 'Nicotine',
-  label: ' (Nicotine)' ,
+  label: 'C₁₀H₁₄N₂ (Nicotine)' ,
   category: 'Neurotransmitter',
   pubchemCid: 89594,
   atoms: [
@@ -115,7 +115,7 @@ addMol({
 // Choline - 
 addMol({
   name: 'Choline',
-  label: ' (Choline)' ,
+  label: 'C₅H₁₄NO (Choline)' ,
   category: 'Neurotransmitter',
   pubchemCid: 305,
   atoms: [
@@ -210,7 +210,7 @@ addMol({
 // Acetylcholine - 
 addMol({
   name: 'Acetylcholine',
-  label: ' (Acetylcholine)' ,
+  label: 'C₇H₁₆NO₂ (Acetylcholine)' ,
   category: 'Neurotransmitter',
   pubchemCid: 187,
   atoms: [

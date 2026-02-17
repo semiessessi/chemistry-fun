@@ -3,7 +3,7 @@ import { addMol } from './core.js';
 // Glycerol - 
 addMol({
   name: 'Glycerol',
-  label: ' (Glycerol)' ,
+  label: 'C₃H₈O₃ (Glycerol)' ,
   category: 'Lipid',
   pubchemCid: 753,
   atoms: [
@@ -78,7 +78,7 @@ addMol({
 // Propylene glycol - 
 addMol({
   name: 'Propylene glycol',
-  label: ' (Propylene glycol)' ,
+  label: 'C₃H₈O₂ (Propylene glycol)' ,
   category: 'Lipid',
   pubchemCid: 1030,
   atoms: [
@@ -149,7 +149,7 @@ addMol({
 // Palmitic acid - 
 addMol({
   name: 'Palmitic acid',
-  label: ' (Palmitic acid)' ,
+  label: 'C₁₆H₃₂O₂ (Palmitic acid)' ,
   category: 'Lipid',
   pubchemCid: 985,
   atoms: [

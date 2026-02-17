@@ -3,7 +3,7 @@ import { addMol } from './core.js';
 // Nicotinamide adenine dinucleotide - CID 5892
 addMol({
   name: 'Nicotinamide adenine dinucleotide',
-  label: ' (Nicotinamide adenine dinucleotide)' ,
+  label: 'C₂₁H₂₇N₇O₁₄P₂ (Nicotinamide adenine dinucleotide)' ,
   category: 'Coenzyme',
   pubchemCid: 5892,
   atoms: [
@@ -547,7 +547,7 @@ addMol({
 // NADP+ - CID 5886
 addMol({
   name: 'NADP+',
-  label: ' (NADP+)' ,
+  label: 'C₂₁H₂₉N₇O₁₇P₃ (NADP+)' ,
   category: 'Coenzyme',
   pubchemCid: 5886,
   atoms: [
@@ -837,7 +837,7 @@ addMol({
 // Flavin adenine dinucleotide - CID 5884
 addMol({
   name: 'Flavin adenine dinucleotide',
-  label: ' (Flavin adenine dinucleotide)' ,
+  label: 'C₂₁H₃₀N₇O₁₇P₃ (Flavin adenine dinucleotide)' ,
   category: 'Coenzyme',
   pubchemCid: 5884,
   atoms: [

@@ -3,7 +3,7 @@ import { addMol } from './core.js';
 // Ribose - 
 addMol({
   name: 'Ribose',
-  label: ' (Ribose)' ,
+  label: 'C₅H₁₀O₅ (Ribose)' ,
   category: 'Sugar',
   pubchemCid: 5779,
   atoms: [
@@ -99,7 +99,7 @@ addMol({
 // Fructose - 
 addMol({
   name: 'Fructose',
-  label: ' (Fructose)' ,
+  label: 'C₆H₁₂O₆ (Fructose)' ,
   category: 'Sugar',
   pubchemCid: 5984,
   atoms: [
@@ -207,7 +207,7 @@ addMol({
 // Lactose - 
 addMol({
   name: 'Lactose',
-  label: ' (Lactose)' ,
+  label: 'C₁₂H₂₂O₁₁ (Lactose)' ,
   category: 'Sugar',
   pubchemCid: 6134,
   atoms: [
@@ -385,7 +385,7 @@ addMol({
 // Maltose - 
 addMol({
   name: 'Maltose',
-  label: ' (Maltose)' ,
+  label: 'C₂₂H₂₅NO₂ (Maltose)' ,
   category: 'Sugar',
   pubchemCid: 10991283,
   atoms: [
@@ -571,7 +571,7 @@ addMol({
 // Xylose - 
 addMol({
   name: 'Xylose',
-  label: ' (Xylose)' ,
+  label: 'C₅H₁₀O₅ (Xylose)' ,
   category: 'Sugar',
   pubchemCid: 135191,
   atoms: [

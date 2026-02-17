@@ -3,7 +3,7 @@ import { addMol } from './core.js';
 // Silver nitrate - CID 24297
 addMol({
   name: 'Silver nitrate',
-  label: ' (Silver nitrate)' ,
+  label: 'C₁₂H₁₄N₂O₂S (Silver nitrate)' ,
   category: 'Heavy Element',
   pubchemCid: 24297,
   atoms: [
@@ -131,7 +131,7 @@ addMol({
 // Selenium dioxide - CID 24915
 addMol({
   name: 'Selenium dioxide',
-  label: ' (Selenium dioxide)' ,
+  label: 'C₁₄H₂₀O₂ (Selenium dioxide)' ,
   category: 'Heavy Element',
   pubchemCid: 24915,
   atoms: [

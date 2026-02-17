@@ -127,3 +127,4 @@ import './organometallics.js';
 import './halogen-compounds.js';
 import './heavy-element-compounds.js';
 import './giant-molecules.js';
+import './corrected-molecules.js';

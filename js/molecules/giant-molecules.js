@@ -809,7 +809,7 @@ addMol({
 // Myohemerythrin - 2177 atoms! (PDB 2MHR)
 addMol({
   name: 'Myohemerythrin',
-  label: '(Myohemerythrin)' ,
+  label: 'C₁₇₃H₂₃₄N₄₁O₅₂ (Myohemerythrin)' ,
   category: 'Protein',
   atoms: [
     ['N', 24.4757, 90.3459, -0.1852],
@@ -3221,7 +3221,7 @@ addMol({
 // Quercetin - 32 atoms! (PUBCHEM 5280343)
 addMol({
   name: 'Quercetin',
-  label: '(Quercetin)' ,
+  label: 'C₁₅H₁₀O₇ (Quercetin)' ,
   category: 'Organic',
   atoms: [
     ['O', -0.6153, -1.6361, -0.2355],

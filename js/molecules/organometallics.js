@@ -74,7 +74,7 @@ addMol({
 // Titanocene dichloride - CID 11960555
 addMol({
   name: 'Titanocene dichloride',
-  label: ' (Titanocene dichloride)' ,
+  label: 'C₂₈H₃₉NO (Titanocene dichloride)' ,
   category: 'Organometallic',
   pubchemCid: 11960555,
   atoms: [

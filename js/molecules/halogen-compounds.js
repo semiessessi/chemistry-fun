@@ -80,7 +80,7 @@ addMol({
 // Carbon tetraiodide - CID 6212
 addMol({
   name: 'Carbon tetraiodide',
-  label: ' (Carbon tetraiodide)' ,
+  label: 'CHCl₃ (Carbon tetraiodide)' ,
   category: 'Halide',
   pubchemCid: 6212,
   atoms: [
@@ -123,7 +123,7 @@ addMol({
 // Iodobenzene - CID 11718144
 addMol({
   name: 'Iodobenzene',
-  label: ' (Iodobenzene)' ,
+  label: 'C₁₈H₁₁ClF₃N₃O₂ (Iodobenzene)' ,
   category: 'Halide',
   pubchemCid: 11718144,
   atoms: [
@@ -275,7 +275,7 @@ addMol({
 // Bromobenzene - CID 7847
 addMol({
   name: 'Bromobenzene',
-  label: ' (Bromobenzene)' ,
+  label: 'C₃H₄O (Bromobenzene)' ,
   category: 'Halide',
   pubchemCid: 7847,
   atoms: [

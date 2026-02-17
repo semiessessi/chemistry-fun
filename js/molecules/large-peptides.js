@@ -117,7 +117,7 @@ addMol({
 // Oxytocin - CID 444795
 addMol({
   name: 'Oxytocin',
-  label: ' (Oxytocin)' ,
+  label: 'C₂₀H₂₈O₂ (Oxytocin)' ,
   category: 'Peptide',
   pubchemCid: 444795,
   atoms: [
@@ -300,7 +300,7 @@ addMol({
 // Vasopressin - CID 439508
 addMol({
   name: 'Vasopressin',
-  label: ' (Vasopressin)' ,
+  label: 'C₅H₁₀O₅ (Vasopressin)' ,
   category: 'Peptide',
   pubchemCid: 439508,
   atoms: [

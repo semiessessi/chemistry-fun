@@ -3,7 +3,7 @@ import { addMol } from './core.js';
 // Adenosine monophosphate - CID 5957
 addMol({
   name: 'Adenosine monophosphate',
-  label: ' (Adenosine monophosphate)' ,
+  label: 'C₁₀H₁₆N₅O₁₃P₃ (Adenosine monophosphate)' ,
   category: 'Nucleotide',
   pubchemCid: 5957,
   atoms: [
@@ -195,7 +195,7 @@ addMol({
 // Adenosine diphosphate - CID 6022
 addMol({
   name: 'Adenosine diphosphate',
-  label: ' (Adenosine diphosphate)' ,
+  label: 'C₁₀H₁₅N₅O₁₀P₂ (Adenosine diphosphate)' ,
   category: 'Nucleotide',
   pubchemCid: 6022,
   atoms: [
@@ -369,7 +369,7 @@ addMol({
 // Adenosine triphosphate - CID 5957
 addMol({
   name: 'Adenosine triphosphate',
-  label: ' (Adenosine triphosphate)' ,
+  label: 'C₁₀H₁₆N₅O₁₃P₃ (Adenosine triphosphate)' ,
   category: 'Nucleotide',
   pubchemCid: 5957,
   atoms: [
@@ -561,7 +561,7 @@ addMol({
 // Guanosine monophosphate - CID 6076
 addMol({
   name: 'Guanosine monophosphate',
-  label: ' (Guanosine monophosphate)' ,
+  label: 'C₁₀H₁₂N₅O₆P (Guanosine monophosphate)' ,
   category: 'Nucleotide',
   pubchemCid: 6076,
   atoms: [
@@ -708,7 +708,7 @@ addMol({
 // Guanosine triphosphate - CID 8977
 addMol({
   name: 'Guanosine triphosphate',
-  label: ' (Guanosine triphosphate)' ,
+  label: 'C₁₀H₁₅N₅O₁₁P₂ (Guanosine triphosphate)' ,
   category: 'Nucleotide',
   pubchemCid: 8977,
   atoms: [
@@ -886,7 +886,7 @@ addMol({
 // Cyclic AMP - CID 6083
 addMol({
   name: 'Cyclic AMP',
-  label: ' (Cyclic AMP)' ,
+  label: 'C₁₀H₁₄N₅O₇P (Cyclic AMP)' ,
   category: 'Nucleotide',
   pubchemCid: 6083,
   atoms: [
@@ -1042,7 +1042,7 @@ addMol({
 // Uridine monophosphate - CID 5893
 addMol({
   name: 'Uridine monophosphate',
-  label: ' (Uridine monophosphate)' ,
+  label: 'C₂₁H₂₈N₇O₁₄P₂ (Uridine monophosphate)' ,
   category: 'Nucleotide',
   pubchemCid: 5893,
   atoms: [
@@ -1314,7 +1314,7 @@ addMol({
 // Cytidine monophosphate - CID 6133
 addMol({
   name: 'Cytidine monophosphate',
-  label: ' (Cytidine monophosphate)' ,
+  label: 'C₉H₁₅N₂O₁₅P₃ (Cytidine monophosphate)' ,
   category: 'Nucleotide',
   pubchemCid: 6133,
   atoms: [
