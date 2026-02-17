@@ -150,7 +150,7 @@ export function makeAtomLabel(elem, x, y, z) {
  */
 // Per-element screen-space offsets: { right, down } in world units along camera axes
 const LABEL_SCREEN_OFFSET = {
-  P: { right: 0.028 },  // ~1.4% of P label width (scale ≈ 1.97)
+  P: { right: 0.028, down: 0.03 },  // ~1.4% right; 0.03 down relative to global nudge
 };
 
 export function updateAtomLabelPositions(trackedAtoms, camera, offset = 0.6) {
@@ -174,7 +174,7 @@ export function updateAtomLabelPositions(trackedAtoms, camera, offset = 0.6) {
     // Position label in front of atom toward camera
     const labelPos = atomPos.clone().add(camDir.multiplyScalar(offset));
     labelPos.y -= 0.07;                              // ~6% down — corrects upward bias
-    labelPos.addScaledVector(camUp, 0.024);          // +2% up in screen space
+    labelPos.addScaledVector(camUp, 0.06);           // nudge up in screen space
 
     // Per-element screen-space nudges (right/up along camera axes)
     const nudge = LABEL_SCREEN_OFFSET[tracked.label.elem];
