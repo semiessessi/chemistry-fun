@@ -206,8 +206,15 @@ self.onmessage = async function(e) {
       // Copy data once; reuse for all thresholds
       new Float32Array(wasm.memory.buffer, dataPtr, N3).set(data);
 
+      // Use generation-stamp variant to skip per-threshold cache memset (~15MB each)
+      const useGen = typeof wasm.marchingCubesWasmGen === 'function';
       for (let ti = 0; ti < thresholds.length; ti++) {
-        wasm.marchingCubesWasm(dataPtr, N, thresholds[ti], cachePtr, vertsPtr, idxPtr, N3, N3 * 2, countsPtr);
+        if (useGen) {
+          // gen starts at 1; cache is NOT cleared — generation tag detects stale entries
+          wasm.marchingCubesWasmGen(dataPtr, N, thresholds[ti], cachePtr, ti + 1, vertsPtr, idxPtr, N3, N3 * 2, countsPtr);
+        } else {
+          wasm.marchingCubesWasm(dataPtr, N, thresholds[ti], cachePtr, vertsPtr, idxPtr, N3, N3 * 2, countsPtr);
+        }
         const counts    = new Int32Array(wasm.memory.buffer, countsPtr, 2);
         const vertCount = counts[0];
         const idxCount  = counts[1];

@@ -367,6 +367,129 @@ export function marchingCubesWasm(
   return overflow ? 1 : 0;
 }
 
+/**
+ * Generation-stamp edge-cache helper — no memory.fill between thresholds.
+ * Cache slot: bits 0–20 = vertex index, bits 21–31 = generation tag.
+ * Valid when (cached >>> 21) === gen.  Max N=128 (2M verts fit in 21 bits).
+ */
+function interpEdgeVertexGen(
+  ix: i32, iy: i32, iz: i32, edge: i32,
+  v0: f32, v1: f32, v2: f32, v3: f32,
+  v4: f32, v5: f32, v6: f32, v7: f32,
+  threshold: f32, N: i32, N2: i32, N3: i32,
+  edgeCachePtr: i32, outVertsPtr: i32, vertCount: i32,
+  gen: i32
+): i32 {
+  const infoBase: i32 = i32(EDGE_INFO_PTR) + edge * 4;
+  const dir: i32 = i32(load<u8>(infoBase));
+  const ddx: i32 = i32(load<u8>(infoBase + 1));
+  const ddy: i32 = i32(load<u8>(infoBase + 2));
+  const ddz: i32 = i32(load<u8>(infoBase + 3));
+  const key: i32 = dir * N3 + (iz + ddz) * N2 + (iy + ddy) * N + (ix + ddx);
+  const cached: i32 = load<i32>(edgeCachePtr + key * 4);
+  if ((cached >>> 21) === gen) return cached & 0x1FFFFF;  // valid: return vertex idx
+
+  const a: i32 = i32(load<u8>(i32(EDGE_PAIR_A) + edge));
+  const b: i32 = i32(load<u8>(i32(EDGE_PAIR_B) + edge));
+  const va: f32 = getCornerVal(a, v0, v1, v2, v3, v4, v5, v6, v7);
+  const vb: f32 = getCornerVal(b, v0, v1, v2, v3, v4, v5, v6, v7);
+
+  var mu: f32;
+  if      (Math.abs(f64(threshold - va)) < 1e-10) { mu = 0.0; }
+  else if (Math.abs(f64(threshold - vb)) < 1e-10) { mu = 1.0; }
+  else if (Math.abs(f64(va - vb))        < 1e-10) { mu = 0.0; }
+  else { mu = (threshold - va) / (vb - va); }
+
+  const ax: f32 = f32(ix + cxo(a)); const ay: f32 = f32(iy + cyo(a)); const az: f32 = f32(iz + czo(a));
+  const bx: f32 = f32(ix + cxo(b)); const by: f32 = f32(iy + cyo(b)); const bz: f32 = f32(iz + czo(b));
+
+  const idx: i32 = vertCount;
+  const off: i32 = idx * 12;
+  store<f32>(outVertsPtr + off,     ax + mu * (bx - ax));
+  store<f32>(outVertsPtr + off + 4, ay + mu * (by - ay));
+  store<f32>(outVertsPtr + off + 8, az + mu * (bz - az));
+  store<i32>(edgeCachePtr + key * 4, (gen << 21) | idx);
+  return idx;
+}
+
+/**
+ * Like marchingCubesWasm but accepts a generation counter instead of clearing the cache.
+ * Call with gen=1,2,3,... for successive thresholds on the same data buffer.
+ * Cache is NOT cleared — caller must provide a zeroed or previously-used cache;
+ * stale entries are detected by the generation tag.
+ * edgeCachePtr : Int32 scratch, size >= 3*N*N*N*4 bytes (NOT cleared internally)
+ */
+export function marchingCubesWasmGen(
+  dataPtr: i32, N: i32, threshold: f32,
+  edgeCachePtr: i32,
+  gen: i32,
+  outVertsPtr: i32, outIdxPtr: i32,
+  maxVerts: i32, maxIdx: i32,
+  outCountsPtr: i32
+): i32 {
+  const N2: i32 = N * N;
+  const N3: i32 = N2 * N;
+
+  var vertCount: i32 = 0;
+  var idxCount:  i32 = 0;
+  var overflow:  bool = false;
+
+  for (var iz: i32 = 0; iz < N - 1; iz++) {
+    for (var iy: i32 = 0; iy < N - 1; iy++) {
+      for (var ix: i32 = 0; ix < N - 1; ix++) {
+        const base: i32 = (iz * N2 + iy * N + ix) * 4;
+        const v0: f32 = load<f32>(dataPtr + base);
+        const v1: f32 = load<f32>(dataPtr + base + 4);
+        const v2: f32 = load<f32>(dataPtr + base + 4 + N * 4);
+        const v3: f32 = load<f32>(dataPtr + base     + N * 4);
+        const v4: f32 = load<f32>(dataPtr + base         + N2 * 4);
+        const v5: f32 = load<f32>(dataPtr + base + 4     + N2 * 4);
+        const v6: f32 = load<f32>(dataPtr + base + 4 + N * 4 + N2 * 4);
+        const v7: f32 = load<f32>(dataPtr + base     + N * 4 + N2 * 4);
+
+        var cubeIdx: i32 = 0;
+        if (v0 > threshold) cubeIdx |= 1;
+        if (v1 > threshold) cubeIdx |= 2;
+        if (v2 > threshold) cubeIdx |= 4;
+        if (v3 > threshold) cubeIdx |= 8;
+        if (v4 > threshold) cubeIdx |= 16;
+        if (v5 > threshold) cubeIdx |= 32;
+        if (v6 > threshold) cubeIdx |= 64;
+        if (v7 > threshold) cubeIdx |= 128;
+        if (cubeIdx == 0 || cubeIdx == 255) continue;
+
+        const triBase: i32 = i32(TRI_TABLE_PTR) + cubeIdx * 16;
+        for (var ti: i32 = 0; ti < 15; ti += 3) {
+          const e0: i32 = i32(load<i8>(triBase + ti));
+          if (e0 == -1) break;
+          const e1: i32 = i32(load<i8>(triBase + ti + 1));
+          const e2: i32 = i32(load<i8>(triBase + ti + 2));
+
+          const vi0: i32 = interpEdgeVertexGen(ix,iy,iz,e0,v0,v1,v2,v3,v4,v5,v6,v7,threshold,N,N2,N3,edgeCachePtr,outVertsPtr,vertCount,gen);
+          if (vi0 == vertCount) { if (vertCount >= maxVerts) { overflow = true; break; } vertCount++; }
+          const vi1: i32 = interpEdgeVertexGen(ix,iy,iz,e1,v0,v1,v2,v3,v4,v5,v6,v7,threshold,N,N2,N3,edgeCachePtr,outVertsPtr,vertCount,gen);
+          if (vi1 == vertCount) { if (vertCount >= maxVerts) { overflow = true; break; } vertCount++; }
+          const vi2: i32 = interpEdgeVertexGen(ix,iy,iz,e2,v0,v1,v2,v3,v4,v5,v6,v7,threshold,N,N2,N3,edgeCachePtr,outVertsPtr,vertCount,gen);
+          if (vi2 == vertCount) { if (vertCount >= maxVerts) { overflow = true; break; } vertCount++; }
+
+          if (idxCount + 3 > maxIdx) { overflow = true; break; }
+          store<u32>(outIdxPtr + idxCount * 4,       u32(vi0));
+          store<u32>(outIdxPtr + (idxCount + 1) * 4, u32(vi1));
+          store<u32>(outIdxPtr + (idxCount + 2) * 4, u32(vi2));
+          idxCount += 3;
+        }
+        if (overflow) break;
+      }
+      if (overflow) break;
+    }
+    if (overflow) break;
+  }
+
+  store<i32>(outCountsPtr,     vertCount);
+  store<i32>(outCountsPtr + 4, idxCount);
+  return overflow ? 1 : 0;
+}
+
 // ---- Central-difference gradient ----
 // Computes ∇f at every voxel using central differences (forward/backward at boundaries).
 // Input:  dataPtr   — float32 grid of size N³ (row-major: idx = x + y*N + z*N²)
