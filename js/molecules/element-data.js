@@ -76,13 +76,19 @@ const materialCache = {};
 export function getElementMaterial(elem) {
   if (!materialCache[elem]) {
     const el = ELEMENTS[elem] || { color: 0xcccccc };
+    const baseColor = new THREE.Color(el.color);
+    const hsl = {};
+    baseColor.getHSL(hsl);
+    baseColor.setHSL(hsl.h, Math.min(1, hsl.s * 1.3), hsl.l);
     materialCache[elem] = new THREE.MeshPhongMaterial({
-      color: el.color,
-      shininess: 90,       // Moderate gloss - pool ball lacquer, not chrome
-      specular: 0x886644,  // Warm slightly amber specular - dull lacquer not mirror
+      color: baseColor.clone(),
+      shininess: 70,           // Reduced from 90
+      specular: 0x553322,      // Reduced from 0x886644
       envMap: envMap,
-      reflectivity: 0.2,   // Subtle reflections
+      reflectivity: 0.08,      // Reduced from 0.2
       combine: THREE.MixOperation,
+      emissive: baseColor.clone(),
+      emissiveIntensity: 0.12,
     });
   }
   return materialCache[elem];
