@@ -125,6 +125,9 @@ import './large-sugars.js';
 import './heavy-element-compounds.js';
 import './halogen-compounds.js';
 import './organometallics.js';
+import './more-organometallics.js';
+import './platinum-drugs.js';
+import './selenium-biology.js';
 
 import './giant-molecules.js';
 import './corrected-molecules.js';
