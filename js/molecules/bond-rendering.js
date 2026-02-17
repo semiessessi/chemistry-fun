@@ -42,8 +42,7 @@ export function detectAromaticRings(mol) {
 }
 
 export function makeAtomLabel(elem, x, y, z) {
-  // Use luminance of the element color to decide dark vs light text,
-  // then tint the text towards the element color for a coloured label.
+  // Use luminance of the element color to decide white vs black text
   const elemHex = ELEMENTS[elem]?.color ?? 0x888888;
   const lr = (elemHex >> 16) & 0xff;
   const lg = (elemHex >> 8)  & 0xff;
@@ -51,22 +50,10 @@ export function makeAtomLabel(elem, x, y, z) {
   const luminance = (0.299 * lr + 0.587 * lg + 0.114 * lb) / 255;
   const usesBlackText = luminance > 0.5;
 
-  // Tint: for dark spheres blend white→elemColor; for light spheres blend black→elemColor
-  const tf = 0.55;  // tint factor
-  let textColor, strokeColor;
-  if (usesBlackText) {
-    const tr = Math.round(lr * tf);
-    const tg = Math.round(lg * tf);
-    const tb = Math.round(lb * tf);
-    textColor   = `rgb(${tr},${tg},${tb})`;
-    strokeColor = '#ffffff';
-  } else {
-    const tr = Math.round(255 + (lr - 255) * tf);
-    const tg = Math.round(255 + (lg - 255) * tf);
-    const tb = Math.round(255 + (lb - 255) * tf);
-    textColor   = `rgb(${tr},${tg},${tb})`;
-    strokeColor = '#000000';
-  }
+  // Per-element text colour overrides; all others get plain white or black
+  const TEXT_TINT = { C: '#aaaaaa', O: '#ffcc44' };
+  const textColor   = TEXT_TINT[elem] ?? (usesBlackText ? '#000000' : '#ffffff');
+  const strokeColor = usesBlackText ? '#ffffff' : '#000000';
 
   // 8x resolution for ultra-crisp antialiased labels
   const canvas = document.createElement('canvas');
