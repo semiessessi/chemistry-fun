@@ -42,7 +42,7 @@ export const ELEMENTS = {
   F:  { color: 0x60a818, radius: 0.35 },  // Darker yellow-green
   Na: { color: 0x8030e0, radius: 0.55 },  // Darker purple
   Al: { color: 0xbfa6a6, radius: 0.50 },
-  P:  { color: 0xcc5500, radius: 0.42 },  // Darker orange
+  P:  { color: 0xff5500, radius: 0.42 },  // Hot orange
   S:  { color: 0xd4d400, radius: 0.45 },  // Darker saturated yellow
   Cl: { color: 0x0ba80b, radius: 0.42 },  // Darker green
   Ca: { color: 0x20b800, radius: 0.58 },  // Darker green
