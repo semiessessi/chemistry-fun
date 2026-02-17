@@ -78,10 +78,10 @@ export function getElementMaterial(elem) {
     const el = ELEMENTS[elem] || { color: 0xcccccc };
     materialCache[elem] = new THREE.MeshPhongMaterial({
       color: el.color,
-      shininess: 150,      // Much shinier (was 60)
-      specular: 0xffffff,  // Bright white specular highlights
-      envMap: envMap,      // Environment reflections
-      reflectivity: 0.25,  // 25% reflection strength
+      shininess: 90,       // Moderate gloss - pool ball lacquer, not chrome
+      specular: 0x886644,  // Warm slightly amber specular - dull lacquer not mirror
+      envMap: envMap,
+      reflectivity: 0.2,   // Subtle reflections
       combine: THREE.MixOperation,
     });
   }
