@@ -269,5 +269,11 @@ export async function renderLayersAsync(cacheData, halfExtent, gridSize, probabi
   return { thresholds, results: mcResults };
 }
 
+export async function computeGradientAsync(data, gridSize, halfExtent) {
+  // Do NOT transfer data.buffer — caller may still need c.data after this resolves
+  const result = await runTask({ type: 'computeGradient', data, gridSize, halfExtent });
+  return result.grad;
+}
+
 // Initialize pool immediately
 initPool();

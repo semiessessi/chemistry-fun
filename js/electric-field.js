@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import {
   computeGradient, computeMagneticField, computeFilterBounds, computeMagnitudeBounds, trilinearInterpScalar
 } from './gradient-computation.js';
+import { computeGradientAsync } from './worker-pool.js';
 import {
   createArrowMeshes, collectArrowCandidates, recomputeArrowVectors
 } from './arrow-rendering.js';
@@ -16,7 +17,7 @@ export { computeGradient, trilinearInterpScalar } from './gradient-computation.j
 
 let fieldGroup = null;
 let fieldMeshes = [];
-let currentMode = 'both';          // 'arrows' | 'streamlines' | 'both'
+let currentMode = 'streamlines';   // 'arrows' | 'streamlines' | 'both'
 let currentSource = 'gradient';    // 'gradient' | 'electrostatic' | 'magnetic'
 let buildGeneration = 0;
 let currentCacheKey = null;
@@ -220,11 +221,11 @@ export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, p
       magBounds = computeMagnitudeBounds(grad, gs, 0.001, 0.15);
     } else if (isElectrostatic) {
       // Electron cloud field: −∇ρ (negative gradient of electron density)
-      grad = computeGradient(c.data, gs, he);
+      grad = await computeGradientAsync(c.data, gs, he);
       for (let i = 0; i < grad.length; i++) grad[i] = -grad[i];
       magBounds = computeMagnitudeBounds(grad, gs);
     } else {
-      grad = computeGradient(c.data, gs, he);
+      grad = await computeGradientAsync(c.data, gs, he);
       bounds = computeFilterBounds(c.data, he, gs, probability || 0.8);
     }
 
