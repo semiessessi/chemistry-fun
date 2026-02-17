@@ -66,6 +66,13 @@ function clearGrid() {
   labelSprites.length = 0;
 }
 
+let gridVisible = true;
+export function setGridVisible(v) {
+  gridVisible = v;
+  for (const obj of gridObjects) obj.visible = v;
+}
+export function isGridVisible() { return gridVisible; }
+
 export function makeLabel(text, position, fontSize, color, axisInfo) {
   // 4x resolution for crisp antialiased grid labels
   const canvas = document.createElement('canvas');
@@ -279,6 +286,11 @@ function buildGrid(maxAng) {
   makeLabel('x (\u00C5)', new THREE.Vector3(GRID_MAX + 2, 0, 0), 22, '#aa6666');
   makeLabel('z (\u00C5)', new THREE.Vector3(0, 0, GRID_MAX + 2), 22, '#6666aa');
   makeLabel('y (\u00C5)', new THREE.Vector3(0, GRID_MAX + 2, 0), 22, '#66aa66');
+
+  // Apply current visibility state to newly built objects
+  if (!gridVisible) {
+    for (const obj of gridObjects) obj.visible = false;
+  }
 }
 
 /**

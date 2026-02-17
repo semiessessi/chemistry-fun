@@ -106,11 +106,15 @@ export function makeAtomLabel(elem, x, y, z) {
     })
   );
 
+  // Scale label with atom radius; S gets an extra boost so the glyph fills the ball
+  const baseScale = 1.2 * (ELEMENTS[elem]?.radius ?? 0.4) / 0.4;
+  const labelScale = elem === 'S' ? baseScale * 1.4 : baseScale;
+
   // Position in front of atom (will be updated by camera-facing logic)
   baseLayer.position.set(x, y + 0.6, z);
   additiveLayer.position.set(x, y + 0.6, z);
-  baseLayer.scale.set(1.2, 1.2, 1);
-  additiveLayer.scale.set(1.2, 1.2, 1);
+  baseLayer.scale.set(labelScale, labelScale, 1);
+  additiveLayer.scale.set(labelScale, labelScale, 1);
 
   // Render order: base EARLY (gets occluded), additive LATE (punches through)
   baseLayer.renderOrder = 100;  // Low = renders first

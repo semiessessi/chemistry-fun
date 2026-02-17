@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ORBITAL_TREE, ORBITAL_MAP } from './orbitals.js';
 import { cancelCompute } from './worker-pool.js';
 import { updateLegend, applyOpacityScale } from './layer-materials.js';
-import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales } from './scene.js';
+import { scene, camera, renderer, controls, matPositive, matNegative, updateLabelScales, setGridVisible } from './scene.js';
 import { setMoleculeContextVisible, updateMoleculeContextPositions, trackedAtoms, MOLECULE_LABELS, getMoleculeVariants, getMoleculeCid, getMoleculeNist, getMoleculeAtoms } from './molecules/index.js';
 import { updateAtomLabelPositions } from './molecules/bond-rendering.js';
 import { pubchemUrl } from './pubchem.js';
@@ -55,6 +55,7 @@ const layerSelect = document.getElementById('layer-select');
 const customLayersRow = document.getElementById('custom-layers-row');
 const customLayersInput = document.getElementById('custom-layers-input');
 const ballStickToggle = document.getElementById('ball-stick-toggle');
+const gridToggle = document.getElementById('grid-toggle');
 const densityFieldToggle = document.getElementById('density-field-toggle');
 const densityOptions = document.getElementById('density-options');
 const fieldVisToggle = document.getElementById('field-vis-toggle');
@@ -545,6 +546,7 @@ function updateShareLink() {
     p.set('vstyle', fieldStyleSelect.value);
   }
   if (!ballStickToggle.checked) p.set('atoms', '0');
+  if (!gridToggle.checked) p.set('grid', '0');
   const url = window.location.origin + window.location.pathname + '?' + p.toString();
   shareLinkDiv.innerHTML = `<a href="${url}">Shareable link</a>`;
 }
@@ -663,6 +665,11 @@ function applyUrlParams() {
     showBallAndStick = false;
   }
 
+  if (p.get('grid') === '0') {
+    gridToggle.checked = false;
+    setGridVisible(false);
+  }
+
   updateVariantDropdown(d2);
   updatePubchemLink(d2);
 
@@ -683,6 +690,12 @@ fieldVisToggle.checked = true;
 fieldSourceSelect.value = 'magnetic';
 fieldStyleSelect.value = 'streamlines';
 fieldOptions.classList.remove('dropdown-hidden');
+
+// ---- Grid & Axes toggle ----
+gridToggle.addEventListener('change', () => {
+  setGridVisible(gridToggle.checked);
+  updateShareLink();
+});
 
 // ---- Energy diagram size controls ----
 document.getElementById('diagram-collapsed-btn').addEventListener('click', () => {
