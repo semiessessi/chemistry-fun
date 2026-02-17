@@ -78,13 +78,12 @@ export function makeAtomLabel(elem, x, y, z) {
   texture.anisotropy = 16;  // Maximum anisotropic filtering
 
   // Dual-pass rendering: faint base + faintest punchthrough
-  // Black text (H, C, S) gets higher opacity base layer for clarity
-  const baseOpacity = usesBlackText ? 0.6 : 0.25;
+  const baseOpacity = 1.0;
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),
       transparent: true,
-      opacity: baseOpacity,  // 100% for black text, 25% for white text
+      opacity: baseOpacity,
       depthTest: true,   // Gets occluded by geometry
       depthWrite: false, // Don't write to depth buffer (prevents square artifacts)
       blending: THREE.NormalBlending
