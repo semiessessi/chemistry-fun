@@ -183,6 +183,52 @@ self.onmessage = async function(e) {
     );
   }
 
+  else if (type === 'marchingCubesMulti') {
+    // Process multiple thresholds on one data buffer — avoids per-threshold 2MB clone.
+    const { data, thresholds, gridSize } = e.data;
+    const N = gridSize;
+    const N3 = N * N * N;
+    const _tmc = performance.now();
+
+    const allResults = [];
+    const allTransferables = [];
+
+    const wasm = await wasmReady;
+    if (wasm) {
+      const base      = wasm.heapBase();
+      const dataPtr   = base;
+      const cachePtr  = dataPtr  + N3 * 4      + 32;
+      const vertsPtr  = cachePtr + N3 * 3 * 4  + 32;
+      const idxPtr    = vertsPtr + N3 * 3 * 4  + 32;
+      const countsPtr = idxPtr   + N3 * 2 * 4  + 32;
+      ensureMemory(wasm, countsPtr + 16);
+
+      // Copy data once; reuse for all thresholds
+      new Float32Array(wasm.memory.buffer, dataPtr, N3).set(data);
+
+      for (let ti = 0; ti < thresholds.length; ti++) {
+        wasm.marchingCubesWasm(dataPtr, N, thresholds[ti], cachePtr, vertsPtr, idxPtr, N3, N3 * 2, countsPtr);
+        const counts    = new Int32Array(wasm.memory.buffer, countsPtr, 2);
+        const vertCount = counts[0];
+        const idxCount  = counts[1];
+        const vertices  = new Float32Array(wasm.memory.buffer.slice(vertsPtr, vertsPtr + vertCount * 3 * 4));
+        const indices   = new Uint32Array(wasm.memory.buffer.slice(idxPtr,    idxPtr   + idxCount * 4));
+        allResults.push({ ti, vertices, indices });
+        allTransferables.push(vertices.buffer, indices.buffer);
+      }
+      console.log(`[worker MC multi] ${N}³ ×${thresholds.length}: ${(performance.now()-_tmc).toFixed(1)}ms (WASM)`);
+    } else {
+      for (let ti = 0; ti < thresholds.length; ti++) {
+        const r = marchingCubes(data, N, thresholds[ti]);
+        allResults.push({ ti, vertices: r.vertices, indices: r.indices });
+        allTransferables.push(r.vertices.buffer, r.indices.buffer);
+      }
+      console.log(`[worker MC multi] ${N}³ ×${thresholds.length}: ${(performance.now()-_tmc).toFixed(1)}ms (JS)`);
+    }
+
+    self.postMessage({ type, id, results: allResults }, allTransferables);
+  }
+
   else if (type === 'computeGradient') {
     const { data, gridSize, halfExtent } = e.data;
     const grad = computeGradient(data, gridSize, halfExtent);

@@ -247,35 +247,21 @@ export async function renderLayersAsync(cacheData, halfExtent, gridSize, probabi
 
   if (isStale(gen)) return null;
 
-  // Step 3: dispatch marching cubes tasks for each threshold × {pos, neg}
-  const mcTasks = [];
-  for (let i = 0; i < thresholds.length; i++) {
-    mcTasks.push({ layer: i, side: 'pos', data: cacheData, threshold: thresholds[i] });
-    mcTasks.push({ layer: i, side: 'neg', data: negData, threshold: thresholds[i] });
-  }
-
-  const totalMC = mcTasks.length;
-  let mcCompleted = 0;
+  // Step 3: dispatch two multi-threshold tasks (pos + neg) — data copied once each,
+  // eliminating the 48× structured-clone overhead of the old per-threshold approach.
   const mcResults = [];
 
-  await Promise.all(mcTasks.map(t =>
-    runTask({
-      type: 'marchingCubes',
-      data: t.data,
-      gridSize,
-      threshold: t.threshold
-    }).then(result => {
-      if (isStale(gen)) return;
-      mcResults.push({
-        layer: t.layer,
-        side: t.side,
-        vertices: result.vertices,
-        indices: result.indices
+  await Promise.all(['pos', 'neg'].map((side, si) => {
+    const data = si === 0 ? cacheData : negData;
+    return runTask({ type: 'marchingCubesMulti', data, thresholds, gridSize })
+      .then(result => {
+        if (isStale(gen)) return;
+        for (const r of result.results) {
+          mcResults.push({ layer: r.ti, side, vertices: r.vertices, indices: r.indices });
+        }
+        if (onProgress) onProgress((si + 1) / 2);
       });
-      mcCompleted++;
-      if (onProgress) onProgress(mcCompleted / totalMC);
-    })
-  ));
+  }));
 
   if (isStale(gen)) return null;
 
