@@ -95,6 +95,24 @@ export function getElementMaterial(elem) {
   return materialCache[elem];
 }
 
+// ---- Ghost (overlay) materials — 5% opacity, always on top ----
+
+const ghostCache = {};
+export function getGhostMaterial(elem) {
+  if (!ghostCache[elem]) {
+    const el = ELEMENTS[elem] || { color: 0xcccccc };
+    ghostCache[elem] = new THREE.MeshPhongMaterial({
+      color: el.color,
+      transparent: true,
+      opacity: 0.05,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.FrontSide,
+    });
+  }
+  return ghostCache[elem];
+}
+
 export const bondMaterial = new THREE.MeshPhongMaterial({
   color: 0x666666,
   shininess: 50,       // Reduced from 100 for subtler bonds

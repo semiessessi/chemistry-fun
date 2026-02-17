@@ -1,7 +1,7 @@
 // Bond rendering: cylinders, aromatic rings, and helper utilities.
 
 import * as THREE from 'three';
-import { ELEMENTS, sphereGeo, cylGeo, torusGeo, getElementMaterial, bondMaterial } from './element-data.js';
+import { ELEMENTS, sphereGeo, cylGeo, torusGeo, getElementMaterial, getGhostMaterial, bondMaterial } from './element-data.js';
 
 // ---- Helper utilities ----
 
@@ -174,6 +174,13 @@ export function renderAtoms(mol, meshesOut, trackedAtomsOut) {
     mesh.position.set(x, y, z);
     mesh.scale.setScalar(el.radius);
     meshesOut.push(mesh);
+
+    // Ghost overlay: 5% opacity, always on top of everything
+    const ghost = new THREE.Mesh(sphereGeo, getGhostMaterial(elem));
+    ghost.position.set(x, y, z);
+    ghost.scale.setScalar(el.radius);
+    ghost.renderOrder = 999;
+    meshesOut.push(ghost);
 
     const label = makeAtomLabel(elem, x, y, z);
     // Add both label sprites to meshes
