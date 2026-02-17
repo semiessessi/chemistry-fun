@@ -21,23 +21,23 @@ controls.dampingFactor = 0.08;
 // Lighting — high-contrast with minimal ambient
 scene.add(new THREE.AmbientLight(0xffffff, 0.03));
 
-// Key light — warm golden, dominant, from upper-right-front
-const keyLight = new THREE.DirectionalLight(0xffd080, 1.6);
+// Key light — neutral green-white, dominant, from upper-right-front
+const keyLight = new THREE.DirectionalLight(0xe8f8ec, 1.45);
 keyLight.position.set(5, 10, 7);
 scene.add(keyLight);
 
-// Fill light — cool cyan-blue, very subtle, opposite side
-const fillLight = new THREE.DirectionalLight(0x80d0ff, 0.14);
+// Fill light — soft cyan, opposite side
+const fillLight = new THREE.DirectionalLight(0x98e8d8, 0.18);
 fillLight.position.set(-7, 2, -4);
 scene.add(fillLight);
 
-// Rim / back light — faint magenta-pink edge highlight
-const rimLight = new THREE.DirectionalLight(0xffc0ff, 0.16);
+// Rim / back light — faint cyan-white edge highlight
+const rimLight = new THREE.DirectionalLight(0xd0f8ec, 0.15);
 rimLight.position.set(-2, 6, -10);
 scene.add(rimLight);
 
-// Bottom fill — barely-there uplight to keep undersides from pure black
-const bottomLight = new THREE.DirectionalLight(0x80ffc0, 0.07);
+// Bottom fill — barely-there cyan-green uplight
+const bottomLight = new THREE.DirectionalLight(0xb0f8d8, 0.08);
 bottomLight.position.set(0, -8, 2);
 scene.add(bottomLight);
 
