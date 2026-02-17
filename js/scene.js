@@ -18,26 +18,26 @@ export const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 
-// Lighting — low ambient + multi-directional for strong 3D contrast
-scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+// Lighting — colorful multi-directional lights that average to white
+scene.add(new THREE.AmbientLight(0xffffff, 0.15));
 
-// Key light — warm, strong, from upper-right-front
-const keyLight = new THREE.DirectionalLight(0xfff4e0, 1.0);
+// Key light — warm golden, strong, from upper-right-front
+const keyLight = new THREE.DirectionalLight(0xffd080, 1.0);
 keyLight.position.set(5, 10, 7);
 scene.add(keyLight);
 
-// Fill light — cool, dimmer, opposite side to soften shadows
-const fillLight = new THREE.DirectionalLight(0xc0d0ff, 0.30);
+// Fill light — cool cyan-blue, dimmer, opposite side to soften shadows
+const fillLight = new THREE.DirectionalLight(0x80d0ff, 0.35);
 fillLight.position.set(-7, 2, -4);
 scene.add(fillLight);
 
-// Rim / back light — highlights edges from behind
-const rimLight = new THREE.DirectionalLight(0xffffff, 0.50);
+// Rim / back light — subtle magenta-pink, highlights edges from behind
+const rimLight = new THREE.DirectionalLight(0xffc0ff, 0.40);
 rimLight.position.set(-2, 6, -10);
 scene.add(rimLight);
 
-// Bottom fill — subtle uplight to stop undersides going fully black
-const bottomLight = new THREE.DirectionalLight(0x8090b0, 0.15);
+// Bottom fill — cool green-cyan uplight, stops undersides going black
+const bottomLight = new THREE.DirectionalLight(0x80ffc0, 0.20);
 bottomLight.position.set(0, -8, 2);
 scene.add(bottomLight);
 

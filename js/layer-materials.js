@@ -231,6 +231,10 @@ export function clearTransitionMaterials() {
   transitionMaterials.length = 0;
 }
 
+export function clearTransitionMaterials() {
+  transitionMaterials.length = 0;
+}
+
 // ---- Legend ----
 
 function colorToCSS(threeColor, opacity) {

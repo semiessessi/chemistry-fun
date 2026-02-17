@@ -2,6 +2,31 @@
 
 import * as THREE from 'three';
 
+// ---- Simple environment map for subtle reflections ----
+
+function createSimpleEnvMap() {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // Gradient from warm top to cool bottom
+  const gradient = ctx.createLinearGradient(0, 0, 0, size);
+  gradient.addColorStop(0, '#f0f4ff');    // Cool sky
+  gradient.addColorStop(0.5, '#ffffff');  // White middle
+  gradient.addColorStop(1, '#fff8f0');    // Warm ground
+
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.mapping = THREE.EquirectangularReflectionMapping;
+  return texture;
+}
+
+const envMap = createSimpleEnvMap();
+
 // ---- Element data (CPK colors, covalent radii for sphere display) ----
 
 export const ELEMENTS = {
@@ -51,6 +76,9 @@ export function getElementMaterial(elem) {
       color: el.color,
       shininess: 150,      // Much shinier (was 60)
       specular: 0xffffff,  // Bright white specular highlights
+      envMap: envMap,      // Subtle environment reflections
+      reflectivity: 0.15,  // Subtle reflection strength
+      combine: THREE.MixOperation,
     });
   }
   return materialCache[elem];
@@ -58,7 +86,7 @@ export function getElementMaterial(elem) {
 
 export const bondMaterial = new THREE.MeshPhongMaterial({
   color: 0x666666,
-  shininess: 100,      // Shinier bonds (was 30)
-  specular: 0xaaaaaa,  // Subtle specular highlights
+  shininess: 50,       // Reduced from 100 for subtler bonds
+  specular: 0x555555,  // Reduced from 0xaaaaaa
   side: THREE.DoubleSide
 });
