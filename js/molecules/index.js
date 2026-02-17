@@ -126,3 +126,4 @@ import './large-peptides.js';
 import './organometallics.js';
 import './halogen-compounds.js';
 import './heavy-element-compounds.js';
+import './giant-molecules.js';
