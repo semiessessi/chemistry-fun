@@ -85,15 +85,14 @@ export function makeAtomLabel(elem, x, y, z) {
   texture.generateMipmaps = true;
   texture.anisotropy = 16;  // Maximum anisotropic filtering
 
-  // Dual-pass rendering: faint base + faintest punchthrough
-  const baseOpacity = 1.0;
+  // Dual-pass rendering: base (occluded) + faint punchthrough (always on top)
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),
       transparent: true,
-      opacity: baseOpacity,
-      depthTest: true,   // Gets occluded by geometry
-      depthWrite: false, // Don't write to depth buffer (prevents square artifacts)
+      opacity: 0.8,
+      depthTest: true,
+      depthWrite: false,
       blending: THREE.NormalBlending
     })
   );
@@ -102,10 +101,10 @@ export function makeAtomLabel(elem, x, y, z) {
     new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      opacity: 0.1,  // Faintest punchthrough
-      depthTest: false,  // Always on top
-      depthWrite: false, // Don't write to depth buffer
-      blending: THREE.NormalBlending  // Alpha blending: black darkens, white lightens
+      opacity: usesBlackText ? 0.1 : 0.06,  // Lighter punchthrough for bright/white labels
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.NormalBlending
     })
   );
 
