@@ -36,8 +36,8 @@ const rimLight = new THREE.DirectionalLight(0xd0f8ec, 0.15);
 rimLight.position.set(-2, 6, -10);
 scene.add(rimLight);
 
-// Bottom fill — barely-there cyan-green uplight
-const bottomLight = new THREE.DirectionalLight(0xb0f8d8, 0.08);
+// Bottom fill — warm blue-green underlight
+const bottomLight = new THREE.DirectionalLight(0x90d8ff, 0.22);
 bottomLight.position.set(0, -8, 2);
 scene.add(bottomLight);
 
