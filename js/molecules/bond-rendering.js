@@ -87,12 +87,16 @@ export function makeAtomLabel(elem, x, y, z) {
   texture.generateMipmaps = true;
   texture.anisotropy = 16;  // Maximum anisotropic filtering
 
+  // Per-element brightness scale (applied to both passes)
+  const BRIGHTNESS = { C: 0.34 };
+  const brightness = BRIGHTNESS[elem] ?? 1.0;
+
   // Dual-pass rendering: base (occluded) + faint punchthrough (always on top)
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.8 * brightness,
       depthTest: true,
       depthWrite: false,
       blending: THREE.NormalBlending
@@ -103,7 +107,7 @@ export function makeAtomLabel(elem, x, y, z) {
     new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      opacity: usesBlackText ? 0.1 : 0.06,  // Lighter punchthrough for bright/white labels
+      opacity: (usesBlackText ? 0.1 : 0.06) * brightness,
       depthTest: false,
       depthWrite: false,
       blending: THREE.NormalBlending
