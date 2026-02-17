@@ -34,8 +34,8 @@ const envMap = createSimpleEnvMap();
 // ---- Element data (CPK colors, covalent radii for sphere display) ----
 
 export const ELEMENTS = {
-  H:  { color: 0xdcdcdc, radius: 0.3 },  // Soft white — shows specular shine
-  C:  { color: 0x080808, radius: 0.4, matOptions: { shininess: 120, specular: 0x999999, reflectivity: 0.18, emissiveIntensity: 0 } },  // Lacquered black — eight ball
+  H:  { color: 0xdcdcdc, radius: 0.3, matOptions: { shininess: 113, specular: 0xaaaaaa, reflectivity: 0.15 } },  // Shiny white — 25% more gloss
+  C:  { color: 0x020202, radius: 0.4, matOptions: { shininess: 140, specular: 0xbbbbbb, reflectivity: 0.25, emissiveIntensity: 0 } },  // Black as fuck — eight ball
   N:  { color: 0x0c20cc, radius: 0.4 },  // Darker, more saturated blue
   O:  { color: 0xdd5500, radius: 0.4 },  // Red-orange with clear yellow warmth
   B:  { color: 0xffb5b5, radius: 0.38 },
