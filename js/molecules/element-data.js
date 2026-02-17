@@ -31,14 +31,14 @@ const envMap = createSimpleEnvMap();
 
 export const ELEMENTS = {
   H:  { color: 0xffffff, radius: 0.3 },
-  C:  { color: 0x909090, radius: 0.4 },
+  C:  { color: 0x606060, radius: 0.4 },  // Darker gray
   N:  { color: 0x1535e8, radius: 0.4 },  // Darker, more saturated blue
   O:  { color: 0xcc0800, radius: 0.4 },  // Darker, more saturated red
   B:  { color: 0xffb5b5, radius: 0.38 },
   F:  { color: 0x90e050, radius: 0.35 },
   Na: { color: 0xab5cf2, radius: 0.55 },
   Al: { color: 0xbfa6a6, radius: 0.50 },
-  P:  { color: 0xff8000, radius: 0.42 },
+  P:  { color: 0xcc5500, radius: 0.42 },  // Darker orange
   S:  { color: 0xffff30, radius: 0.45 },
   Cl: { color: 0x1ff01f, radius: 0.42 },
   Ca: { color: 0x3dff00, radius: 0.58 },
