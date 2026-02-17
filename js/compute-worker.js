@@ -8,7 +8,10 @@ import { computeGradient } from './gradient-computation.js';
 import { loadWasmSampler } from './wasm/loader.js';
 
 // Eagerly load WASM; handlers await this promise before falling back to JS
-const wasmReady = loadWasmSampler();
+const wasmReady = loadWasmSampler().then(w => {
+  console.log(w ? '[worker] WASM loaded, heapBase=' + w.heapBase() : '[worker] WASM unavailable, using JS fallback');
+  return w;
+});
 
 // Pack JS term objects into a flat Float32Array for WASM (18 f32 per term)
 // Layout: [cx, cy, cz, n, l, m, angType, coeff, zeta, rot0..rot8]
@@ -137,7 +140,43 @@ self.onmessage = async function(e) {
 
   else if (type === 'marchingCubes') {
     const { data, gridSize, threshold } = e.data;
-    const result = marchingCubes(data, gridSize, threshold);
+    const N = gridSize;
+    const _tmc = performance.now();
+
+    // --- WASM path ---
+    const wasm = await wasmReady;
+    if (wasm) {
+      const base       = wasm.heapBase();
+      const N3         = N * N * N;
+      const dataBytes  = N3 * 4;
+      const cacheBytes = N3 * 3 * 4;
+      const maxVerts   = N3;
+      const maxIdx     = N3 * 2;
+      const vertBytes  = maxVerts * 3 * 4;
+      const idxBytes   = maxIdx * 4;
+      const dataPtr    = base;
+      const cachePtr   = dataPtr  + dataBytes  + 32;
+      const vertsPtr   = cachePtr + cacheBytes + 32;
+      const idxPtr     = vertsPtr + vertBytes  + 32;
+      const countsPtr  = idxPtr   + idxBytes   + 32;
+      ensureMemory(wasm, countsPtr + 16);
+
+      new Float32Array(wasm.memory.buffer, dataPtr, N3).set(data);
+      wasm.marchingCubesWasm(dataPtr, N, threshold, cachePtr, vertsPtr, idxPtr, maxVerts, maxIdx, countsPtr);
+
+      const counts    = new Int32Array(wasm.memory.buffer, countsPtr, 2);
+      const vertCount = counts[0];
+      const idxCount  = counts[1];
+      const vertices  = new Float32Array(wasm.memory.buffer.slice(vertsPtr, vertsPtr + vertCount * 3 * 4));
+      const indices   = new Uint32Array(wasm.memory.buffer.slice(idxPtr, idxPtr + idxCount * 4));
+      console.log(`[worker MC] ${N}³ thr=${threshold.toExponential(2)}: ${(performance.now()-_tmc).toFixed(1)}ms verts=${vertCount} (WASM)`);
+      self.postMessage({ type, id, vertices, indices }, [vertices.buffer, indices.buffer]);
+      return;
+    }
+
+    // --- JS fallback ---
+    const result = marchingCubes(data, N, threshold);
+    console.log(`[worker MC] ${N}³ thr=${threshold.toExponential(2)}: ${(performance.now()-_tmc).toFixed(1)}ms verts=${result.vertices.length/3|0} (JS)`);
     self.postMessage(
       { type, id, vertices: result.vertices, indices: result.indices },
       [result.vertices.buffer, result.indices.buffer]

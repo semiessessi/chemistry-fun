@@ -173,6 +173,7 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
   const totalCaches = s.currentCaches.length;
   let cacheIdx = 0;
 
+  const _t0rfc = performance.now();
   for (const cache of s.currentCaches) {
     const gs = gridSize || cache.gridSize;
     const baseProgress = cacheIdx / totalCaches;
@@ -184,6 +185,8 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
     );
 
     if (!result) return;
+    console.log(`[perf] renderLayersAsync done: ${(performance.now()-_t0rfc).toFixed(0)}ms`);
+    const _t1rfc = performance.now();
 
     const step = (2 * cache.halfExtent) / (gs - 1);
     const he = cache.halfExtent;
@@ -215,6 +218,7 @@ export async function renderFromCachesAsync(probability, gridSize, targetParent,
       parent.add(mesh);
       meshes.push(mesh);
     }
+    console.log(`[perf] geometry build+normals ${result.results.length} meshes: ${(performance.now()-_t1rfc).toFixed(0)}ms`);
     cacheIdx++;
   }
 
@@ -252,6 +256,7 @@ export function loadOrbital(orbital, gridSize, targetParent, isBondForming) {
 
 export async function loadOrbitalAsync(orbital, gridSize, targetParent, isBondForming) {
   cancelCompute();
+  const _t0loa = performance.now();
   const s = getState();
 
   // Structure-only placeholder (molecules without MO data): clear old surfaces, position camera.
@@ -295,6 +300,7 @@ export async function loadOrbitalAsync(orbital, gridSize, targetParent, isBondFo
   setState({ currentCaches: caches });
   showProgress('Rendering...', 0.7);
   await renderFromCachesAsync(s.currentProbability, gs, targetParent);
+  console.log(`[perf] loadOrbitalAsync total: ${(performance.now()-_t0loa).toFixed(0)}ms`);
 
   hideProgress();
 

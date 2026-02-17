@@ -18,11 +18,12 @@ export async function loadWasmSampler() {
       const { instance: mod } = await WebAssembly.instantiate(bytes, {});
       const exp = mod.exports;
 
-      if (!exp.sampleGridChunk || !exp.sampleDensityChunk || !exp.memory || !exp.heapBase) return null;
+      if (!exp.sampleGridChunk || !exp.sampleDensityChunk || !exp.memory || !exp.heapBase || !exp.marchingCubesWasm) return null;
 
       instance = {
         sampleGridChunk:    exp.sampleGridChunk,
         sampleDensityChunk: exp.sampleDensityChunk,
+        marchingCubesWasm:  exp.marchingCubesWasm,
         memory:             exp.memory,
         heapBase:           exp.heapBase,
       };

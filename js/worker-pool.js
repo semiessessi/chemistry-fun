@@ -2,14 +2,14 @@
 // Distributes grid sampling, threshold computation, and marching cubes across workers.
 
 import { sampleGrid } from './grid.js';
-import { initWebGPU, sampleGridGPU } from './webgpu-sampler.js';
+import { initWebGPU, sampleGridGPU, sampleDensityGridGPU } from './webgpu-sampler.js';
 
 const WORKER_URL = new URL('./compute-worker.js', import.meta.url).href;
 const NUM_WORKERS = Math.max(2, Math.min((navigator.hardwareConcurrency - 1) || 7, 16));
 
 // Kick off GPU init eagerly; sampleGridAsync checks gpuReady before dispatching workers
 let gpuReady = false;
-initWebGPU().then(ok => { gpuReady = ok; });
+initWebGPU().then(ok => { gpuReady = ok; console.log('[perf] WebGPU:', ok ? 'ready' : 'unavailable'); });
 
 // ---- Worker pool ----
 
@@ -86,6 +86,13 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
   const gen = generation;
   const N = gridSize;
   const totalVoxels = N * N * N;
+  const _t0 = performance.now();
+
+  // GPU fast path for density
+  if (orbital.moList && gpuReady) {
+    const gpuResult = await sampleDensityGridGPU(orbital.moList, N, halfExtent);
+    if (gpuResult) { console.log(`[perf] sample ${N}³ density GPU: ${(performance.now()-_t0).toFixed(0)}ms`); return gpuResult; }
+  }
 
   // Worker path for density: dispatch moList to workers
   if (orbital.moList) {
@@ -126,6 +133,7 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
       if (!r) continue;
       data.set(r.chunk, r.zStart * sliceSize);
     }
+    console.log(`[perf] sample ${N}³ density workers(${NUM_WORKERS}): ${(performance.now()-_t0).toFixed(0)}ms`);
     return data;
   }
 
@@ -166,7 +174,7 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
   // GPU fast path: bypass workers entirely when WebGPU is available
   if (gpuReady && orbital.terms) {
     const gpuResult = await sampleGridGPU(orbital.terms, N, halfExtent);
-    if (gpuResult) return gpuResult;
+    if (gpuResult) { console.log(`[perf] sample ${N}³ GPU: ${(performance.now()-_t0).toFixed(0)}ms`); return gpuResult; }
   }
 
   // Worker path: split Z-slices across workers (finer chunks for better load-balancing)
@@ -208,6 +216,7 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
     if (!r) continue;
     data.set(r.chunk, r.zStart * sliceSize);
   }
+  console.log(`[perf] sample ${N}³ workers(${NUM_WORKERS}): ${(performance.now()-_t0).toFixed(0)}ms`);
   return data;
 }
 
@@ -216,6 +225,7 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
  */
 export async function renderLayersAsync(cacheData, halfExtent, gridSize, probability, numLayers, isDensity, onProgress) {
   const gen = generation;
+  const _t0mc = performance.now();
 
   // Step 1: compute thresholds on one worker
   const threshResult = await runTask({
@@ -269,6 +279,7 @@ export async function renderLayersAsync(cacheData, halfExtent, gridSize, probabi
 
   if (isStale(gen)) return null;
 
+  console.log(`[perf] MC ${gridSize}³ (${thresholds.length} layers): ${(performance.now()-_t0mc).toFixed(0)}ms`);
   return { thresholds, results: mcResults };
 }
 
