@@ -139,7 +139,7 @@ let lastSampledOrientations3 = null;
 
 let showBallAndStick = ballStickToggle.checked;
 let showDensityField = densityFieldToggle.checked;
-let showFieldVis = true;  // Enable vector field by default
+let showFieldVis = false;  // Vector field off by default
 let fieldStyle = 'streamlines';  // Default to streamlines only
 let energyDiagramSize = isMobile ? 'collapsed' : 'normal';  // Mobile gets collapsed, desktop gets normal
 
