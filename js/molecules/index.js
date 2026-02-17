@@ -111,7 +111,6 @@ import './hcl.js';
 import './delta-bonds.js';
 import './heterocycles.js';
 import './oligopeptides.js';
-import './oligopeptides-new.js';
 import './heavy-elements.js';
 import './more-organics.js';
 import './inorganic.js';
@@ -122,9 +121,10 @@ import './neurotransmitters-new.js';
 import './nucleotides.js';
 import './coenzymes.js';
 import './large-sugars.js';
-import './large-peptides.js';
-import './organometallics.js';
-import './halogen-compounds.js';
+
 import './heavy-element-compounds.js';
+import './halogen-compounds.js';
+import './organometallics.js';
+
 import './giant-molecules.js';
 import './corrected-molecules.js';

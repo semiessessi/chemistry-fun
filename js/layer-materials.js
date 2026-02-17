@@ -216,11 +216,11 @@ export function createOscillatingMaterial(baseColor, baseOpacity, isTransition) 
   return mat;
 }
 
-export function tickTransitionMaterials(dt, omega, c1, c2) {
+export function tickTransitionMaterials(oscillationTime, omega, c1, c2) {
   const interferenceStrength = 2 * c1 * c2;
   for (const mat of transitionMaterials) {
     if (mat.uniforms) {
-      mat.uniforms.uTime.value += dt;
+      mat.uniforms.uTime.value = oscillationTime;  // set directly so speed multiplier is respected
       mat.uniforms.uOmega.value = omega;
       mat.uniforms.uInterferenceStrength.value = interferenceStrength;
     }

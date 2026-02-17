@@ -322,27 +322,34 @@ export function getFieldSource() { return currentSource; }
 
 let fieldOscillationEnabled = false;
 let fieldOscillationOmega = 0;
-let fieldOscillationPhase = 0;
 
 export function setFieldOscillation(enabled, omega = 1.0) {
   fieldOscillationEnabled = enabled;
   fieldOscillationOmega = omega;
-  if (!enabled) fieldOscillationPhase = 0;
+  if (!enabled) {
+    // Restore default opacity on all tracked materials
+    for (const mat of streamlineMaterials) {
+      if (mat.uniforms.uOpacity) mat.uniforms.uOpacity.value = 0.28;
+    }
+  }
 }
 
-export function tickFieldAnimation(dt, emFieldPhase, emAmplitude = 1.0) {
+// Called from main.js every frame — advances streamline flow animation only
+export function tickFieldAnimation(dt) {
   for (const mat of streamlineMaterials) {
     mat.uniforms.uTime.value += dt;
   }
+}
 
-  if (fieldOscillationEnabled && emFieldPhase !== undefined) {
-    const oscillation = Math.cos(fieldOscillationOmega * emFieldPhase);
-    const opacityScale = 0.5 + 0.5 * oscillation;
-
-    for (const mat of streamlineMaterials) {
-      if (mat.uniforms.uOpacity) {
-        mat.uniforms.uOpacity.value = 0.28 * opacityScale * emAmplitude;
-      }
+// Called from TransitionController.tick() — modulates opacity for QED coupling,
+// without re-ticking uTime (which main.js already handles)
+export function modulateFieldOpacity(oscillationTime, omega, emAmplitude = 1.0) {
+  if (!fieldOscillationEnabled) return;
+  const oscillation = Math.cos(omega * oscillationTime);
+  const opacityScale = 0.5 + 0.5 * oscillation;
+  for (const mat of streamlineMaterials) {
+    if (mat.uniforms.uOpacity) {
+      mat.uniforms.uOpacity.value = 0.28 * opacityScale * emAmplitude;
     }
   }
 }

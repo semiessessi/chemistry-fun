@@ -42,7 +42,7 @@ export const ELEMENTS = {
   F:  { color: 0x60a818, radius: 0.35 },  // Darker yellow-green
   Na: { color: 0x8030e0, radius: 0.55 },  // Darker purple
   Al: { color: 0xbfa6a6, radius: 0.50 },
-  P:  { color: 0xff5500, radius: 0.42 },  // Hot orange
+  P:  { color: 0xffcc00, radius: 0.42 },  // Yellow
   S:  { color: 0xd4d400, radius: 0.45 },  // Darker saturated yellow
   Cl: { color: 0x0ba80b, radius: 0.42 },  // Darker green
   Ca: { color: 0x20b800, radius: 0.58 },  // Darker green
@@ -62,6 +62,21 @@ export const ELEMENTS = {
   Bi: { color: 0x9e4fb5, radius: 0.54 },
   Mo: { color: 0x54b5b5, radius: 0.54 },
   Re: { color: 0x267dab, radius: 0.51 },
+  Ag: { color: 0xc0c0c0, radius: 0.50, matOptions: { shininess: 200, specular: 0xffffff, reflectivity: 0.5 } },  // Silver — mirror finish
+  Co: { color: 0xf090a0, radius: 0.48 },  // Cobalt — pink (Jmol CPK)
+  Ni: { color: 0x50d050, radius: 0.48 },  // Nickel — light green (Jmol CPK)
+  Hg: { color: 0xb8b8d0, radius: 0.52, matOptions: { shininess: 220, specular: 0xffffff, reflectivity: 0.6 } },  // Mercury — silvery blue, liquid-metal finish
+  Ru: { color: 0x248f8f, radius: 0.50 },  // Ruthenium
+  Pd: { color: 0x006985, radius: 0.50 },  // Palladium
+  Mg: { color: 0x8aff00, radius: 0.52 },  // Magnesium
+  Zn: { color: 0x7d80b0, radius: 0.49 },  // Zinc
+  Mn: { color: 0x9c7ac7, radius: 0.50 },  // Manganese
+  Cr: { color: 0x8a99c7, radius: 0.50 },  // Chromium
+  V:  { color: 0xa6a6ab, radius: 0.51 },  // Vanadium
+  W:  { color: 0x2194d6, radius: 0.52 },  // Tungsten
+  Au: { color: 0xffd123, radius: 0.50, matOptions: { shininess: 220, specular: 0xffee88, reflectivity: 0.6 } },  // Gold — warm metallic
+  Pt: { color: 0xd0d0e0, radius: 0.51, matOptions: { shininess: 200, specular: 0xffffff, reflectivity: 0.5 } },  // Platinum
+  Ir: { color: 0x175487, radius: 0.51 },  // Iridium
 };
 
 // ---- Shared geometries (created once) ----
@@ -114,8 +129,8 @@ export function getGhostMaterial(elem) {
 }
 
 export const bondMaterial = new THREE.MeshPhongMaterial({
-  color: 0x666666,
-  shininess: 50,       // Reduced from 100 for subtler bonds
-  specular: 0x555555,  // Reduced from 0xaaaaaa
+  color: 0xcccccc,     // ~80% grey — used chalk
+  shininess: 3,        // Near-matte
+  specular: 0x0a0a0a,  // Almost no specular highlight
   side: THREE.DoubleSide
 });

@@ -3,7 +3,7 @@ import { addMol } from './core.js';
 // Vitamin B1 (Thiamine) - 
 addMol({
   name: 'Vitamin B1 (Thiamine)',
-  label: ' (Vitamin B1 (Thiamine))' ,
+  label: 'C₁₂H₁₇N₄OS (Thiamine)' ,
   category: 'Vitamin B',
   pubchemCid: 1130,
   atoms: [
@@ -145,7 +145,7 @@ addMol({
 // Vitamin B2 (Riboflavin) - 
 addMol({
   name: 'Vitamin B2 (Riboflavin)',
-  label: ' (Vitamin B2 (Riboflavin))' ,
+  label: 'C₁₇H₂₀N₄O₆ (Riboflavin)' ,
   category: 'Vitamin B',
   pubchemCid: 493570,
   atoms: [
@@ -329,7 +329,7 @@ addMol({
 // Vitamin B3 (Niacin) - 
 addMol({
   name: 'Vitamin B3 (Niacin)',
-  label: ' (Vitamin B3 (Niacin))' ,
+  label: 'C₆H₅NO₂ (Niacin)' ,
   category: 'Vitamin B',
   pubchemCid: 938,
   atoms: [
@@ -537,7 +537,7 @@ addMol({
 // Vitamin B6 (Pyridoxine) - 
 addMol({
   name: 'Vitamin B6 (Pyridoxine)',
-  label: ' (Vitamin B6 (Pyridoxine))' ,
+  label: 'C₈H₁₁NO₃ (Pyridoxine)' ,
   category: 'Vitamin B',
   pubchemCid: 1054,
   atoms: [
@@ -641,7 +641,7 @@ addMol({
 // Vitamin B7 (Biotin) - 
 addMol({
   name: 'Vitamin B7 (Biotin)',
-  label: ' (Vitamin B7 (Biotin))' ,
+  label: 'C₁₀H₁₆N₂O₃S (Biotin)' ,
   category: 'Vitamin B',
   pubchemCid: 171548,
   atoms: [
@@ -774,7 +774,7 @@ addMol({
 // Vitamin B9 (Folic acid) - 
 addMol({
   name: 'Vitamin B9 (Folic acid)',
-  label: ' (Vitamin B9 (Folic acid))' ,
+  label: 'C₁₉H₁₉N₇O₆ (Folic acid)' ,
   category: 'Vitamin B',
   pubchemCid: 6037,
   atoms: [

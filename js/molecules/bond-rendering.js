@@ -76,7 +76,7 @@ export function makeAtomLabel(elem, x, y, z) {
 
   // Draw stroke (outline) for better contrast - scaled to 8x
   // Per-element stroke width overrides (C needs extra contrast, O half as much)
-  const STROKE_WIDTH = { C: 20.0, O: 16.0 };
+  const STROKE_WIDTH = { C: 20.0, O: 16.0, P: 3.0 };
   ctx.strokeStyle = strokeColor;
   ctx.lineWidth = STROKE_WIDTH[elem] ?? (usesBlackText ? 5.0 : 12.0);
   ctx.strokeText(elem, 256, 256);  // Center: 32 * 8
@@ -120,7 +120,7 @@ export function makeAtomLabel(elem, x, y, z) {
 
   // Scale label with atom radius, plus per-element fine-tuning
   const baseScale = 1.2 * (ELEMENTS[elem]?.radius ?? 0.4) / 0.4;
-  const LABEL_BOOST = { S: 1.4, C: 1.05, N: 1.1, O: 1.1, F: 1.2, U: 1.3 };
+  const LABEL_BOOST = { S: 1.4, C: 1.21, N: 1.1, O: 1.1, F: 1.2, P: 1.56, U: 1.3 };
   const labelScale = baseScale * (LABEL_BOOST[elem] ?? 1.0);
 
   // Position in front of atom (will be updated by camera-facing logic)
@@ -148,8 +148,20 @@ export function makeAtomLabel(elem, x, y, z) {
  * @param {THREE.Camera} camera - Three.js camera
  * @param {number} offset - Distance in front of atom (default 0.6)
  */
+// Per-element screen-space offsets: { right, down } in world units along camera axes
+const LABEL_SCREEN_OFFSET = {
+  P: { right: 0.028 },  // ~1.4% of P label width (scale ≈ 1.97)
+};
+
 export function updateAtomLabelPositions(trackedAtoms, camera, offset = 0.6) {
-  const camDir = new THREE.Vector3();
+  const camDir   = new THREE.Vector3();
+  const camRight = new THREE.Vector3();
+  const camUp    = new THREE.Vector3();
+
+  // Extract camera's screen-space axes once per frame
+  camRight.setFromMatrixColumn(camera.matrixWorld, 0);
+  camUp.setFromMatrixColumn(camera.matrixWorld, 1);
+
   for (const tracked of trackedAtoms) {
     if (!tracked.label || !tracked.label.atomPos) continue;
 
@@ -161,6 +173,15 @@ export function updateAtomLabelPositions(trackedAtoms, camera, offset = 0.6) {
 
     // Position label in front of atom toward camera
     const labelPos = atomPos.clone().add(camDir.multiplyScalar(offset));
+    labelPos.y -= 0.07;                              // ~6% down — corrects upward bias
+    labelPos.addScaledVector(camUp, 0.024);          // +2% up in screen space
+
+    // Per-element screen-space nudges (right/up along camera axes)
+    const nudge = LABEL_SCREEN_OFFSET[tracked.label.elem];
+    if (nudge) {
+      if (nudge.right) labelPos.addScaledVector(camRight, nudge.right);
+      if (nudge.down)  labelPos.addScaledVector(camUp,  -nudge.down);
+    }
 
     // Update both sprite positions
     tracked.label.baseLayer.position.copy(labelPos);

@@ -11,7 +11,7 @@ import { marchingCubes } from './marching-cubes.js';
 import { scene } from './scene.js';
 import { BaseFrameController } from './controllers/base-frame-controller.js';
 import { buildMeshesFromData } from './utils/mesh-builder.js';
-import { setFieldOscillation, tickFieldAnimation } from './electric-field.js';
+import { setFieldOscillation, modulateFieldOpacity } from './electric-field.js';
 
 const NUM_FRAMES = 48;
 const RYDBERG = 13.605693122994; // Rydberg constant in eV
@@ -286,13 +286,13 @@ export class TransitionController extends BaseFrameController {
       const c1 = Math.cos(Math.PI * t / 2);
       const c2 = Math.sin(Math.PI * t / 2);
 
-      // Update shader materials
-      tickTransitionMaterials(dt, this.displayOmega, c1, c2);
+      // Update shader materials (pass oscillationTime directly so speed multiplier applies)
+      tickTransitionMaterials(this.oscillationTime, this.displayOmega, c1, c2);
 
-      // Update EM field (if enabled)
+      // Modulate EM field opacity (if enabled) — don't tick time, main.js already does that
       if (this.showEmField) {
         const emAmplitude = 1.0 - t;  // Absorption: field decays from 1 to 0
-        tickFieldAnimation(dt, this.oscillationTime, emAmplitude);
+        modulateFieldOpacity(this.oscillationTime, this.displayOmega, emAmplitude);
       }
 
       // Update dipole arrow

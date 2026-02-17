@@ -272,7 +272,7 @@ addMol({
 // NADH (reduced) - CID 439153
 addMol({
   name: 'NADH (reduced)',
-  label: ' (NADH (reduced))' ,
+  label: 'C₂₁H₂₉N₇O₁₄P₂ (reduced)' ,
   category: 'Coenzyme',
   pubchemCid: 439153,
   atoms: [
