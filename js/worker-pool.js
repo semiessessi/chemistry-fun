@@ -137,8 +137,9 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
     return data;
   }
 
-  // Fallback: customSample must run on main thread
+  // Fallback: customSample must run on main thread (transitions, reactions, vibrations)
   if (orbital.customSample) {
+    console.warn(`[perf] sample ${N}³ customSample MAIN-THREAD (slow!) hasmoList=${!!orbital.moList} moListLen=${orbital.moList?.length} name=${orbital.name}`);
     const data = new Float32Array(totalVoxels);
     const step = (2 * halfExtent) / (N - 1);
     const CHUNK = 4; // Z-slices per setTimeout chunk
@@ -162,6 +163,7 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
         doneSlices = end;
         if (onProgress) onProgress(doneSlices / N);
         if (doneSlices >= N) {
+          console.log(`[perf] sample ${N}³ customSample done: ${(performance.now()-_t0).toFixed(0)}ms`);
           resolve(data);
         } else {
           setTimeout(doChunk, 0);

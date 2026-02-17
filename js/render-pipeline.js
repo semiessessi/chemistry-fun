@@ -297,6 +297,8 @@ export async function loadOrbitalAsync(orbital, gridSize, targetParent, isBondFo
   const parts = orbital.lobes || [orbital];
   const totalParts = parts.length;
 
+  console.log(`[perf] loadOrbitalAsync start: gs=${gs} he=${halfExtent.toFixed(1)} parts=${totalParts} terms=${parts[0]?.terms?.length ?? '?'} moList=${parts[0]?.moList?.length ?? '?'}`);
+
   showProgress('Sampling grid...', 0);
 
   for (let pi = 0; pi < totalParts; pi++) {
@@ -304,9 +306,11 @@ export async function loadOrbitalAsync(orbital, gridSize, targetParent, isBondFo
     const partBase = pi / totalParts;
     const partWeight = 1 / totalParts;
 
+    const _ts = performance.now();
     const data = await sampleGridAsync(part, gs, halfExtent,
       (frac) => showProgress('Sampling grid...', (partBase + partWeight * frac) * 0.7)
     );
+    console.log(`[perf] sampleGridAsync part ${pi+1}/${totalParts}: ${(performance.now()-_ts).toFixed(0)}ms`);
 
     if (!data) return;
     caches.push({ data, halfExtent, gridSize: gs });
@@ -314,7 +318,9 @@ export async function loadOrbitalAsync(orbital, gridSize, targetParent, isBondFo
 
   setState({ currentCaches: caches });
   showProgress('Rendering...', 0.7);
+  const _tr = performance.now();
   await renderFromCachesAsync(s.currentProbability, gs, targetParent);
+  console.log(`[perf] renderFromCachesAsync: ${(performance.now()-_tr).toFixed(0)}ms`);
   console.log(`[perf] loadOrbitalAsync total: ${(performance.now()-_t0loa).toFixed(0)}ms`);
 
   hideProgress();

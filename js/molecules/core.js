@@ -135,6 +135,8 @@ export function addMol(mol) {
 
   if (mosList.length > 0) {
     // Electron density: sum of 2|ψᵢ|² over all listed MOs
+    // moList enables fast GPU/worker parallel sampling; customSample kept as fallback
+    const moList = moOrbitals.map(mo => ({ terms: mo.terms, occ: 2 }));
     const densitySampler = (x, y, z) => {
       let rho = 0;
       for (const mo of moOrbitals) {
@@ -145,6 +147,7 @@ export function addMol(mol) {
     };
     add({
       name: mol.name + ' electron density',
+      moList,
       customSample: densitySampler,
       halfExtent: mol.he,
       d1: 'Molecules', d2: mol.name, d3: 'electron density', d4: null,
@@ -154,6 +157,7 @@ export function addMol(mol) {
     // Electrostatic potential: V(r) = V_nuc(r) + V_el(r)
     add({
       name: mol.name + ' electrostatic potential',
+      moList,
       customSample: densitySampler,
       halfExtent: mol.he,
       d1: 'Molecules', d2: mol.name, d3: 'electrostatic potential', d4: null,
@@ -164,6 +168,7 @@ export function addMol(mol) {
     // Charge density: ρ_nuclear(Gaussian-smeared) − ρ_electronic
     add({
       name: mol.name + ' charge visualisation',
+      moList,
       customSample: densitySampler,
       halfExtent: mol.he,
       d1: 'Molecules', d2: mol.name, d3: 'charge visualisation', d4: null,
@@ -220,16 +225,11 @@ export function buildDisplacedDensitySampler(moleculeName, displacements) {
   const mol = MOLECULES[moleculeName];
   if (!mol || !mol.mos?.length) return null;
   const moOrbitals = mol.mos.map((_, i) => buildDisplacedOrbital(moleculeName, i, displacements));
+  // Build moList with displaced atom centers so GPU/worker path is used (not main thread)
+  const moList = moOrbitals.map(mo => ({ terms: mo.terms, occ: 2 }));
   return {
     name: `${moleculeName} density (vibrating)`,
-    customSample: (x, y, z) => {
-      let rho = 0;
-      for (const mo of moOrbitals) {
-        const psi = evaluateOrbital(mo, x, y, z);
-        rho += 2 * psi * psi;
-      }
-      return Math.sqrt(rho);
-    },
+    moList,
     halfExtent: mol.he,
   };
 }

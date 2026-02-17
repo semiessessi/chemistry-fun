@@ -125,7 +125,9 @@ let device   = null;
 let pipeline = null;
 
 // ---- Buffer pool (avoids alloc/destroy on every sample call) ----
-const gpuPool = { output: null, readback: null, size: 0 };
+// Guard: concurrent calls (e.g. 4-frame vibration batch) must not share the pool.
+// If the pool is busy, the caller falls through to the worker path instead.
+const gpuPool = { output: null, readback: null, size: 0, busy: false };
 
 function getPooledBuffers(N3) {
   const needed = N3 * 4;
@@ -197,6 +199,8 @@ function packTermsGPU(terms) {
 
 export async function sampleGridGPU(terms, N, halfExtent) {
   if (!device || !pipeline) return null;
+  if (gpuPool.busy) return null; // concurrent call — let worker path handle it
+  gpuPool.busy = true;
   try {
     const N3 = N * N * N;
 
@@ -256,6 +260,8 @@ export async function sampleGridGPU(terms, N, halfExtent) {
   } catch (e) {
     console.warn('sampleGridGPU failed:', e.message ?? e);
     return null;
+  } finally {
+    gpuPool.busy = false;
   }
 }
 
@@ -333,17 +339,19 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 `;
 
 let densityPipeline = null;
+let densityPipelineFailed = false;
 
 async function getDensityPipeline() {
-  if (!device) return null;
+  if (!device || densityPipelineFailed) return null;
   if (densityPipeline) return densityPipeline;
   try {
     const mod = device.createShaderModule({ code: DENSITY_SHADER_SRC });
     densityPipeline = device.createComputePipeline({ layout: 'auto', compute: { module: mod, entryPoint: 'main' } });
-    device.lost.then(() => { densityPipeline = null; });
+    device.lost.then(() => { densityPipeline = null; densityPipelineFailed = false; });
     return densityPipeline;
   } catch (e) {
-    console.warn('Density pipeline failed:', e.message ?? e);
+    densityPipelineFailed = true;
+    console.warn('Density pipeline failed (will use workers):', e.message ?? e);
     return null;
   }
 }
@@ -386,9 +394,11 @@ function packDensityBuffers(moList) {
 
 export async function sampleDensityGridGPU(moList, N, halfExtent) {
   if (!device) return null;
-  const pipe = await getDensityPipeline();
-  if (!pipe) return null;
+  if (gpuPool.busy) return null; // concurrent call — let worker path handle it
+  gpuPool.busy = true; // claim before any await to prevent concurrent access
   try {
+    const pipe = await getDensityPipeline();
+    if (!pipe) return null;
     const N3 = N * N * N;
     const { hdrBuf, termsBuf } = packDensityBuffers(moList);
 
@@ -436,6 +446,8 @@ export async function sampleDensityGridGPU(moList, N, halfExtent) {
   } catch (e) {
     console.warn('sampleDensityGridGPU failed:', e.message ?? e);
     return null;
+  } finally {
+    gpuPool.busy = false;
   }
 }
 
@@ -453,7 +465,7 @@ struct SorParams {
 @group(0) @binding(1) var<storage, read>      rho    : array<f32>;
 @group(0) @binding(2) var<storage, read_write> Vel   : array<f32>;
 
-@compute @workgroup_size(8, 8, 4)
+@compute @workgroup_size(8, 8, 2)
 fn sor_pass(@builtin(global_invocation_id) gid: vec3<u32>) {
   let ix = i32(gid.x) + 1;
   let iy = i32(gid.y) + 1;
@@ -475,12 +487,17 @@ let sorPipeline = null;
 async function getSorPipeline() {
   if (sorPipeline) return sorPipeline;
   if (!device) return null;
-  const mod = device.createShaderModule({ code: SOR_SHADER_SRC });
-  sorPipeline = device.createComputePipeline({
-    layout: 'auto',
-    compute: { module: mod, entryPoint: 'sor_pass' },
-  });
-  return sorPipeline;
+  try {
+    const mod = device.createShaderModule({ code: SOR_SHADER_SRC });
+    sorPipeline = await device.createComputePipelineAsync({
+      layout: 'auto',
+      compute: { module: mod, entryPoint: 'sor_pass' },
+    });
+    return sorPipeline;
+  } catch (e) {
+    console.warn('getSorPipeline failed:', e.message ?? e);
+    return null;
+  }
 }
 
 // Solves ∇²Vel = 4π·rho on an N³ grid via red-black SOR on the GPU.
@@ -537,7 +554,7 @@ export async function solvePoissonGPU(rho, N, step, numIter) {
 
     const wgX = Math.ceil((N - 2) / 8);
     const wgY = Math.ceil((N - 2) / 8);
-    const wgZ = Math.ceil((N - 2) / 4);
+    const wgZ = Math.ceil((N - 2) / 2); // workgroup_size z=2 → 128 invocations total (safe for all devices)
 
     // All SOR passes in one encoder — WebGPU guarantees sequential execution
     // within a command encoder, so each pass sees writes from the previous pass.
