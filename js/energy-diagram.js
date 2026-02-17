@@ -127,10 +127,12 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect, size =
     ctx.font = `${sizing.fontSize}px sans-serif`;
     ctx.textBaseline = 'middle';
 
+    const collapsedBars = [];
     for (let n = 1; n <= maxN; n++) {
       const energy = -13.6 / (n * n);
       const x = 30 + ((energy - eMin) / (eMax - eMin)) * barWidth;
       const isSelected = selectedOrbital?.d2 === `n=${n}`;
+      collapsedBars.push({ n, x });
 
       // Draw energy bar (vertical line)
       ctx.strokeStyle = isSelected ? COLORS.selected : COLORS.line;
@@ -153,6 +155,17 @@ export function renderAtomicDiagram(container, selectedOrbital, onSelect, size =
     ctx.fillText('0 eV', W - 25, barY + barHeight / 2);
     ctx.textAlign = 'right';
     ctx.fillText('-13.6', 28, barY + barHeight / 2);
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * (W / rect.width);
+      for (const bar of collapsedBars) {
+        if (Math.abs(mx - bar.x) < 10) {
+          if (onSelect) onSelect('Atomic', `n=${bar.n}`, 's', null);
+          return;
+        }
+      }
+    });
 
     return;
   }
@@ -352,10 +365,12 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
     ctx.font = `${sizing.fontSize}px sans-serif`;
     ctx.textBaseline = 'middle';
 
+    const collapsedBars = [];
     for (let i = 0; i < maxMOs; i++) {
       const moName = moList[i][0];
       const x = 20 + i * spacing;
       const isSelected = selectedOrbital?.d3 === moName;
+      collapsedBars.push({ moName, x });
 
       // Determine MO type for coloring
       let color = COLORS.line;
@@ -393,6 +408,17 @@ export function renderMolecularDiagram(container, moleculeName, moList, selected
     ctx.font = `7px sans-serif`;
     ctx.textAlign = 'right';
     ctx.fillText(moleculeName, W - 4, barY + barHeight - 2);
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * (W / rect.width);
+      for (const bar of collapsedBars) {
+        if (Math.abs(mx - bar.x) < spacing / 2 + 4) {
+          if (onSelect) onSelect(null, null, bar.moName, null);
+          return;
+        }
+      }
+    });
 
     return;
   }
@@ -555,10 +581,12 @@ export function renderDiatomicDiagram(container, selectedOrbital, onSelect, size
     ctx.font = `${sizing.fontSize}px sans-serif`;
     ctx.textBaseline = 'middle';
 
+    const collapsedBars = [];
     for (let i = 0; i < displayMOs.length; i++) {
       const mo = displayMOs[i];
       const x = 20 + i * spacing;
       const isSelected = selectedOrbital?.d2 === mo.d2 && selectedOrbital?.d3 === mo.d3;
+      collapsedBars.push({ mo, x });
 
       const color = mo.type === 'anti' ? COLORS.sigmaStar :
                     mo.name.includes('π') ? COLORS.pi : COLORS.sigma;
@@ -577,6 +605,17 @@ export function renderDiatomicDiagram(container, selectedOrbital, onSelect, size
       ctx.font = `7px sans-serif`;
       ctx.fillText(mo.name, x, barY - 2);
     }
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * (W / rect.width);
+      for (const bar of collapsedBars) {
+        if (Math.abs(mx - bar.x) < spacing / 2 + 4) {
+          if (onSelect) onSelect('Molecular', bar.mo.d2, bar.mo.d3, null);
+          return;
+        }
+      }
+    });
 
     return;
   }
