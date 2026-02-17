@@ -34,18 +34,18 @@ const envMap = createSimpleEnvMap();
 // ---- Element data (CPK colors, covalent radii for sphere display) ----
 
 export const ELEMENTS = {
-  H:  { color: 0xffffff, radius: 0.3 },
-  C:  { color: 0x000000, radius: 0.4 },  // Pure black
-  N:  { color: 0x1535e8, radius: 0.4 },  // Darker, more saturated blue
-  O:  { color: 0xdd0000, radius: 0.4 },  // Pure vivid red, fully saturated
+  H:  { color: 0xdcdcdc, radius: 0.3 },  // Soft white — shows specular shine
+  C:  { color: 0x000000, radius: 0.4, matOptions: { shininess: 15, specular: 0x0d0d0d, reflectivity: 0.02 } },
+  N:  { color: 0x0c20cc, radius: 0.4 },  // Darker, more saturated blue
+  O:  { color: 0xbb0000, radius: 0.4 },  // Deep vivid red
   B:  { color: 0xffb5b5, radius: 0.38 },
-  F:  { color: 0x90e050, radius: 0.35 },
-  Na: { color: 0xab5cf2, radius: 0.55 },
+  F:  { color: 0x60a818, radius: 0.35 },  // Darker yellow-green
+  Na: { color: 0x8030e0, radius: 0.55 },  // Darker purple
   Al: { color: 0xbfa6a6, radius: 0.50 },
   P:  { color: 0xcc5500, radius: 0.42 },  // Darker orange
-  S:  { color: 0xffff30, radius: 0.45 },
-  Cl: { color: 0x1ff01f, radius: 0.42 },
-  Ca: { color: 0x3dff00, radius: 0.58 },
+  S:  { color: 0xd4d400, radius: 0.45 },  // Darker saturated yellow
+  Cl: { color: 0x0ba80b, radius: 0.42 },  // Darker green
+  Ca: { color: 0x20b800, radius: 0.58 },  // Darker green
   Ti: { color: 0xbfc2c7, radius: 0.52 },
   Cu: { color: 0xc88033, radius: 0.48 },
   Fe: { color: 0xe06633, radius: 0.5 },
@@ -82,13 +82,14 @@ export function getElementMaterial(elem) {
     baseColor.setHSL(hsl.h, Math.min(1, hsl.s * 1.3), hsl.l);
     materialCache[elem] = new THREE.MeshPhongMaterial({
       color: baseColor.clone(),
-      shininess: 70,           // Reduced from 90
-      specular: 0x553322,      // Reduced from 0x886644
+      shininess: 70,
+      specular: 0x553322,
       envMap: envMap,
-      reflectivity: 0.08,      // Reduced from 0.2
+      reflectivity: 0.08,
       combine: THREE.MixOperation,
       emissive: baseColor.clone(),
       emissiveIntensity: 0.12,
+      ...el.matOptions,        // Per-element overrides (e.g. carbon's dull finish)
     });
   }
   return materialCache[elem];

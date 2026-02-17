@@ -42,9 +42,14 @@ export function detectAromaticRings(mol) {
 }
 
 export function makeAtomLabel(elem, x, y, z) {
-  // Black text for H, S (light/white colored atoms), white for others including C (now black ball)
-  const usesBlackText = elem === 'H' || elem === 'S';
-  const textColor = usesBlackText ? '#000000' : '#ffffff';
+  // Use luminance of the element's actual sphere color to pick text color
+  const elemHex = ELEMENTS[elem]?.color ?? 0x888888;
+  const lr = (elemHex >> 16) & 0xff;
+  const lg = (elemHex >> 8)  & 0xff;
+  const lb =  elemHex        & 0xff;
+  const luminance = (0.299 * lr + 0.587 * lg + 0.114 * lb) / 255;
+  const usesBlackText = luminance > 0.5;
+  const textColor   = usesBlackText ? '#000000' : '#ffffff';
   const strokeColor = usesBlackText ? '#ffffff' : '#000000';
 
   // 8x resolution for ultra-crisp antialiased labels
@@ -57,7 +62,7 @@ export function makeAtomLabel(elem, x, y, z) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
-  // H, S get ultra bold font, others normal
+  // Bold font for light-background elements (black text), regular for dark
   ctx.font = usesBlackText ? '900 176px sans-serif' : '176px sans-serif';  // 22 * 8
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
