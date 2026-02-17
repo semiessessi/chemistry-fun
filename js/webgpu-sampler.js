@@ -125,7 +125,8 @@ let device   = null;
 let pipeline = null;
 
 // ---- Buffer pool (avoids alloc/destroy on every sample call) ----
-const gpuPool = { output: null, readback: null, size: 0 };
+// busy: set synchronously before the first await so concurrent callers see it immediately
+const gpuPool = { output: null, readback: null, size: 0, busy: false };
 
 function getPooledBuffers(N3) {
   const needed = N3 * 4;
@@ -197,6 +198,8 @@ function packTermsGPU(terms) {
 
 export async function sampleGridGPU(terms, N, halfExtent) {
   if (!device || !pipeline) return null;
+  if (gpuPool.busy) return null;  // concurrent call — fall back to workers
+  gpuPool.busy = true;
   try {
     const N3 = N * N * N;
 
@@ -256,6 +259,8 @@ export async function sampleGridGPU(terms, N, halfExtent) {
   } catch (e) {
     console.warn('sampleGridGPU failed:', e.message ?? e);
     return null;
+  } finally {
+    gpuPool.busy = false;
   }
 }
 
@@ -386,8 +391,10 @@ function packDensityBuffers(moList) {
 
 export async function sampleDensityGridGPU(moList, N, halfExtent) {
   if (!device) return null;
+  if (gpuPool.busy) return null;  // concurrent call — fall back to workers
+  gpuPool.busy = true;            // claim synchronously before first await
   const pipe = await getDensityPipeline();
-  if (!pipe) return null;
+  if (!pipe) { gpuPool.busy = false; return null; }
   try {
     const N3 = N * N * N;
     const { hdrBuf, termsBuf } = packDensityBuffers(moList);
@@ -436,6 +443,8 @@ export async function sampleDensityGridGPU(moList, N, halfExtent) {
   } catch (e) {
     console.warn('sampleDensityGridGPU failed:', e.message ?? e);
     return null;
+  } finally {
+    gpuPool.busy = false;
   }
 }
 
