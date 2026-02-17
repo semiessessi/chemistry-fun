@@ -285,9 +285,10 @@ export function updateMoleculeContextPositions(moleculeName, displacements) {
   const mol = MOLECULES[moleculeName];
   if (!mol || !displacements) return;
 
-  for (const { mesh, label, atomIdx, origPos, origLabelPos } of trackedAtoms) {
+  for (const { mesh, ghost, label, atomIdx, origPos, origLabelPos } of trackedAtoms) {
     const d = displacements[atomIdx];
     mesh.position.set(origPos.x + d[0], origPos.y + d[1], origPos.z + d[2]);
+    if (ghost) ghost.position.copy(mesh.position);
     if (label && label.baseLayer && label.additiveLayer) {
       // New dual-layer label system: update both sprites
       const newPos = new THREE.Vector3(origLabelPos.x + d[0], origLabelPos.y + d[1], origLabelPos.z + d[2]);
@@ -333,8 +334,9 @@ export function updateMoleculeContextPositions(moleculeName, displacements) {
 }
 
 export function resetMoleculeContextPositions() {
-  for (const { mesh, label, origPos, origLabelPos } of trackedAtoms) {
+  for (const { mesh, ghost, label, origPos, origLabelPos } of trackedAtoms) {
     mesh.position.copy(origPos);
+    if (ghost) ghost.position.copy(origPos);
     if (label && label.baseLayer && label.additiveLayer) {
       // New dual-layer label system: update both sprites
       label.baseLayer.position.copy(origLabelPos);

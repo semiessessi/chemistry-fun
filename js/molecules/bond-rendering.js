@@ -188,6 +188,7 @@ export function renderAtoms(mol, meshesOut, trackedAtomsOut) {
 
     trackedAtomsOut.push({
       mesh,
+      ghost,
       label,
       atomIdx: ai,
       origPos: new THREE.Vector3(x, y, z),
