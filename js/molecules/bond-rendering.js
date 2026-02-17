@@ -71,8 +71,8 @@ export function makeAtomLabel(elem, x, y, z) {
   texture.minFilter = THREE.LinearFilter;
 
   // Dual-pass rendering: faint base + faintest punchthrough
-  // Black text (H, C, S) gets full opacity base layer for clarity
-  const baseOpacity = usesBlackText ? 1.0 : 0.25;
+  // Black text (H, C, S) gets higher opacity base layer for clarity
+  const baseOpacity = usesBlackText ? 0.75 : 0.25;
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),
