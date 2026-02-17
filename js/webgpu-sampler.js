@@ -102,7 +102,7 @@ fn evalTerm(ti: u32, x: f32, y: f32, z: f32) -> f32 {
   return t.coeff * R * Y * pow(t.zeta, 1.5);
 }
 
-@compute @workgroup_size(8, 8, 8)
+@compute @workgroup_size(8, 8, 4)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let N = params.N;
   if (gid.x >= N || gid.y >= N || gid.z >= N) { return; }
@@ -240,8 +240,7 @@ export async function sampleGridGPU(terms, N, halfExtent) {
     const pass    = encoder.beginComputePass();
     pass.setPipeline(pipeline);
     pass.setBindGroup(0, bindGroup);
-    const wg = 8;
-    pass.dispatchWorkgroups(Math.ceil(N / wg), Math.ceil(N / wg), Math.ceil(N / wg));
+    pass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8), Math.ceil(N / 4));
     pass.end();
     encoder.copyBufferToBuffer(outputGPU, 0, readbackGPU, 0, N3 * 4);
     device.queue.submit([encoder.finish()]);
@@ -320,7 +319,7 @@ fn evalTerm(ti: u32, x: f32, y: f32, z: f32) -> f32 {
   let Y=realSH(i32(t.l),t.m,t.angType,acos(clamp(dz/r,-1.0,1.0)),atan2(dy,dx));
   return t.coeff*R*Y*pow(t.zeta,1.5);
 }
-@compute @workgroup_size(8,8,8)
+@compute @workgroup_size(8,8,4)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let N=params.N; if(gid.x>=N||gid.y>=N||gid.z>=N){return;}
   let step=2.0*params.halfExtent/f32(N-1u);
@@ -428,8 +427,7 @@ export async function sampleDensityGridGPU(moList, N, halfExtent) {
     const pass = encoder.beginComputePass();
     pass.setPipeline(pipe);
     pass.setBindGroup(0, bindGroup);
-    const wg = 8;
-    pass.dispatchWorkgroups(Math.ceil(N / wg), Math.ceil(N / wg), Math.ceil(N / wg));
+    pass.dispatchWorkgroups(Math.ceil(N / 8), Math.ceil(N / 8), Math.ceil(N / 4));
     pass.end();
     encoder.copyBufferToBuffer(outputGPU, 0, readbackGPU, 0, N3 * 4);
     device.queue.submit([encoder.finish()]);
