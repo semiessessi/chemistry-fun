@@ -174,12 +174,9 @@ async function loadElectrostaticPotentialAsync(orbital) {
 export async function renderChargeVisualisation() {
   if (!chargeCache) return;
   const st = stateGetter();
+  // Capture old meshes now; clear them only after new ones are built to avoid blank flash.
+  const oldMeshes = st.currentMeshes.slice();
   const { posData, negData, halfExtent, gridSize } = chargeCache;
-
-  for (const m of st.currentMeshes) {
-    if (m.parent) m.parent.remove(m);
-    m.geometry.dispose();
-  }
 
   const layers = st.currentLayers;
   const mats = getLayerMaterials(layers, 'charge');
@@ -218,6 +215,11 @@ export async function renderChargeVisualisation() {
   addMeshes(posResult, mats.pos);
   addMeshes(negResult, mats.neg);
 
+  // Deferred swap: remove old meshes only after new ones are in scene.
+  for (const m of oldMeshes) {
+    if (m.parent) m.parent.remove(m);
+    m.geometry.dispose();
+  }
   stateSetter({ currentMeshes: meshes });
   updateLegend(layers, st.currentProbability, 'charge');
   updateOrbitalOpacity();
@@ -253,7 +255,6 @@ async function loadChargeDensityAsync(orbital) {
   stateSetter({ currentCaches: [{ data: chargeData, halfExtent, gridSize: gs }], chargeCache });
 
   showProgress('Rendering...', 0.7);
-  clearMeshes();
   await renderChargeVisualisation();
 
   if (!st.isDragging && !st.isDynamics) {
