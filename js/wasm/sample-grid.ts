@@ -1,5 +1,5 @@
 // AssemblyScript implementation of hydrogen orbital grid sampling.
-// Compiled with: npx asc js/wasm/sample-grid.as -o js/wasm/sample-grid.wasm --enable simd -O3 --runtime stub
+// Compiled with: npx asc js/wasm/sample-grid.ts -o js/wasm/sample-grid.wasm --enable simd --enable bulk-memory -O3 --runtime stub
 //
 // Term memory layout (18 × f32 = 72 bytes per term):
 //   [0]  cx    [1]  cy    [2]  cz
@@ -303,8 +303,8 @@ export function marchingCubesWasm(
   const N2: i32 = N * N;
   const N3: i32 = N2 * N;
 
-  // Clear edge cache to -1
-  for (var ci: i32 = 0; ci < N3 * 3 * 4; ci += 4) store<i32>(edgeCachePtr + ci, -1);
+  // Clear edge cache to -1 (0xFF×4 = 0xFFFFFFFF = -1 in two's complement)
+  memory.fill(edgeCachePtr, 0xFF, u32(N3 * 3 * 4));
 
   var vertCount: i32 = 0;
   var idxCount:  i32 = 0;
