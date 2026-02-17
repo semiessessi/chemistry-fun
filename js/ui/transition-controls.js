@@ -1,6 +1,7 @@
 // Transition controls: electron transition animation, spectrum bar visualization.
 
-import { TransitionController, transitionWavelength, wavelengthToRGB } from '../transitions.js';
+import { TransitionController, transitionWavelength, wavelengthToRGB, computeBohrFrequency, oscillationPeriod } from '../transitions.js';
+import { setFieldOscillation, setFieldVisVisible } from '../electric-field.js';
 
 export const transitionController = new TransitionController();
 
@@ -12,12 +13,24 @@ let d1Select;
 let transitionWrapper, transitionProgress, transitionProgressLabel, transitionProgressFill, transitionPlayBtn;
 let transitionScrubber, transitionScrubberDisplay;
 let spectrumBar, spectrumIndicator, spectrumLabel;
+let qedToggle, oscillationSpeedSlider, oscillationSpeedDisplay;
+let emFieldToggle, dipoleToggle;
+let bohrFreqDisplay, periodDisplay;
 
 export function initTransitionControls(elements, state, callbacks) {
   // Unpack DOM elements
   ({ transitionWrapper, transitionProgress, transitionProgressLabel, transitionProgressFill,
      transitionPlayBtn, transitionScrubber, transitionScrubberDisplay,
      spectrumBar, spectrumIndicator, spectrumLabel, d1Select } = elements);
+
+  // QED controls
+  qedToggle = document.getElementById('qed-oscillations');
+  oscillationSpeedSlider = document.getElementById('oscillation-speed');
+  oscillationSpeedDisplay = document.getElementById('oscillation-speed-display');
+  emFieldToggle = document.getElementById('show-em-field');
+  dipoleToggle = document.getElementById('show-dipole');
+  bohrFreqDisplay = document.getElementById('bohr-frequency');
+  periodDisplay = document.getElementById('oscillation-period');
 
   // Unpack state accessors
   ({ stateGetter, stateSetter } = state);
@@ -69,6 +82,46 @@ export function initTransitionControls(elements, state, callbacks) {
       }
     }
   });
+
+  // QED oscillations toggle
+  if (qedToggle) {
+    qedToggle.addEventListener('change', () => {
+      transitionController.qedMode = qedToggle.checked;
+    });
+  }
+
+  // Oscillation speed slider
+  if (oscillationSpeedSlider) {
+    oscillationSpeedSlider.addEventListener('input', () => {
+      const speed = parseFloat(oscillationSpeedSlider.value);
+      oscillationSpeedDisplay.textContent = `${speed.toFixed(1)}×`;
+      transitionController.oscillationSpeedMultiplier = speed;
+    });
+  }
+
+  // EM field toggle
+  if (emFieldToggle) {
+    emFieldToggle.addEventListener('change', () => {
+      transitionController.showEmField = emFieldToggle.checked;
+      if (emFieldToggle.checked && transitionController.state !== 'idle') {
+        setFieldOscillation(true, transitionController.displayOmega);
+        setFieldVisVisible(true);
+      } else {
+        setFieldOscillation(false);
+        setFieldVisVisible(false);
+      }
+    });
+  }
+
+  // Dipole moment toggle
+  if (dipoleToggle) {
+    dipoleToggle.addEventListener('change', () => {
+      transitionController.showDipole = dipoleToggle.checked;
+      if (transitionController.dipoleArrow) {
+        transitionController.dipoleArrow.visible = dipoleToggle.checked;
+      }
+    });
+  }
 }
 
 export function updateTransitionWrapperVisibility() {
@@ -114,6 +167,7 @@ export async function startTransitionBuild(orbital) {
 
   const wavelength = transitionWavelength(trans.n1, trans.n2);
   updateSpectrumBar(wavelength);
+  updateQedInfo(trans.n1, trans.n2);
 
   const colorMode = getColorMode();
   const settings = {
@@ -157,4 +211,14 @@ function updateSpectrumBar(wavelength) {
     const color = wavelengthToRGB(wavelength);
     spectrumIndicator.style.borderTopColor = `rgb(${color.r * 255}, ${color.g * 255}, ${color.b * 255})`;
   }
+}
+
+function updateQedInfo(n1, n2) {
+  if (!bohrFreqDisplay || !periodDisplay) return;
+
+  const omega = computeBohrFrequency(n1, n2);
+  const period = oscillationPeriod(n1, n2);
+
+  bohrFreqDisplay.textContent = `ω = ${(omega / 1e15).toFixed(2)}×10¹⁵ rad/s`;
+  periodDisplay.textContent = `T = ${period.toFixed(2)} fs`;
 }

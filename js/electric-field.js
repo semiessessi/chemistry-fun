@@ -318,8 +318,31 @@ export function setFieldMode(mode) { currentMode = mode; }
 export function setFieldSource(source) { currentSource = source; }
 export function getFieldSource() { return currentSource; }
 
-export function tickFieldAnimation(dt) {
+// ---- QED field oscillation support ----
+
+let fieldOscillationEnabled = false;
+let fieldOscillationOmega = 0;
+let fieldOscillationPhase = 0;
+
+export function setFieldOscillation(enabled, omega = 1.0) {
+  fieldOscillationEnabled = enabled;
+  fieldOscillationOmega = omega;
+  if (!enabled) fieldOscillationPhase = 0;
+}
+
+export function tickFieldAnimation(dt, emFieldPhase, emAmplitude = 1.0) {
   for (const mat of streamlineMaterials) {
     mat.uniforms.uTime.value += dt;
+  }
+
+  if (fieldOscillationEnabled && emFieldPhase !== undefined) {
+    const oscillation = Math.cos(fieldOscillationOmega * emFieldPhase);
+    const opacityScale = 0.5 + 0.5 * oscillation;
+
+    for (const mat of streamlineMaterials) {
+      if (mat.uniforms.uOpacity) {
+        mat.uniforms.uOpacity.value = 0.28 * opacityScale * emAmplitude;
+      }
+    }
   }
 }

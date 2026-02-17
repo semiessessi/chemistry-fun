@@ -48,10 +48,17 @@ export function getElementMaterial(elem) {
   if (!materialCache[elem]) {
     const el = ELEMENTS[elem] || { color: 0xcccccc };
     materialCache[elem] = new THREE.MeshPhongMaterial({
-      color: el.color, shininess: 60,
+      color: el.color,
+      shininess: 150,      // Much shinier (was 60)
+      specular: 0xffffff,  // Bright white specular highlights
     });
   }
   return materialCache[elem];
 }
 
-export const bondMaterial = new THREE.MeshPhongMaterial({ color: 0x666666, shininess: 30, side: THREE.DoubleSide });
+export const bondMaterial = new THREE.MeshPhongMaterial({
+  color: 0x666666,
+  shininess: 100,      // Shinier bonds (was 30)
+  specular: 0xaaaaaa,  // Subtle specular highlights
+  side: THREE.DoubleSide
+});

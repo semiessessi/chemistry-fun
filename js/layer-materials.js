@@ -118,6 +118,99 @@ export function applyOpacityScale(numLayers, colorMode, scale) {
   }
 }
 
+// ---- QED Oscillating Shaders ----
+
+export const transitionMaterials = [];
+
+export function createOscillatingMaterial(baseColor, baseOpacity, isTransition) {
+  if (!isTransition) {
+    return new THREE.MeshPhongMaterial({
+      color: baseColor,
+      transparent: true,
+      opacity: baseOpacity,
+      side: THREE.DoubleSide,
+      shininess: 40,
+      depthWrite: false
+    });
+  }
+
+  // Shader material with time-dependent modulation
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0.0 },
+      uOmega: { value: 1.0 },
+      uBaseColor: { value: new THREE.Color(baseColor) },
+      uBaseOpacity: { value: baseOpacity },
+      uInterferenceStrength: { value: 0.0 },  // 2c₁c₂
+      uLightPosition: { value: new THREE.Vector3(10, 10, 10) },
+    },
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vViewPosition;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        vViewPosition = -mvPosition.xyz;
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform float uOmega;
+      uniform vec3 uBaseColor;
+      uniform float uBaseOpacity;
+      uniform float uInterferenceStrength;
+      uniform vec3 uLightPosition;
+
+      varying vec3 vNormal;
+      varying vec3 vViewPosition;
+
+      void main() {
+        // Phong lighting
+        vec3 normal = normalize(vNormal);
+        vec3 lightDir = normalize(uLightPosition - vViewPosition);
+        vec3 viewDir = normalize(vViewPosition);
+        vec3 reflectDir = reflect(-lightDir, normal);
+
+        float ambient = 0.3;
+        float diffuse = max(dot(normal, lightDir), 0.0) * 0.6;
+        float specular = pow(max(dot(viewDir, reflectDir), 0.0), 40.0) * 0.3;
+
+        vec3 litColor = uBaseColor * (ambient + diffuse) + vec3(specular);
+
+        // Oscillating opacity modulation
+        float oscillation = cos(uOmega * uTime);
+        float opacityMod = 1.0 + uInterferenceStrength * oscillation;
+
+        float finalOpacity = uBaseOpacity * clamp(opacityMod, 0.2, 1.8);
+
+        gl_FragColor = vec4(litColor, finalOpacity);
+      }
+    `,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+
+  transitionMaterials.push(mat);
+  return mat;
+}
+
+export function tickTransitionMaterials(dt, omega, c1, c2) {
+  const interferenceStrength = 2 * c1 * c2;
+  for (const mat of transitionMaterials) {
+    if (mat.uniforms) {
+      mat.uniforms.uTime.value += dt;
+      mat.uniforms.uOmega.value = omega;
+      mat.uniforms.uInterferenceStrength.value = interferenceStrength;
+    }
+  }
+}
+
+export function clearTransitionMaterials() {
+  transitionMaterials.length = 0;
+}
+
 // ---- Legend ----
 
 function colorToCSS(threeColor, opacity) {

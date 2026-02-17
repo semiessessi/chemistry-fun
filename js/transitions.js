@@ -6,15 +6,17 @@
 import * as THREE from 'three';
 import { evaluateOrbital } from './math.js';
 import { sampleGrid, computeMultiThresholds } from './grid.js';
-import { getLayerMaterials } from './layer-materials.js';
+import { getLayerMaterials, clearTransitionMaterials, tickTransitionMaterials } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
 import { scene } from './scene.js';
 import { BaseFrameController } from './controllers/base-frame-controller.js';
 import { buildMeshesFromData } from './utils/mesh-builder.js';
+import { setFieldOscillation, tickFieldAnimation } from './electric-field.js';
 
 const NUM_FRAMES = 48;
 const RYDBERG = 13.605693122994; // Rydberg constant in eV
 const HC_EV_NM = 1239.84193; // hc in eV·nm
+const HBAR_EV_S = 6.582119569e-16;  // ℏ in eV·s
 
 // ---- Predefined transitions ----
 
@@ -71,6 +73,20 @@ export function wavelengthToRGB(nm) {
   return new THREE.Color(r * factor, g * factor, b * factor);
 }
 
+// ---- Bohr frequency calculation (QED oscillations) ----
+
+export function computeBohrFrequency(n1, n2) {
+  const E1 = -RYDBERG / (n1 * n1);
+  const E2 = -RYDBERG / (n2 * n2);
+  const deltaE = E2 - E1;
+  return deltaE / HBAR_EV_S;  // rad/s
+}
+
+export function oscillationPeriod(n1, n2) {
+  const omega = computeBohrFrequency(n1, n2);
+  return 2 * Math.PI / omega * 1e15;  // fs
+}
+
 // ---- TransitionController class ----
 
 export class TransitionController extends BaseFrameController {
@@ -80,6 +96,15 @@ export class TransitionController extends BaseFrameController {
     this.transition = null;
     this.orbital1 = null;
     this.orbital2 = null;
+    // QED oscillation properties
+    this.omega = 0;
+    this.displayOmega = 0;
+    this.qedMode = true;
+    this.oscillationTime = 0;
+    this.oscillationSpeedMultiplier = 2.0;
+    this.showEmField = false;
+    this.showDipole = true;
+    this.dipoleArrow = null;
   }
 
   async buildFrameCache(settings, onFrameReady, onComplete) {
@@ -98,6 +123,16 @@ export class TransitionController extends BaseFrameController {
     this.transition = transition;
     this.orbital1 = orbital1;
     this.orbital2 = orbital2;
+
+    // Calculate Bohr frequency for QED oscillations
+    this.omega = computeBohrFrequency(transition.n1, transition.n2);
+    // Scale for visualization (real period ~0.4 fs → visible ~0.4s)
+    this.displayOmega = this.omega * 1e-15 * 2.5;  // rad/s
+
+    // Enable field oscillation
+    if (this.showEmField) {
+      setFieldOscillation(true, this.displayOmega);
+    }
 
     for (let i = 0; i < NUM_FRAMES; i++) {
       if (stale()) return;
@@ -191,6 +226,56 @@ export class TransitionController extends BaseFrameController {
       this.state = 'ready';
       if (onComplete) onComplete();
     }
+  }
+
+  tick(dt) {
+    const baseChanged = super.tick(dt);
+
+    if (this.state === 'playing' && this.qedMode) {
+      this.oscillationTime += dt * this.oscillationSpeedMultiplier;
+
+      const t = this.phase;
+      const c1 = Math.cos(Math.PI * t / 2);
+      const c2 = Math.sin(Math.PI * t / 2);
+
+      // Update shader materials
+      tickTransitionMaterials(dt, this.displayOmega, c1, c2);
+
+      // Update EM field (if enabled)
+      if (this.showEmField) {
+        const emAmplitude = 1.0 - t;  // Absorption: field decays from 1 to 0
+        tickFieldAnimation(dt, this.oscillationTime, emAmplitude);
+      }
+
+      // Update dipole arrow
+      if (this.dipoleArrow && this.showDipole) {
+        const interferenceStrength = 2 * c1 * c2;
+        const oscillation = Math.cos(this.displayOmega * this.oscillationTime);
+        const dipoleMagnitude = interferenceStrength * oscillation;
+
+        // Scale arrow length
+        this.dipoleArrow.setLength(Math.abs(dipoleMagnitude) * 5.0, 1.0, 0.5);
+
+        // Color by direction: red for positive, blue for negative
+        const color = dipoleMagnitude > 0 ? 0xff0000 : 0x0000ff;
+        this.dipoleArrow.setColor(new THREE.Color(color));
+
+        this.dipoleArrow.visible = true;
+      }
+    }
+
+    return baseChanged;
+  }
+
+  cancel() {
+    super.cancel();
+    clearTransitionMaterials();
+    setFieldOscillation(false);
+    if (this.dipoleArrow) {
+      if (this.dipoleArrow.parent) this.dipoleArrow.parent.remove(this.dipoleArrow);
+      this.dipoleArrow = null;
+    }
+    this.oscillationTime = 0;
   }
 
 }
