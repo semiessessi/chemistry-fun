@@ -2,23 +2,27 @@
 
 import * as THREE from 'three';
 
-// ---- Simple environment map for subtle reflections ----
+// ---- Environment map with strong horizon for reflections ----
 
 function createSimpleEnvMap() {
-  const size = 128;
+  const size = 256;
   const canvas = document.createElement('canvas');
-  canvas.width = size;
+  canvas.width = size * 2;  // 2:1 equirectangular ratio
   canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  // Gradient from warm top to cool bottom
+  // Strong sky-to-ground gradient with a bright horizon
   const gradient = ctx.createLinearGradient(0, 0, 0, size);
-  gradient.addColorStop(0, '#f0f4ff');    // Cool sky
-  gradient.addColorStop(0.5, '#ffffff');  // White middle
-  gradient.addColorStop(1, '#fff8f0');    // Warm ground
+  gradient.addColorStop(0.0,  '#1a2a4a');  // Deep dark blue sky at top
+  gradient.addColorStop(0.35, '#4070c0');  // Mid blue sky
+  gradient.addColorStop(0.48, '#b0d0ff');  // Light sky near horizon
+  gradient.addColorStop(0.50, '#fffae0');  // Bright warm horizon line
+  gradient.addColorStop(0.52, '#c0a060');  // Warm ground near horizon
+  gradient.addColorStop(0.70, '#604020');  // Mid brown ground
+  gradient.addColorStop(1.0,  '#1a1008');  // Dark ground at bottom
 
   ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(0, 0, size * 2, size);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.mapping = THREE.EquirectangularReflectionMapping;
@@ -33,7 +37,7 @@ export const ELEMENTS = {
   H:  { color: 0xffffff, radius: 0.3 },
   C:  { color: 0x606060, radius: 0.4 },  // Darker gray
   N:  { color: 0x1535e8, radius: 0.4 },  // Darker, more saturated blue
-  O:  { color: 0xcc0800, radius: 0.4 },  // Darker, more saturated red
+  O:  { color: 0xdd0000, radius: 0.4 },  // Pure vivid red, fully saturated
   B:  { color: 0xffb5b5, radius: 0.38 },
   F:  { color: 0x90e050, radius: 0.35 },
   Na: { color: 0xab5cf2, radius: 0.55 },
@@ -76,8 +80,8 @@ export function getElementMaterial(elem) {
       color: el.color,
       shininess: 150,      // Much shinier (was 60)
       specular: 0xffffff,  // Bright white specular highlights
-      envMap: envMap,      // Subtle environment reflections
-      reflectivity: 0.15,  // Subtle reflection strength
+      envMap: envMap,      // Environment reflections
+      reflectivity: 0.25,  // 25% reflection strength
       combine: THREE.MixOperation,
     });
   }
