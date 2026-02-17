@@ -51,7 +51,7 @@ export function makeAtomLabel(elem, x, y, z) {
   const usesBlackText = luminance > 0.5;
 
   // Per-element text colour overrides; all others get plain white or black
-  const TEXT_TINT   = { C: '#aaaaaa', O: '#ffe800' };
+  const TEXT_TINT   = { C: '#dddddd', O: '#ffe800' };
   // Stroke matches the text hue so antialiased edges stay saturated, not dulled by black
   const STROKE_TINT = { C: '#333333', O: '#aa6600' };
   const textColor   = TEXT_TINT[elem]   ?? (usesBlackText ? '#000000' : '#ffffff');
@@ -90,7 +90,7 @@ export function makeAtomLabel(elem, x, y, z) {
   texture.anisotropy = 16;  // Maximum anisotropic filtering
 
   // Per-element brightness scale (applied to both passes)
-  const BRIGHTNESS = { C: 0.34 };
+  const BRIGHTNESS = { C: 0.55 };
   const brightness = BRIGHTNESS[elem] ?? 1.0;
 
   // Dual-pass rendering: base (occluded) + faint punchthrough (always on top)
