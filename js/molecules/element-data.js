@@ -35,7 +35,7 @@ const envMap = createSimpleEnvMap();
 
 export const ELEMENTS = {
   H:  { color: 0xffffff, radius: 0.3 },
-  C:  { color: 0x606060, radius: 0.4 },  // Darker gray
+  C:  { color: 0x000000, radius: 0.4 },  // Pure black
   N:  { color: 0x1535e8, radius: 0.4 },  // Darker, more saturated blue
   O:  { color: 0xdd0000, radius: 0.4 },  // Pure vivid red, fully saturated
   B:  { color: 0xffb5b5, radius: 0.38 },
