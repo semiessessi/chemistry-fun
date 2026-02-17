@@ -35,9 +35,9 @@ const envMap = createSimpleEnvMap();
 
 export const ELEMENTS = {
   H:  { color: 0xdcdcdc, radius: 0.3 },  // Soft white — shows specular shine
-  C:  { color: 0x000000, radius: 0.4, matOptions: { shininess: 15, specular: 0x0d0d0d, reflectivity: 0.02 } },
+  C:  { color: 0x3a3a3a, radius: 0.4, matOptions: { shininess: 15, specular: 0x0d0d0d, reflectivity: 0.02 } },  // Dark grey
   N:  { color: 0x0c20cc, radius: 0.4 },  // Darker, more saturated blue
-  O:  { color: 0xbb0000, radius: 0.4 },  // Deep vivid red
+  O:  { color: 0xcc2200, radius: 0.4 },  // Deep red with slight warm/yellow tint
   B:  { color: 0xffb5b5, radius: 0.38 },
   F:  { color: 0x60a818, radius: 0.35 },  // Darker yellow-green
   Na: { color: 0x8030e0, radius: 0.55 },  // Darker purple
