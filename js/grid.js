@@ -1,6 +1,7 @@
 // 3D grid sampling and probability-based threshold computation
 
 import { evaluateOrbital } from './math.js';
+import { radixSortFloat32 } from './radix-sort.js';
 
 export function sampleGrid(orbital, gridSize, halfExtent) {
   const data = new Float32Array(gridSize * gridSize * gridSize);
@@ -71,11 +72,10 @@ export function computeMultiThresholds(data, maxProbability, numLayers, halfExte
   // Normalize
   for (let i = 0; i < N; i++) probArr[i] /= totalProb;
 
-  // Sort descending (single sort)
-  const sorted = Array.from(probArr);
-  sorted.sort((a, b) => b - a);
+  // Sort ascending in-place (iterate in reverse for descending walk)
+  radixSortFloat32(probArr);
 
-  // Walk sorted array, emit threshold each time accum crosses a layer boundary
+  // Walk sorted array (high → low), emit threshold each time accum crosses a layer boundary
   const thresholds = [];
   let accum = 0;
   let layerIdx = 0;
@@ -84,10 +84,10 @@ export function computeMultiThresholds(data, maxProbability, numLayers, halfExte
     targets.push((i + 1) / numLayers * maxProbability);
   }
 
-  for (let i = 0; i < sorted.length; i++) {
-    accum += sorted[i];
+  for (let i = probArr.length - 1; i >= 0; i--) {
+    accum += probArr[i];
     while (layerIdx < numLayers && accum >= targets[layerIdx]) {
-      const psi2Threshold = sorted[i] * totalProb / voxelVol;
+      const psi2Threshold = probArr[i] * totalProb / voxelVol;
       thresholds.push(Math.sqrt(Math.max(psi2Threshold, 1e-30)));
       layerIdx++;
     }

@@ -279,6 +279,7 @@ export async function buildFieldVisAsync(caches, halfExtent, gridSize, parent, p
         await yield_();
       }
 
+      if (stale() || !fieldGroup) return;
       const coneMesh = createDirectionCones(coneDatas, fieldGroup, usePotColor);
       if (coneMesh) fieldMeshes.push(coneMesh);
     }

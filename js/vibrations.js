@@ -135,84 +135,89 @@ export class VibrationController extends BaseFrameController {
       const sampler = (colorMode === 'orbital' && moIndex !== undefined)
         ? buildDisplacedOrbital(moleculeName, moIndex, displacements)
         : buildDisplacedDensitySampler(moleculeName, displacements);
-      if (!sampler || stale()) return;
+      if (stale()) return;
 
-      // Sample grid (main thread chunked for customSample)
       const gs = gridSize;
       const he = halfExtent;
-      const data = await sampleGridAsync(sampler, gs, he, () => {});
-      if (!data || stale()) return;
 
       // Build marching cubes layers
       const group = new THREE.Group();
       const densityGroup = new THREE.Group();
       group.add(densityGroup);
-      const mats = getLayerMaterials(layers, colorMode);
 
-      if (colorMode === 'charge') {
-        // Compute charge density with displaced atom positions
-        const displacedAtomInfo = atomInfo.map((a, ai) => ({
-          Z: a.Z,
-          x: a.x + displacements[ai][0],
-          y: a.y + displacements[ai][1],
-          z: a.z + displacements[ai][2],
-        }));
-        const chargeData = await computeChargeDensity(displacedAtomInfo, data, gs, he, null);
-        if (stale()) return;
+      let data = null;
+      if (sampler) {
+        // Sample grid (main thread chunked for customSample)
+        data = await sampleGridAsync(sampler, gs, he, () => {});
+        if (!data || stale()) return;
 
-        // Split positive/negative with independent thresholds
-        const N3 = chargeData.length;
-        const posData = new Float32Array(N3);
-        const negCharge = new Float32Array(N3);
-        for (let j = 0; j < N3; j++) {
-          if (chargeData[j] > 0) posData[j] = chargeData[j];
-          else if (chargeData[j] < 0) negCharge[j] = -chargeData[j];
-        }
-        const posThresholds = computeMultiThresholds(posData, probability, layers, he, gs);
-        const negThresholds = computeMultiThresholds(negCharge, probability, layers, he, gs);
-        buildMeshesFromData({
-          data: posData,
-          halfExtent: he,
-          gridSize: gs,
-          thresholds: posThresholds,
-          materials: mats.pos,
-          parent: densityGroup,
-          layers: layers,
-        });
-        buildMeshesFromData({
-          data: negCharge,
-          halfExtent: he,
-          gridSize: gs,
-          thresholds: negThresholds,
-          materials: mats.neg,
-          parent: densityGroup,
-          layers: layers,
-        });
-      } else {
-        const thresholds = computeMultiThresholds(data, probability, layers, he, gs);
-        buildMeshesFromData({
-          data: data,
-          halfExtent: he,
-          gridSize: gs,
-          thresholds: thresholds,
-          materials: mats.pos,
-          parent: densityGroup,
-          layers: layers,
-        });
+        const mats = getLayerMaterials(layers, colorMode);
 
-        // Render negative side for orbital mode (density/ESP is always positive)
-        if (!isDensityLike) {
-          const negData = new Float32Array(data.length);
-          for (let j = 0; j < data.length; j++) negData[j] = -data[j];
+        if (colorMode === 'charge') {
+          // Compute charge density with displaced atom positions
+          const displacedAtomInfo = atomInfo.map((a, ai) => ({
+            Z: a.Z,
+            x: a.x + displacements[ai][0],
+            y: a.y + displacements[ai][1],
+            z: a.z + displacements[ai][2],
+          }));
+          const chargeData = await computeChargeDensity(displacedAtomInfo, data, gs, he, null);
+          if (stale()) return;
+
+          // Split positive/negative with independent thresholds
+          const N3 = chargeData.length;
+          const posData = new Float32Array(N3);
+          const negCharge = new Float32Array(N3);
+          for (let j = 0; j < N3; j++) {
+            if (chargeData[j] > 0) posData[j] = chargeData[j];
+            else if (chargeData[j] < 0) negCharge[j] = -chargeData[j];
+          }
+          const posThresholds = computeMultiThresholds(posData, probability, layers, he, gs);
+          const negThresholds = computeMultiThresholds(negCharge, probability, layers, he, gs);
           buildMeshesFromData({
-            data: negData,
+            data: posData,
             halfExtent: he,
             gridSize: gs,
-            thresholds: thresholds,
+            thresholds: posThresholds,
+            materials: mats.pos,
+            parent: densityGroup,
+            layers: layers,
+          });
+          buildMeshesFromData({
+            data: negCharge,
+            halfExtent: he,
+            gridSize: gs,
+            thresholds: negThresholds,
             materials: mats.neg,
             parent: densityGroup,
             layers: layers,
           });
+        } else {
+          const thresholds = computeMultiThresholds(data, probability, layers, he, gs);
+          buildMeshesFromData({
+            data: data,
+            halfExtent: he,
+            gridSize: gs,
+            thresholds: thresholds,
+            materials: mats.pos,
+            parent: densityGroup,
+            layers: layers,
+          });
+
+          // Render negative side for orbital mode (density/ESP is always positive)
+          if (!isDensityLike) {
+            const negData = new Float32Array(data.length);
+            for (let j = 0; j < data.length; j++) negData[j] = -data[j];
+            buildMeshesFromData({
+              data: negData,
+              halfExtent: he,
+              gridSize: gs,
+              thresholds: thresholds,
+              materials: mats.neg,
+              parent: densityGroup,
+              layers: layers,
+            });
+          }
         }
       }
 
@@ -220,7 +225,7 @@ export class VibrationController extends BaseFrameController {
       // so visibility can be toggled without rebuilding frames
       let fieldSubGroup = null;
       let fieldMats = [];
-      if (showFieldVis) {
+      if (showFieldVis && data) {
         fieldSubGroup = new THREE.Group();
         let displacedAtomInfo = null;
         if (atomInfo) {
@@ -251,7 +256,7 @@ export class VibrationController extends BaseFrameController {
       scene.add(group);
       group.visible = false;
 
-      this.frames[i] = { group, densityGroup, fieldGroup: fieldSubGroup, fieldMats, caches: [{ data, halfExtent: he, gridSize: gs }] };
+      this.frames[i] = { group, densityGroup, fieldGroup: fieldSubGroup, fieldMats, caches: data ? [{ data, halfExtent: he, gridSize: gs }] : [] };
       this.framesReady = i + 1;
 
       if (onFrameReady) onFrameReady(i, NUM_FRAMES);

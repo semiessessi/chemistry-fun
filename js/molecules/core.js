@@ -209,7 +209,7 @@ export function buildDisplacedOrbital(moleculeName, moIndex, displacements) {
 
 export function buildDisplacedDensitySampler(moleculeName, displacements) {
   const mol = MOLECULES[moleculeName];
-  if (!mol) return null;
+  if (!mol || !mol.mos?.length) return null;
   const moOrbitals = mol.mos.map((_, i) => buildDisplacedOrbital(moleculeName, i, displacements));
   return {
     name: `${moleculeName} density (vibrating)`,

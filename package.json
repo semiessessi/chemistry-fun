@@ -1,0 +1,11 @@
+{
+  "name": "orbital-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:wasm": "node_modules/.bin/asc js/wasm/sample-grid.ts -o js/wasm/sample-grid.wasm --enable simd -O3 --runtime stub"
+  },
+  "devDependencies": {
+    "assemblyscript": "^0.27.37"
+  }
+}

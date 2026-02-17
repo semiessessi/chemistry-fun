@@ -2,9 +2,14 @@
 // Distributes grid sampling, threshold computation, and marching cubes across workers.
 
 import { sampleGrid } from './grid.js';
+import { initWebGPU, sampleGridGPU } from './webgpu-sampler.js';
 
 const WORKER_URL = new URL('./compute-worker.js', import.meta.url).href;
-const NUM_WORKERS = Math.max(2, Math.min(8, navigator.hardwareConcurrency || 4));
+const NUM_WORKERS = Math.max(2, Math.min((navigator.hardwareConcurrency - 1) || 7, 16));
+
+// Kick off GPU init eagerly; sampleGridAsync checks gpuReady before dispatching workers
+let gpuReady = false;
+initWebGPU().then(ok => { gpuReady = ok; });
 
 // ---- Worker pool ----
 
@@ -84,9 +89,10 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
 
   // Worker path for density: dispatch moList to workers
   if (orbital.moList) {
-    const slicesPerWorker = Math.ceil(N / NUM_WORKERS);
+    const numChunks = NUM_WORKERS * 4;
+    const slicesPerWorker = Math.ceil(N / numChunks);
     const tasks = [];
-    for (let i = 0; i < NUM_WORKERS; i++) {
+    for (let i = 0; i < numChunks; i++) {
       const zStart = i * slicesPerWorker;
       const zEnd = Math.min(zStart + slicesPerWorker, N);
       if (zStart >= N) break;
@@ -157,10 +163,17 @@ export async function sampleGridAsync(orbital, gridSize, halfExtent, onProgress)
     });
   }
 
-  // Worker path: split Z-slices across workers
-  const slicesPerWorker = Math.ceil(N / NUM_WORKERS);
+  // GPU fast path: bypass workers entirely when WebGPU is available
+  if (gpuReady && orbital.terms) {
+    const gpuResult = await sampleGridGPU(orbital.terms, N, halfExtent);
+    if (gpuResult) return gpuResult;
+  }
+
+  // Worker path: split Z-slices across workers (finer chunks for better load-balancing)
+  const numChunks = NUM_WORKERS * 4;
+  const slicesPerWorker = Math.ceil(N / numChunks);
   const tasks = [];
-  for (let i = 0; i < NUM_WORKERS; i++) {
+  for (let i = 0; i < numChunks; i++) {
     const zStart = i * slicesPerWorker;
     const zEnd = Math.min(zStart + slicesPerWorker, N);
     if (zStart >= N) break;
