@@ -79,7 +79,7 @@ export function makeAtomLabel(elem, x, y, z) {
 
   // Dual-pass rendering: faint base + faintest punchthrough
   // Black text (H, C, S) gets higher opacity base layer for clarity
-  const baseOpacity = usesBlackText ? 0.75 : 0.25;
+  const baseOpacity = usesBlackText ? 0.6 : 0.25;
   const baseLayer = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: texture.clone(),

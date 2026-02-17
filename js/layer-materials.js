@@ -83,7 +83,27 @@ function makeMat(color, opacity) {
 
 const cache = {};
 
-export function getLayerMaterials(numLayers, colorMode) {
+export function getLayerMaterials(numLayers, colorMode, isTransition = false) {
+  // Don't cache transition materials (they need to be tracked separately)
+  if (isTransition) {
+    const mats = { pos: [], neg: [] };
+    for (let i = 0; i < numLayers; i++) {
+      const t = numLayers === 1 ? 0 : i / (numLayers - 1); // 0=inner, 1=outer
+      if (colorMode === 'density') {
+        mats.pos.push(createOscillatingMaterial(elevationColor(t), elevationOpacity(t), true));
+        mats.neg.push(mats.pos[i]); // density is always positive
+      } else if (colorMode === 'charge') {
+        mats.pos.push(createOscillatingMaterial(chargeRedRamp(t), orbitalOpacity(t), true));
+        mats.neg.push(createOscillatingMaterial(chargeBlueRamp(t), orbitalOpacity(t), true));
+      } else {
+        mats.pos.push(createOscillatingMaterial(redRamp(t), orbitalOpacity(t), true));
+        mats.neg.push(createOscillatingMaterial(blueRamp(t), orbitalOpacity(t), true));
+      }
+    }
+    return mats;
+  }
+
+  // Normal cached materials
   const key = `${numLayers}-${colorMode}`;
   if (cache[key]) return cache[key];
   const mats = { pos: [], neg: [] };

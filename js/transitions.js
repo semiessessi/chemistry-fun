@@ -178,7 +178,7 @@ export class TransitionController extends BaseFrameController {
 
       // Build meshes — exact same pattern as VibrationController
       const group = new THREE.Group();
-      const mats = getLayerMaterials(layers, colorMode);
+      const mats = getLayerMaterials(layers, colorMode, true);  // true = use QED oscillating shaders
 
       // computeMultiThresholds(data, probability, numLayers, halfExtent, gridSize)
       const thresholds = computeMultiThresholds(data, probability, layers, he, gs);
@@ -224,8 +224,56 @@ export class TransitionController extends BaseFrameController {
 
     if (!stale()) {
       this.state = 'ready';
+      // Create dipole moment arrow after frames are built
+      this.createDipoleArrow();
       if (onComplete) onComplete();
     }
+  }
+
+  computeTransitionDipole() {
+    // For hydrogen s→p transitions, dipole points along z
+    // More generally: ⟨ψ₁|er|ψ₂⟩
+    // Simplified: use l,m quantum numbers
+    if (!this.orbital1 || !this.orbital2) return new THREE.Vector3(0, 0, 1);
+
+    const l1 = this.orbital1.terms[0].l;
+    const l2 = this.orbital2.terms[0].l;
+
+    if (l1 === 0 && l2 === 1) {
+      return new THREE.Vector3(0, 0, 1);  // s→p: z-direction
+    } else if (l1 === 1 && l2 === 0) {
+      return new THREE.Vector3(0, 0, -1); // p→s: -z-direction
+    } else if (l1 === 1 && l2 === 2) {
+      return new THREE.Vector3(0, 0, 1);  // p→d: z-direction
+    } else if (l1 === 2 && l2 === 3) {
+      return new THREE.Vector3(0, 0, 1);  // d→f: z-direction
+    }
+    // Default: z-direction
+    return new THREE.Vector3(0, 0, 1);
+  }
+
+  createDipoleArrow() {
+    if (this.dipoleArrow) {
+      if (this.dipoleArrow.parent) this.dipoleArrow.parent.remove(this.dipoleArrow);
+      this.dipoleArrow = null;
+    }
+
+    // Compute transition dipole direction
+    const dipoleDir = this.computeTransitionDipole();
+
+    // Create arrow geometry (shaft + cone)
+    const arrowHelper = new THREE.ArrowHelper(
+      dipoleDir,
+      new THREE.Vector3(0, 0, 0),
+      5.0,  // length
+      0xff00ff,  // magenta color
+      1.0,  // head length
+      0.5   // head width
+    );
+
+    scene.add(arrowHelper);
+    arrowHelper.visible = false;  // Hidden by default, shown during oscillation
+    this.dipoleArrow = arrowHelper;
   }
 
   tick(dt) {
