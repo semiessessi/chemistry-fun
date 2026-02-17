@@ -9,11 +9,10 @@ import { sampleGrid, computeMultiThresholds } from './grid.js';
 import { getLayerMaterials } from './layer-materials.js';
 import { marchingCubes } from './marching-cubes.js';
 import { scene } from './scene.js';
-import { BaseFrameController, disposeThreeObject } from './controllers/base-frame-controller.js';
+import { BaseFrameController } from './controllers/base-frame-controller.js';
 import { buildMeshesFromData } from './utils/mesh-builder.js';
-import { PhotonWavePacket } from './photon-visualization.js';
 
-const NUM_FRAMES = 24;
+const NUM_FRAMES = 48;
 const RYDBERG = 13.605693122994; // Rydberg constant in eV
 const HC_EV_NM = 1239.84193; // hc in eV·nm
 
@@ -81,7 +80,6 @@ export class TransitionController extends BaseFrameController {
     this.transition = null;
     this.orbital1 = null;
     this.orbital2 = null;
-    this.photon = null;  // Photon wave packet visualization
   }
 
   async buildFrameCache(settings, onFrameReady, onComplete) {
@@ -104,10 +102,28 @@ export class TransitionController extends BaseFrameController {
     for (let i = 0; i < NUM_FRAMES; i++) {
       if (stale()) return;
 
-      // Smoothly morph from initial state to final state:
-      // t goes 0→1 over all frames
-      // c₁ = cos(π·t/2) goes 1→0, c₂ = sin(π·t/2) goes 0→1
-      const t = i / (NUM_FRAMES - 1);
+      // Animation sequence:
+      // Frames 0-9: Hold initial state (pure initial orbital)
+      // Frames 10-39: Very slow smooth transition
+      // Frames 40-47: Hold final state (pure final orbital)
+      const initialHold = 10;
+      const finalHold = 8;
+      const transitionFrames = NUM_FRAMES - initialHold - finalHold;
+      let t;
+
+      if (i < initialHold) {
+        // Hold initial state
+        t = 0;
+      } else if (i >= NUM_FRAMES - finalHold) {
+        // Hold final state
+        t = 1;
+      } else {
+        // Smooth transition with S-curve
+        const frameInTransition = i - initialHold;
+        const rawT = frameInTransition / transitionFrames;
+        t = rawT * rawT * (3 - 2 * rawT);  // S-curve smoothstep
+      }
+
       const c1 = Math.cos(Math.PI * t / 2);
       const c2 = Math.sin(Math.PI * t / 2);
 
@@ -173,73 +189,8 @@ export class TransitionController extends BaseFrameController {
 
     if (!stale()) {
       this.state = 'ready';
-
-      // Create photon wave packet for visual effect
-      const wavelength = transitionWavelength(transition.n1, transition.n2);
-      const startPos = new THREE.Vector3(0, 0, -12); // Start outside orbital
-      const targetPos = new THREE.Vector3(0, 0, 0); // Atom center
-      this.photon = new PhotonWavePacket(wavelength, startPos, targetPos);
-      scene.add(this.photon.mesh);
-
       if (onComplete) onComplete();
     }
   }
 
-  // Override tick to update photon visualization
-  tick(dt) {
-    if (this.state !== 'playing' || this.frames.length === 0) return false;
-
-    this.phase += dt * this.speed;
-    if (this.phase > 1) this.phase -= 1;
-
-    // Update photon wave packet
-    if (this.photon && this.photon.alive) {
-      this.photon.tick(dt, this.phase);
-    }
-
-    // Frame switching logic (from BaseFrameController)
-    const frameIdx = Math.floor(this.phase * this.frames.length);
-    if (frameIdx !== this.lastFrameIdx) {
-      this._switchFrame(frameIdx);
-      return true;
-    }
-    return false;
-  }
-
-  // Override cancel to clean up photon
-  cancel() {
-    this.generation++;
-    if (this.state === 'playing') this.pause();
-
-    // Dispose photon
-    if (this.photon) {
-      if (this.photon.mesh.parent) this.photon.mesh.parent.remove(this.photon.mesh);
-      this.photon.dispose();
-      this.photon = null;
-    }
-
-    this.disposeCache();
-    this.state = 'idle';
-  }
-
-  // Override disposeCache to include photon cleanup
-  disposeCache() {
-    // Clean up photon if it exists
-    if (this.photon) {
-      if (this.photon.mesh.parent) this.photon.mesh.parent.remove(this.photon.mesh);
-      this.photon.dispose();
-      this.photon = null;
-    }
-
-    // Call base disposeCache for frames
-    for (const frame of this.frames) {
-      if (frame && frame.group) {
-        if (frame.group.parent) frame.group.parent.remove(frame.group);
-        disposeThreeObject(frame.group);
-      }
-    }
-    this.frames = [];
-    this.framesReady = 0;
-    this.lastFrameIdx = -1;
-  }
 }

@@ -80,6 +80,8 @@ const transitionWrapper = document.getElementById('transition-wrapper');
 const transitionProgress = document.getElementById('transition-progress');
 const transitionProgressLabel = document.getElementById('transition-progress-label');
 const transitionProgressFill = document.getElementById('transition-progress-fill');
+const transitionScrubber = document.getElementById('transition-scrubber');
+const transitionScrubberDisplay = document.getElementById('transition-scrubber-display');
 const transitionPlayBtn = document.getElementById('transition-play');
 const spectrumBar = document.getElementById('spectrum-bar');
 const spectrumIndicator = document.getElementById('spectrum-indicator');
@@ -453,7 +455,8 @@ initVibrationControls(
 // Transition controls
 initTransitionControls(
   { transitionWrapper, transitionProgress, transitionProgressLabel, transitionProgressFill,
-    transitionPlayBtn, spectrumBar, spectrumIndicator, spectrumLabel, d1Select },
+    transitionScrubber, transitionScrubberDisplay, transitionPlayBtn,
+    spectrumBar, spectrumIndicator, spectrumLabel, d1Select },
   state,
   { getSelectedOrbital, adaptiveGrid, getColorMode }
 );
@@ -492,7 +495,14 @@ function animate() {
   tickFieldAnimation(dt);
   vibController.tickFieldAnimation(dt);
   const vibFrameChanged = vibController.tick(dt * 3);
-  transitionController.tick(dt * 2);
+  const transitionChanged = transitionController.tick(dt * 0.2);  // 20% speed - slow enough for study
+
+  // Update scrubber position during playback
+  if (transitionChanged && transitionController.state === 'playing') {
+    transitionScrubber.value = (transitionController.phase * 100).toFixed(1);
+    transitionScrubberDisplay.textContent = `${(transitionController.phase * 100).toFixed(1)}%`;
+  }
+
   const rxnFrameChanged = reactionController.tick(dt);
   if (rxnFrameChanged) {
     const t = reactionController.phase;

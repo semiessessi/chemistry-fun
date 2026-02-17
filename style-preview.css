@@ -1,5 +1,49 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { overflow: hidden; background: #0c0c0c; font-family: 'Segoe UI', Arial, sans-serif; color: #ddd; }
+
+:root {
+  /* Colors */
+  --bg-primary: #0a0a0a;          /* Near-black for orbital visibility */
+  --surface-raised: #181818;       /* Subtly raised from background */
+  --surface-raised-hover: #1c1c1c; /* Hover state */
+  --surface-inset: #0e0e0e;        /* Pressed/inset darker than bg */
+  --accent-cyan: #66aaff;
+  --accent-orange: #ff9966;
+  --accent-cyan-light: #77ddff;
+  --text-primary: #e0e0e0;
+  --text-muted: #999;
+
+  /* Shadows - Raised elements (adjusted for near-black bg) */
+  --shadow-raised-lg: 8px 8px 16px rgba(0,0,0,0.8), -8px -8px 16px rgba(40,40,40,0.08);
+  --shadow-raised-md: 6px 6px 12px rgba(0,0,0,0.7), -6px -6px 12px rgba(35,35,35,0.08);
+  --shadow-raised-sm: 4px 4px 8px rgba(0,0,0,0.7), -4px -4px 8px rgba(30,30,30,0.08);
+  --shadow-raised-xs: 3px 3px 6px rgba(0,0,0,0.6), -3px -3px 6px rgba(30,30,30,0.08);
+
+  /* Shadows - Raised hover (slightly reduced) */
+  --shadow-raised-sm-hover: 3px 3px 6px rgba(0,0,0,0.7), -3px -3px 6px rgba(35,35,35,0.1);
+  --shadow-raised-xs-hover: 2px 2px 4px rgba(0,0,0,0.7), -2px -2px 4px rgba(30,30,30,0.1);
+
+  /* Shadows - Inset elements */
+  --shadow-inset-md: inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(40,40,40,0.1);
+  --shadow-inset-sm: inset 2px 2px 4px rgba(0,0,0,0.5), inset -2px -2px 4px rgba(40,40,40,0.1);
+  --shadow-inset-xs: inset 2px 2px 4px rgba(0,0,0,0.4);
+
+  /* Shadows - Active/pressed */
+  --shadow-pressed: inset 2px 2px 4px rgba(0,0,0,0.6), inset -2px -2px 4px rgba(40,40,40,0.05);
+
+  /* Shadows - Focus glow */
+  --shadow-focus: 0 0 0 2px rgba(102,170,255,0.3);
+
+  /* Shadows - Combined (inset + focus) */
+  --shadow-inset-focus: inset 3px 3px 6px rgba(0,0,0,0.5), inset -3px -3px 6px rgba(40,40,40,0.1), 0 0 0 2px rgba(102,170,255,0.3);
+
+  /* Border radius */
+  --radius-lg: 12px;
+  --radius-md: 10px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+}
+
+body { overflow: hidden; background: var(--bg-primary); font-family: 'Segoe UI', Arial, sans-serif; color: var(--text-primary); }
 canvas { display: block; }
 #top-bar {
   position: absolute;
@@ -16,20 +60,24 @@ canvas { display: block; }
   display: none;
   width: 40px;
   height: 40px;
-  background: rgba(0,0,0,0.75);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 8px;
+  background: var(--surface-raised);
+  border: none;
+  border-radius: var(--radius-md);
   color: #ccc;
   font-size: 22px;
   cursor: pointer;
-  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-raised-md);
   padding: 0;
   line-height: 40px;
   text-align: center;
   flex-shrink: 0;
   align-self: flex-start;
 }
-#panel-open:hover { background: rgba(40,40,40,0.85); color: #fff; }
+#panel-open:hover {
+  background: var(--surface-raised-hover);
+  box-shadow: var(--shadow-raised-sm-hover);
+  color: #fff;
+}
 #top-bar.collapsed #panel-open { display: block; }
 #top-bar.collapsed #controls { display: none; }
 #panel-close {
@@ -38,25 +86,30 @@ canvas { display: block; }
   right: 10px;
   width: 28px;
   height: 28px;
-  background: none;
-  border: 1px solid rgba(255,255,255,0.15);
-  border-radius: 6px;
+  background: var(--surface-raised);
+  border: none;
+  border-radius: var(--radius-xs);
   color: #888;
   font-size: 18px;
   cursor: pointer;
+  box-shadow: var(--shadow-raised-xs);
   padding: 0;
   line-height: 26px;
   text-align: center;
 }
-#panel-close:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
+#panel-close:hover {
+  background: var(--surface-raised-hover);
+  box-shadow: var(--shadow-raised-xs-hover);
+  color: #fff;
+}
 #controls {
   position: relative;
-  background: rgba(0,0,0,0.75);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
+  background: var(--surface-raised);
+  border: none;
+  border-radius: var(--radius-lg);
   padding: 18px 22px;
   min-width: 320px;
-  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-raised-lg);
 }
 #controls label {
   display: block;

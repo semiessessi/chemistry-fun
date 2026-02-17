@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Generate Proper MOs for New Molecules</title>
+  <style>
+    body {
+      font-family: 'Consolas', monospace;
+      background: #1a1a1a;
+      color: #ddd;
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    h1 { color: #6af; }
+    textarea {
+      width: 100%;
+      height: 400px;
+      background: #2a2a2a;
+      color: #0f0;
+      border: 1px solid #444;
+      font-family: 'Consolas', monospace;
+      font-size: 11px;
+      padding: 10px;
+    }
+    button {
+      background: #6af;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      margin: 10px 5px;
+      border-radius: 4px;
+    }
+    button:hover { background: #8cf; }
+    .status { padding: 10px; background: #2a4a2a; margin: 10px 0; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Generate Proper MOs for New Molecules</h1>
+  <p>This tool will regenerate the MO arrays using the proper generateMOs() function.</p>
+
+  <div class="status" id="status">Ready. Click a button to generate MOs...</div>
+
+  <button onclick="generateForFile('saccharides')">Generate Saccharides MOs</button>
+  <button onclick="generateForFile('oligopeptides')">Generate Oligopeptides MOs</button>
+  <button onclick="generateForFile('lipids')">Generate Lipids MOs</button>
+  <button onclick="generateForFile('vitaminsB')">Generate Vitamins B MOs</button>
+  <button onclick="generateForFile('neurotransmitters')">Generate Neurotransmitters MOs</button>
+
+  <h3>Generated Code (copy and paste into the .js file):</h3>
+  <textarea id="output"></textarea>
+
+  <script type="module">
+    import { generateMOs } from '../js/pubchem-mo.js';
+
+    // Define molecules by category
+    const MOLECULES = {
+      saccharides: [
+        { name: 'Ribose', file: 'saccharides-new.js' },
+        { name: 'Fructose', file: 'saccharides-new.js' },
+        { name: 'Lactose', file: 'saccharides-new.js' },
+        { name: 'Maltose', file: 'saccharides-new.js' },
+        { name: 'Xylose', file: 'saccharides-new.js' }
+      ],
+      oligopeptides: [
+        { name: 'Gly-Gly-Gly', file: 'oligopeptides-new.js' },
+        { name: 'Ala-Gly-Gly', file: 'oligopeptides-new.js' },
+        { name: 'Gly-Pro-Hyp', file: 'oligopeptides-new.js' },
+        { name: 'Ser-Gly', file: 'oligopeptides-new.js' },
+        { name: 'Val-Ala', file: 'oligopeptides-new.js' }
+      ],
+      lipids: [
+        { name: 'Glycerol', file: 'lipids.js' },
+        { name: 'Propylene glycol', file: 'lipids.js' },
+        { name: 'Palmitic acid', file: 'lipids.js' }
+      ],
+      vitaminsB: [
+        { name: 'Thiamine', file: 'vitamins-b.js' },
+        { name: 'Riboflavin', file: 'vitamins-b.js' },
+        { name: 'Niacin', file: 'vitamins-b.js' },
+        { name: 'Pantothenic acid', file: 'vitamins-b.js' },
+        { name: 'Pyridoxine', file: 'vitamins-b.js' },
+        { name: 'Biotin', file: 'vitamins-b.js' },
+        { name: 'Folic acid', file: 'vitamins-b.js' }
+      ],
+      neurotransmitters: [
+        { name: 'Nicotine', file: 'neurotransmitters-new.js' },
+        { name: 'Choline', file: 'neurotransmitters-new.js' },
+        { name: 'Acetylcholine', file: 'neurotransmitters-new.js' }
+      ]
+    };
+
+    // Load molecule files dynamically
+    let loadedMolecules = {};
+
+    async function loadMoleculeFile(filePath) {
+      const response = await fetch(filePath);
+      const text = await response.text();
+
+      // Parse atoms and bonds from the file
+      const molecules = [];
+      const regex = /name:\s*'([^']+)',[\s\S]*?atoms:\s*\[([\s\S]*?)\],[\s\S]*?bonds:\s*\[([\s\S]*?)\]/g;
+
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        const name = match[1];
+        const atomsText = match[2];
+        const bondsText = match[3];
+
+        // Parse atoms
+        const atomMatches = [...atomsText.matchAll(/\['([^']+)',\s*([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\]/g)];
+        const atoms = atomMatches.map(m => [m[1], parseFloat(m[2]), parseFloat(m[3]), parseFloat(m[4])]);
+
+        // Parse bonds
+        const bondMatches = [...bondsText.matchAll(/\[(\d+),\s*(\d+)(?:,\s*(\d+))?\]/g)];
+        const bonds = bondMatches.map(m => {
+          const bond = [parseInt(m[1]), parseInt(m[2])];
+          if (m[3]) bond.push(parseInt(m[3]));
+          return bond;
+        });
+
+        molecules.push({ name, atoms, bonds });
+      }
+
+      return molecules;
+    }
+
+    window.generateForFile = async function(category) {
+      const status = document.getElementById('status');
+      const output = document.getElementById('output');
+
+      status.textContent = `Loading ${category} molecules...`;
+      output.value = '';
+
+      try {
+        const mols = MOLECULES[category];
+        const filePath = `../js/molecules/${mols[0].file}`;
+
+        const loadedMols = await loadMoleculeFile(filePath);
+
+        let outputText = '';
+
+        for (const mol of loadedMols) {
+          status.textContent = `Generating MOs for ${mol.name}...`;
+
+          // Generate MOs
+          const mos = generateMOs(mol.atoms, mol.bonds);
+
+          // Format MO array
+          outputText += `\n// ${mol.name} - Generated MOs\n`;
+          outputText += `  mos: [\n`;
+
+          for (const [moName, termDefs] of mos) {
+            outputText += `    ['${moName}', [\n`;
+            for (const term of termDefs) {
+              const [atomIdx, n, l, m, angType, coeff, rot] = term;
+              if (rot) {
+                const rotStr = '[' + rot.map(v => v.toFixed(4)).join(', ') + ']';
+                outputText += `      [${atomIdx}, ${n}, ${l}, ${m}, '${angType}', ${coeff.toFixed(4)}, ${rotStr}],\n`;
+              } else {
+                outputText += `      [${atomIdx}, ${n}, ${l}, ${m}, '${angType}', ${coeff.toFixed(4)}],\n`;
+              }
+            }
+            outputText += `    ]],\n`;
+          }
+
+          outputText += `  ],\n\n`;
+        }
+
+        output.value = outputText;
+        status.textContent = `✓ Generated MOs for ${loadedMols.length} molecules in ${category}. Copy the code above and replace the mos arrays in ${mols[0].file}`;
+
+      } catch (err) {
+        status.textContent = `✗ Error: ${err.message}`;
+        console.error(err);
+      }
+    };
+  </script>
+</body>
+</html>

@@ -10,18 +10,44 @@ let d1Select;
 
 // DOM elements
 let transitionWrapper, transitionProgress, transitionProgressLabel, transitionProgressFill, transitionPlayBtn;
+let transitionScrubber, transitionScrubberDisplay;
 let spectrumBar, spectrumIndicator, spectrumLabel;
 
 export function initTransitionControls(elements, state, callbacks) {
   // Unpack DOM elements
   ({ transitionWrapper, transitionProgress, transitionProgressLabel, transitionProgressFill,
-     transitionPlayBtn, spectrumBar, spectrumIndicator, spectrumLabel, d1Select } = elements);
+     transitionPlayBtn, transitionScrubber, transitionScrubberDisplay,
+     spectrumBar, spectrumIndicator, spectrumLabel, d1Select } = elements);
 
   // Unpack state accessors
   ({ stateGetter, stateSetter } = state);
 
   // Unpack callbacks
   ({ getSelectedOrbital, adaptiveGrid, getColorMode } = callbacks);
+
+  // Timeline scrubber - manually control position
+  if (!transitionScrubber) {
+    console.error('transitionScrubber element not found!');
+    return;
+  }
+
+  transitionScrubber.addEventListener('input', () => {
+    const percent = parseFloat(transitionScrubber.value);
+    transitionScrubberDisplay.textContent = `${percent.toFixed(1)}%`;
+
+    // If playing, pause and seek
+    if (transitionController.state === 'playing') {
+      transitionController.pause();
+      transitionPlayBtn.textContent = '\u25B6 Play';
+    }
+
+    // Seek to position
+    if (transitionController.state === 'ready') {
+      transitionController.phase = percent / 100;
+      const frameIdx = Math.floor(transitionController.phase * transitionController.frames.length);
+      transitionController._switchFrame(frameIdx);
+    }
+  });
 
   // Play/pause button
   transitionPlayBtn.addEventListener('click', () => {

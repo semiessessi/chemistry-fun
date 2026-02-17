@@ -42,9 +42,10 @@ export function detectAromaticRings(mol) {
 }
 
 export function makeAtomLabel(elem, x, y, z) {
-  // Use black text for hydrogen (white spheres), white for others
-  const textColor = elem === 'H' ? '#000000' : '#ffffff';
-  const strokeColor = elem === 'H' ? '#ffffff' : '#000000';
+  // Black text for H, C, S (light/white colored atoms), white for others
+  const usesBlackText = elem === 'H' || elem === 'C' || elem === 'S';
+  const textColor = usesBlackText ? '#000000' : '#ffffff';
+  const strokeColor = usesBlackText ? '#ffffff' : '#000000';
 
   // 4x resolution for crisp labels
   const canvas = document.createElement('canvas');
@@ -52,14 +53,14 @@ export function makeAtomLabel(elem, x, y, z) {
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
 
-  // H gets ultra bold font, others normal
-  ctx.font = elem === 'H' ? '900 88px sans-serif' : '88px sans-serif';  // 22 * 4
+  // H, C, S get ultra bold font, others normal
+  ctx.font = usesBlackText ? '900 88px sans-serif' : '88px sans-serif';  // 22 * 4
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   // Draw stroke (outline) for better contrast - scaled to 4x
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = elem === 'H' ? 2.5 : 6.0;  // Subtler white stroke for H
+  ctx.lineWidth = usesBlackText ? 2.5 : 6.0;  // Subtler white stroke for H/C/S
   ctx.strokeText(elem, 128, 128);  // Center: 32 * 4
 
   // Draw fill
