@@ -36,10 +36,17 @@ const rimLight = new THREE.DirectionalLight(0xd0f8ec, 0.15);
 rimLight.position.set(-2, 6, -10);
 scene.add(rimLight);
 
-// Bottom fill — warm blue-green underlight
-const bottomLight = new THREE.DirectionalLight(0x90d8ff, 0.22);
-bottomLight.position.set(0, -8, 2);
-scene.add(bottomLight);
+// Bottom fill — three underlights 120° apart, colours sum to neutral white
+// amber (0°) + mint (120°) + violet (240°) → (1.0+0.5+0.69, 0.69+1.0+0.5, 0.5+0.69+1.0) = equal
+const uLightA = new THREE.DirectionalLight(0xffb060, 0.28); // warm amber — back-below
+uLightA.position.set(0, -8, 9);
+scene.add(uLightA);
+const uLightB = new THREE.DirectionalLight(0x60ffb0, 0.28); // cool mint — front-left-below
+uLightB.position.set(-8, -8, -5);
+scene.add(uLightB);
+const uLightC = new THREE.DirectionalLight(0xb060ff, 0.28); // soft violet — front-right-below
+uLightC.position.set(8, -8, -5);
+scene.add(uLightC);
 
 // ---- Adaptive grid & axes (XZ plane, labeled in Ångströms) ----
 
