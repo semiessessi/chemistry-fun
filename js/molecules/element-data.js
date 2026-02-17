@@ -104,7 +104,7 @@ export function getGhostMaterial(elem) {
     ghostCache[elem] = new THREE.MeshPhongMaterial({
       color: el.color,
       transparent: true,
-      opacity: 0.05,
+      opacity: 0.20,
       depthTest: false,
       depthWrite: false,
       side: THREE.FrontSide,
